@@ -63,6 +63,7 @@ const char * TR_VerboseLog::_vlogTable[] =
    "#PROFILING: ",
    "#JITServer: ",
    "#AOTCOMPRESSION: ",
+   "#SelectInliner: "
    };
 
 void TR_VerboseLog::writeLine(TR_VlogTag tag, const char *format, ...)
