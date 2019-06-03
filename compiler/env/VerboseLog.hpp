@@ -71,6 +71,7 @@ enum TR_VlogTag
    TR_Vlog_PROFILING,
    TR_Vlog_JITServer,
    TR_Vlog_AOTCOMPRESSION,
+   TR_Vlog_CWO,
    TR_Vlog_numTags
    };
 
