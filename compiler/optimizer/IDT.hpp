@@ -16,12 +16,7 @@ private:
   int _max_idx = -1;
   IDTNode *_root;
   int
-  next_idx();
-  // Returns NULL if 0 or > 1 children
-  static IDTNode *
-  getOnlyChild(IDTNode *owner);
-  static void
-  setOnlyChild(IDTNode *owner, IDTNode *child);
+  nextIdx();
 public:
   IDT(TR_InlinerBase *inliner,
       TR::Region *mem,
@@ -70,4 +65,9 @@ private:
   printNodeThenChildren(IDT *idt, int callerIndex);
   uint32_t
   getBcSz();
+  // Returns NULL if 0 or > 1 children
+  IDTNode *
+  getOnlyChild();
+  void
+  setOnlyChild(IDTNode *child);
 };
