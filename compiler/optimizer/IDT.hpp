@@ -22,12 +22,6 @@ public:
       TR::Region *mem,
       TR::ResolvedMethodSymbol* rms);
   IDTNode *getRoot();
-  IDTNode *
-  addChildIfNotExists(
-    IDTNode *prerequisite,
-    int32_t callsite_bci,
-    TR::ResolvedMethodSymbol* rms
-  );
   TR::Compilation *
   comp();
 private:
@@ -52,6 +46,12 @@ public:
   IDTNode();
   size_t
   numChildren();
+  IDTNode *
+  addChildIfNotExists(
+    IDT *idt,
+    int32_t callsite_bci,
+    TR::ResolvedMethodSymbol* rms
+  );
 private:
   typedef TR::deque<IDTNode, TR::Region&> Children;
   int _idx;
