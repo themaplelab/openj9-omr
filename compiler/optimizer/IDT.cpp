@@ -2,8 +2,6 @@
 
 #define SINGLE_CHILD_BIT 1
 
-#define INITIAL_NUM_children (10)
-
 IDTNode::IDTNode() {}
 
 IDTNode::IDTNode(IDT* idt, int32_t callsite_bci, TR::ResolvedMethodSymbol* rms)
@@ -105,29 +103,29 @@ IDT::nextIdx()
   }
 
 IDTNode*
-IDT::addChildIfNotExists(IDTNode* prerequisite,
+IDTNode::addChildIfNotExists(IDT* idt,
                          int32_t callsite_bci,
                          TR::ResolvedMethodSymbol* rms)
   {
   // 0 Children
-  if (prerequisite->_children == nullptr)
+  if (_children == nullptr)
     {
-    IDTNode* created = new (*_mem) IDTNode(this, callsite_bci, rms);
-    prerequisite->setOnlyChild(created);
+    IDTNode* created = new (*idt->_mem) IDTNode(idt, callsite_bci, rms);
+    setOnlyChild(created);
     return created;
     }
   // 1 Child
-  IDTNode* onlyChild = prerequisite->getOnlyChild();
+  IDTNode* onlyChild = getOnlyChild();
   if (onlyChild != nullptr)
     {
-    prerequisite->_children = new (*_mem) IDTNode::Children(*_mem);
-    TR_ASSERT_FATAL(!((size_t)prerequisite->_children & 1), "Maligned memory address.\n");
-    prerequisite->_children->push_back(*onlyChild);
+    _children = new (*idt->_mem) IDTNode::Children(*idt->_mem);
+    TR_ASSERT_FATAL(!((uintptr_t)_children & SINGLE_CHILD_BIT), "Maligned memory address.\n");
+    _children->push_back(*onlyChild);
     // Fall through to two child case.
     }
 
   // 2+ children
-  IDTNode::Children* children = prerequisite->_children;
+  IDTNode::Children* children = _children;
 
   for (auto curr = children->begin(); curr != children->end(); ++curr)
     {
@@ -137,8 +135,8 @@ IDT::addChildIfNotExists(IDTNode* prerequisite,
       }
     }
 
-  prerequisite->_children->push_back(IDTNode(this, callsite_bci, rms));
-  return &prerequisite->_children->back();
+  _children->push_back(IDTNode(idt, callsite_bci, rms));
+  return &_children->back();
 }
 
 bool

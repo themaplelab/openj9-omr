@@ -89,7 +89,7 @@ OMR::BenefitInliner::obtainIDT(TR_CallSite *callsite, int32_t budget, TR_ByteCod
          if (!comp()->incInlineDepth(resolvedMethodSymbol, callsite->_bcInfo, callsite->_cpIndex, NULL, !callTarget->_myCallSite->isIndirectCall(), 0)) continue;
 
          IDTNode *prev = _currentIDTNode; 
-         _currentIDTNode = _idt->addChildIfNotExists(prev, callsite->_byteCodeIndex, resolvedMethodSymbol);
+         _currentIDTNode = prev->addChildIfNotExists(_idt, callsite->_byteCodeIndex, resolvedMethodSymbol);
          if (_currentIDTNode != NULL) 
             {
             this->obtainIDT(resolvedMethodSymbol, budget);
