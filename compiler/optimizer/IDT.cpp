@@ -1,5 +1,7 @@
 #include "IDT.hpp"
 
+#define SINGLE_CHILD_BIT 1
+
 #define INITIAL_NUM_children (10)
 
 IDTNode::IDTNode() {}
@@ -78,7 +80,7 @@ IDT::getOnlyChild(IDTNode* owner)
   {
   if (((size_t)owner->_children) & 1)
     {
-    return (IDTNode *)(void*)(((size_t)(owner->_children)>>1)<<1);
+    return (IDTNode *)((uintptr_t)(owner->_children) & ~SINGLE_CHILD_BIT);
     }
   return nullptr;
   }
@@ -86,7 +88,7 @@ IDT::getOnlyChild(IDTNode* owner)
 void
 IDT::setOnlyChild(IDTNode* owner, IDTNode* child)
   {
-  owner->_children = (IDTNode::Children*)(void*)((size_t)child | 1);
+  owner->_children = (IDTNode::Children*)((uintptr_t)child | SINGLE_CHILD_BIT);
   }
 
 IDTNode*
