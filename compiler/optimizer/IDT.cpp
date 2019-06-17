@@ -7,7 +7,7 @@
 IDTNode::IDTNode() {}
 
 IDTNode::IDTNode(IDT* idt, int32_t callsite_bci, TR::ResolvedMethodSymbol* rms)
-  : _idx(idt->next_idx())
+  : _idx(idt->nextIdx())
   , _callsite_bci(callsite_bci)
   , _children(nullptr)
   , _rms(rms)
@@ -55,7 +55,7 @@ IDTNode::printNodeThenChildren(IDT* idt, int callerIndex)
   }
 
   // Print children
-  IDTNode* child = IDT::getOnlyChild(this);
+  IDTNode* child = getOnlyChild();
 
   if (child != nullptr)
     {
@@ -76,19 +76,20 @@ IDTNode::getBcSz() {
 }
 
 IDTNode*
-IDT::getOnlyChild(IDTNode* owner)
+IDTNode::getOnlyChild()
   {
-  if (((size_t)owner->_children) & 1)
+  if (((uintptr_t)_children) & SINGLE_CHILD_BIT)
     {
-    return (IDTNode *)((uintptr_t)(owner->_children) & ~SINGLE_CHILD_BIT);
+    return (IDTNode *)((uintptr_t)(_children) & ~SINGLE_CHILD_BIT);
     }
   return nullptr;
   }
 
 void
-IDT::setOnlyChild(IDTNode* owner, IDTNode* child)
+IDTNode::setOnlyChild(IDTNode* child)
   {
-  owner->_children = (IDTNode::Children*)((uintptr_t)child | SINGLE_CHILD_BIT);
+  TR_ASSERT_FATAL(!((uintptr_t)child & SINGLE_CHILD_BIT), "Maligned memory address.\n");
+  _children = (IDTNode::Children*)((uintptr_t)child | SINGLE_CHILD_BIT);
   }
 
 IDTNode*
@@ -98,7 +99,7 @@ IDT::getRoot()
   }
 
 int
-IDT::next_idx()
+IDT::nextIdx()
   {
   return _max_idx++;
   }
@@ -112,12 +113,11 @@ IDT::addChildIfNotExists(IDTNode* prerequisite,
   if (prerequisite->_children == nullptr)
     {
     IDTNode* created = new (*_mem) IDTNode(this, callsite_bci, rms);
-    TR_ASSERT_FATAL(!((size_t)created & 1), "Maligned memory address.\n");
-    setOnlyChild(prerequisite, created);
+    prerequisite->setOnlyChild(created);
     return created;
     }
   // 1 Child
-  IDTNode* onlyChild = getOnlyChild(prerequisite);
+  IDTNode* onlyChild = prerequisite->getOnlyChild();
   if (onlyChild != nullptr)
     {
     prerequisite->_children = new (*_mem) IDTNode::Children(*_mem);
@@ -170,7 +170,7 @@ IDT::size(IDTNode *node)
       {
       return 1;
       }
-    IDTNode *onlyChild = getOnlyChild(node);
+    IDTNode *onlyChild = node->getOnlyChild();
     if (onlyChild != NULL)
       {
       return 1 + size(onlyChild);
@@ -189,7 +189,7 @@ IDTNode::numChildren()
     if (_children == NULL) {
       return 0;
     }
-    if (IDT::getOnlyChild(this) != nullptr) {
+    if (getOnlyChild() != nullptr) {
       return 1;
     }
     return _children->size();
