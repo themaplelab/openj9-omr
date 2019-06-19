@@ -2,43 +2,44 @@
 
 #define SINGLE_CHILD_BIT 1
 
-IDTNode::IDTNode() {}
 
-IDTNode::IDTNode(IDT* idt, int32_t callsite_bci, TR::ResolvedMethodSymbol* rms)
-  : _idx(idt->nextIdx())
-  , _callsite_bci(callsite_bci)
-  , _children(nullptr)
-  , _rms(rms)
-{}
+IDT::Node::Node(const IDT* idt, int idx, int32_t callsite_bci, TR::ResolvedMethodSymbol* rms, IDT::Node *parent):
+  _idx(idx),
+  _callsite_bci(callsite_bci),
+  _children(nullptr),
+  _rms(rms),
+  _parent(parent)
+  {}
 
-
-IDT::IDT(TR_InlinerBase* inliner, TR::Region *mem, TR::ResolvedMethodSymbol* rms)
-  : _mem(mem)
-  , _inliner(inliner)
-  , _max_idx(-1)
-  , _root(new (*_mem) IDTNode(this, -1, rms))
-{}
+IDT::IDT(TR_InlinerBase* inliner, TR::Region *mem, TR::ResolvedMethodSymbol* rms):
+  _mem(mem),
+  _inliner(inliner),
+  _max_idx(-1),
+  _root(new (*_mem) IDT::Node(this, nextIdx(), -1, rms, nullptr)),
+  _current(_root)
+  {}
 
 void
-IDT::printTrace()
-{
+IDT::printTrace() const
+  {
   if (comp()->trace(OMR::selectInliner)) {
+    const int candidates = size() - 1;
     TR_VerboseLog::writeLineLocked(TR_Vlog_SIP, "#IDT: %d candidate methods to inline into %s",
-      size() - 1,
-      getName(getRoot())
+      candidates,
+      getRoot()->getName(this)
     );
-    if (size() == 0) {
+    if (candidates <= 0) {
       return;
     }
     getRoot()->printNodeThenChildren(this, -2);
   }
-}
+  }
 
 void
-IDTNode::printNodeThenChildren(IDT* idt, int callerIndex)
+IDT::Node::printNodeThenChildren(const IDT* idt, int callerIndex) const
   {
   if (this != idt->getRoot()) {
-    const char *nodeName = idt->getName(this);
+    const char *nodeName = getName(idt);
     TR_VerboseLog::writeLineLocked(TR_Vlog_SIP, "#IDT: %d: %d inlinable @%d -> bcsz=%d %s", 
       _idx,
       callerIndex,
@@ -48,12 +49,12 @@ IDTNode::printNodeThenChildren(IDT* idt, int callerIndex)
     );
   }
   
-  if (_children == NULL) {
+  if (_children == nullptr) {
     return;
   }
 
   // Print children
-  IDTNode* child = getOnlyChild();
+  IDT::Node* child = getOnlyChild();
 
   if (child != nullptr)
     {
@@ -69,29 +70,30 @@ IDTNode::printNodeThenChildren(IDT* idt, int callerIndex)
   }
 
 uint32_t
-IDTNode::getBcSz() {
+IDT::Node::getBcSz() const 
+  {
   return _rms->getResolvedMethod()->maxBytecodeIndex();
-}
+  }
 
-IDTNode*
-IDTNode::getOnlyChild()
+IDT::Node*
+IDT::Node::getOnlyChild() const
   {
   if (((uintptr_t)_children) & SINGLE_CHILD_BIT)
     {
-    return (IDTNode *)((uintptr_t)(_children) & ~SINGLE_CHILD_BIT);
+    return (IDT::Node *)((uintptr_t)(_children) & ~SINGLE_CHILD_BIT);
     }
   return nullptr;
   }
 
 void
-IDTNode::setOnlyChild(IDTNode* child)
+IDT::Node::setOnlyChild(IDT::Node* child)
   {
   TR_ASSERT_FATAL(!((uintptr_t)child & SINGLE_CHILD_BIT), "Maligned memory address.\n");
-  _children = (IDTNode::Children*)((uintptr_t)child | SINGLE_CHILD_BIT);
+  _children = (IDT::Node::Children*)((uintptr_t)child | SINGLE_CHILD_BIT);
   }
 
-IDTNode*
-IDT::getRoot()
+IDT::Node*
+IDT::getRoot() const
   {
   return _root;
   }
@@ -102,30 +104,30 @@ IDT::nextIdx()
   return _max_idx++;
   }
 
-IDTNode*
-IDTNode::addChildIfNotExists(IDT* idt,
+IDT::Node*
+IDT::Node::addChildIfNotExists(IDT* idt,
                          int32_t callsite_bci,
                          TR::ResolvedMethodSymbol* rms)
   {
   // 0 Children
   if (_children == nullptr)
     {
-    IDTNode* created = new (*idt->_mem) IDTNode(idt, callsite_bci, rms);
+    IDT::Node* created = new (*idt->_mem) IDT::Node(idt, idt->nextIdx(), callsite_bci, rms, this);
     setOnlyChild(created);
     return created;
     }
   // 1 Child
-  IDTNode* onlyChild = getOnlyChild();
+  IDT::Node* onlyChild = getOnlyChild();
   if (onlyChild != nullptr)
     {
-    _children = new (*idt->_mem) IDTNode::Children(*idt->_mem);
+    _children = new (*idt->_mem) IDT::Node::Children(*idt->_mem);
     TR_ASSERT_FATAL(!((uintptr_t)_children & SINGLE_CHILD_BIT), "Maligned memory address.\n");
     _children->push_back(*onlyChild);
     // Fall through to two child case.
     }
 
   // 2+ children
-  IDTNode::Children* children = _children;
+  IDT::Node::Children* children = _children;
 
   for (auto curr = children->begin(); curr != children->end(); ++curr)
     {
@@ -135,12 +137,12 @@ IDTNode::addChildIfNotExists(IDT* idt,
       }
     }
 
-  _children->push_back(IDTNode(idt, callsite_bci, rms));
+  _children->push_back(IDT::Node(idt, idt->nextIdx(), callsite_bci, rms, this));
   return &_children->back();
-}
+  }
 
 bool
-IDTNode::nodeSimilar(int32_t callsite_bci, TR::ResolvedMethodSymbol* rms) const
+IDT::Node::nodeSimilar(int32_t callsite_bci, TR::ResolvedMethodSymbol* rms) const
   {
   auto a = _rms->getResolvedMethod()->maxBytecodeIndex();
   auto b = rms->getResolvedMethod()->maxBytecodeIndex();
@@ -149,51 +151,57 @@ IDTNode::nodeSimilar(int32_t callsite_bci, TR::ResolvedMethodSymbol* rms) const
   }
 
 TR::Compilation*
-IDT::comp()
+IDT::comp() const
   {
   return _inliner->comp();
   }
 
-
 int
-IDT::size()
+IDT::size() const
   {
-    return size(getRoot());
+    return getRoot()->size();
   }
 
 int
-IDT::size(IDTNode *node)
+IDT::Node::size() const
   {
-    if (node->_children == NULL) 
-      {
+    if (_children == nullptr) {
       return 1;
-      }
-    IDTNode *onlyChild = node->getOnlyChild();
-    if (onlyChild != NULL)
-      {
-      return 1 + size(onlyChild);
-      }
-    int count = 1;
-    for (auto curr = node->_children->begin(); curr != node->_children->end(); ++curr)
-      {
-      count += size(&*curr);
-      }
-    return count;
-  }
-
-size_t
-IDTNode::numChildren()
-  {
-    if (_children == NULL) {
-      return 0;
     }
     if (getOnlyChild() != nullptr) {
-      return 1;
+      return 2;
     }
-    return _children->size();
+    int sum = 1;
+    for (auto child = _children->begin(); child != _children->end(); ++child) {
+      sum += child->size();
+    }
+    return sum;
   }
 
 const char *
-IDT::getName(IDTNode *node) {
-  return node->_rms->getResolvedMethod()->signature(comp()->trMemory());
-}
+IDT::Node::getName(const IDT *idt) const 
+  {
+  return _rms->getResolvedMethod()->signature(idt->comp()->trMemory());
+  }
+
+IDT::Node *
+IDT::Node::getParent()
+  {
+    return _parent;
+  }
+
+bool IDT::addToCurrentChild(int32_t callsite_bci, TR::ResolvedMethodSymbol* rms)
+  {
+    IDT::Node *node = _current->addChildIfNotExists(this, callsite_bci, rms);
+    if (node == nullptr) {
+      return false;
+    }
+    _current = node;
+    return true;
+  }
+
+void IDT::popCurrent()
+  {
+    _current = _current->getParent();
+    TR_ASSERT_FATAL(_current != nullptr, "Invalid IDT pop");
+  }

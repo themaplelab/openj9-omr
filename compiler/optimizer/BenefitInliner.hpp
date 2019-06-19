@@ -66,7 +66,6 @@ class BenefitInliner: public BenefitInlinerBase
       TR::Region _callStacksRegion;
       TR_CallStack *_inliningCallStack;
       IDT *_idt;
-      IDTNode *_currentIDTNode = NULL;
       
       const uint32_t _budget;
       inline const uint32_t budget() const;

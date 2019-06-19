@@ -61,7 +61,6 @@ OMR::BenefitInlinerWrapper::getBudget(TR::ResolvedMethodSymbol *resolvedMethodSy
 void OMR::BenefitInliner::initIDT(TR::ResolvedMethodSymbol *root)
    {
    _idt = new (comp()->trMemory()->currentStackRegion()) IDT(this, &comp()->trMemory()->currentStackRegion(), root);
-   _currentIDTNode = _idt->getRoot();
    }
 
 void OMR::BenefitInliner::traceIDT()
@@ -88,15 +87,14 @@ OMR::BenefitInliner::obtainIDT(TR_CallSite *callsite, int32_t budget, TR_ByteCod
          callTarget->_myCallSite = callsite;
          if (!comp()->incInlineDepth(resolvedMethodSymbol, callsite->_bcInfo, callsite->_cpIndex, NULL, !callTarget->_myCallSite->isIndirectCall(), 0)) continue;
 
-         IDTNode *prev = _currentIDTNode; 
-         _currentIDTNode = prev->addChildIfNotExists(_idt, callsite->_byteCodeIndex, resolvedMethodSymbol);
-         if (_currentIDTNode != NULL) 
+         bool added = _idt->addToCurrentChild(callsite->_byteCodeIndex, resolvedMethodSymbol);
+         if (added) 
             {
             this->obtainIDT(resolvedMethodSymbol, budget);
+            _idt->popCurrent();
             }
             comp()->decInlineDepth(true);
             budget = oldBudget;
-         _currentIDTNode = prev;
          }
       this->_callerIndex--;
    }
