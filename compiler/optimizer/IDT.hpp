@@ -18,7 +18,9 @@
 
 class IDT
   {
-  private:
+  public:
+  class Node;
+  typedef TR::deque<Node *, TR::Region&> Indices;
   class Node
     {
     public:
@@ -30,6 +32,10 @@ class IDT
     const char* getName(const IDT* idt) const;
     void printNodeThenChildren(const IDT* idt, int callerIndex) const;
     Node *getParent();
+    int getCalleeIndex() const;
+    unsigned int getCost();
+    unsigned int getBenefit();
+    void buildIndices(IDT::Indices &indices);
     private:
     typedef TR::deque<Node, TR::Region&> Children;
     Node *_parent;
@@ -44,11 +50,14 @@ class IDT
     Node* getOnlyChild() const;
     void setOnlyChild(Node* child);
     };
+  private:
   TR::Region* _mem;
   TR_InlinerBase* _inliner;
   int _max_idx = -1;
   Node *_root;
   Node *_current;
+  Indices *_indices = nullptr;
+  void buildIndices();
   typedef TR::deque<Node, TR::Region&> BuildStack;
   int nextIdx();
 
@@ -62,4 +71,5 @@ public:
 public:
   int size() const;
   void printTrace() const;
+  IDT::Node *getNodeByCalleeIndex(int calleeIndex);
 };
