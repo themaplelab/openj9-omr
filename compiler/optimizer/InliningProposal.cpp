@@ -30,7 +30,8 @@ InliningProposal::InliningProposal(InliningProposal &proposal, OMR::BenefitInlin
 
 
 void
-InliningProposal::pushBack(IDT::Node *node) {
+InliningProposal::pushBack(IDT::Node *node)
+  {
   int32_t calleeIdx = node->getCalleeIndex() + 1;
   if (this->_nodes->isSet(calleeIdx))
     {
@@ -40,30 +41,33 @@ InliningProposal::pushBack(IDT::Node *node) {
 
   this->_cost += node->getCost();
   this->_benefit += node->getBenefit();
-}
+  }
 
 bool
-InliningProposal::isEmpty() const {
+InliningProposal::isEmpty() const
+  {
   return this->_nodes->isEmpty();
-}
+  }
 
 int
-InliningProposal::getCost() {
+InliningProposal::getCost()
+  {
   if (this->_cost == -1) 
     {
     this->computeCostAndBenefit();
     }
   return this->_cost;
-}
+  }
 
 int
-InliningProposal::getBenefit() {
+InliningProposal::getBenefit()
+  {
   if (this->_benefit == -1)
     {
     this->computeCostAndBenefit();
     }
   return this->_benefit;
-}
+  }
 
 void
 InliningProposal::computeCostAndBenefit()
@@ -86,42 +90,47 @@ InliningProposal::computeCostAndBenefit()
     }
 
 void
-InliningProposal::clear() {
+InliningProposal::clear()
+  {
   this->_cost = 0;
   this->_benefit = 0;
   this->_nodes->empty();
-}
+  }
 
 bool
-InliningProposal::inSet(IDT::Node* node) {
+InliningProposal::inSet(IDT::Node* node)
+  {
   if (node == nullptr) return false;
   if (this->_nodes == nullptr) return false;
   if (this->_nodes->isEmpty()) return false;
   int32_t callee_idx = node->getCalleeIndex() + 1;
   return this->_nodes->isSet(callee_idx);
-}
+  }
 
 bool
-InliningProposal::inSet(int calleeIdx) {
+InliningProposal::inSet(int calleeIdx)
+  {
   return this->_nodes->isSet(calleeIdx + 1);
-}
+  }
 
 void
-InliningProposal::intersectInPlace(InliningProposal &a, InliningProposal &b) {
+InliningProposal::intersectInPlace(InliningProposal &a, InliningProposal &b)
+  {
   *this->_nodes = *a._nodes;
   *this->_nodes &= *b._nodes;
   this->_cost = -1;
   this->_benefit = -1;
   // compute the cost and benefit lazily
   // TODO: recompute cost, recompute benefit. Which method computes them?
-}
+  }
 
 void
-InliningProposal::unionInPlace(InliningProposal &a, InliningProposal &b) {
+InliningProposal::unionInPlace(InliningProposal &a, InliningProposal &b)
+  {
   *this->_nodes = *a._nodes;
   *this->_nodes |= *b._nodes;
   this->_cost = -1;
   this->_benefit = -1;
   // compute the cost and benefit lazily
   // TODO: recompute cost, recompute benefit. Which method computes them?
-}
+  }
