@@ -7,6 +7,15 @@
 #include "infra/deque.hpp"
 #include "infra/Stack.hpp"
 
+/**
+ * Class IDT 
+ * =========
+ * 
+ * The inlining dependency tree maintains a tree of methods and can be used by an inlining optimization
+ * The tree is designed to be built in a DFS-manner and maintains a current child which is updated when 
+ * New children are added via addToCurrentChild. popCurrent will rever to the previous child.
+ */
+
 class IDT
   {
   private:
