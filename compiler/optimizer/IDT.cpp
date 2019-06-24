@@ -98,10 +98,50 @@ IDT::getRoot() const
   return _root;
   }
 
+
+void
+IDT::buildIndices() 
+  {
+    _indices = new (*_mem) IDT::Indices(size(), nullptr, *_mem);
+    getRoot()->buildIndices(*_indices);
+  }
+
+void
+IDT::Node::buildIndices(IDT::Indices &indices)
+  {
+    TR_ASSERT(indices[getCalleeIndex()] == nullptr, "callee index not unique");
+    indices[getCalleeIndex()] = this;
+    for (auto curr = _children->begin(); curr != _children->end(); ++curr)
+      {
+      curr->buildIndices(indices);
+      }
+  }
+
 int
 IDT::nextIdx()
   {
   return _max_idx++;
+  }
+
+
+int
+IDT::Node::getCalleeIndex() const
+  {
+    return _idx;
+  }
+
+unsigned int
+IDT::Node::getCost()
+  {
+    // TODO not implemented
+    return 1;
+  }
+
+unsigned int
+IDT::Node::getBenefit()
+  {
+    // TODO not implemented
+    return 1;
   }
 
 IDT::Node*
@@ -197,6 +237,7 @@ bool IDT::addToCurrentChild(int32_t callsite_bci, TR::ResolvedMethodSymbol* rms)
       return false;
     }
     _current = node;
+    _indices = nullptr;
     return true;
   }
 
@@ -204,4 +245,13 @@ void IDT::popCurrent()
   {
     _current = _current->getParent();
     TR_ASSERT_FATAL(_current != nullptr, "Invalid IDT pop");
+  }
+
+IDT::Node *IDT::getNodeByCalleeIndex(int calleeIndex)
+  {
+    if (_indices == nullptr)
+    {
+      buildIndices();
+    }
+    return (*_indices)[calleeIndex];
   }
