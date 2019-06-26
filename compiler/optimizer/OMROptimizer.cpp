@@ -111,7 +111,6 @@
 #include "optimizer/GlobalRegisterAllocator.hpp"
 #include "optimizer/RecognizedCallTransformer.hpp"
 #include "optimizer/SwitchAnalyzer.hpp"
-#include "optimizer/SelectInliner.hpp"
 #include "env/RegionProfiler.hpp"
 
 #if defined (_MSC_VER) && _MSC_VER < 1900
@@ -340,7 +339,7 @@ const OptimizationStrategy earlyGlobalOpts[] =
    {
    { methodHandleInvokeInliningGroup,  IfMethodHandleInvokes },
 #ifdef J9_PROJECT_SPECIFIC
-   { selectInliner                             },
+   { inlining                             },
 #endif
    { osrExceptionEdgeRemoval                       }, // most inlining is done by now
    //{ basicBlockOrdering,          IfLoops }, // early ordering with no extension
@@ -871,8 +870,6 @@ OMR::Optimizer::Optimizer(TR::Compilation *comp, TR::ResolvedMethodSymbol *metho
       new (comp->allocator()) TR::OptimizationManager(self(), TR::SwitchAnalyzer::create, OMR::switchAnalyzer);
 
    // NOTE: Please add new OMR optimizations here!
-   _opts[OMR::selectInliner] =
-      new (comp->allocator()) TR::OptimizationManager(self(), OMR::SelectInliner::create, OMR::selectInliner);
 
    // initialize OMR optimization groups
 
