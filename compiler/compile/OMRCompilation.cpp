@@ -246,7 +246,6 @@ OMR::Compilation::Compilation(
    _snippetsToBePatchedOnClassUnload(getTypedAllocator<TR::Snippet*>(self()->allocator())),
    _methodSnippetsToBePatchedOnClassUnload(getTypedAllocator<TR::Snippet*>(self()->allocator())),
    _snippetsToBePatchedOnClassRedefinition(getTypedAllocator<TR::Snippet*>(self()->allocator())),
-   _snippetsToBePatchedOnRegisterNative(getTypedAllocator<TR_Pair<TR::Snippet,TR_ResolvedMethod> *>(self()->allocator())),
    _genILSyms(getTypedAllocator<TR::ResolvedMethodSymbol*>(self()->allocator())),
    _noEarlyInline(true),
    _returnInfo(TR_VoidReturn),
@@ -1164,7 +1163,7 @@ int32_t OMR::Compilation::compile()
                TR::Node*node = tt->getNode()->getFirstChild();
                if (node->getOpCode().isCall())
                   {
-                  TR_Method *method = node->getSymbol()->getMethodSymbol()->getMethod();
+                  TR::Method *method = node->getSymbol()->getMethodSymbol()->getMethod();
                   if (method)
                      {
                      TR_ByteCodeInfo &bcInfo = node->getByteCodeInfo();

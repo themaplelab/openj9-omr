@@ -94,7 +94,6 @@ public:
    void setAutomaticList(List<TR::AutomaticSymbol> list)                       { _automaticList = list; };
 
    List<TR::AutomaticSymbol>& getVariableSizeSymbolList()                      { return _variableSizeSymbolList;}
-   ListBase<TR::RegisterMappedSymbol>& getMethodMetaDataList()                 { return _methodMetaDataList;}
 
    void removeUnusedLocals();
 
@@ -130,7 +129,14 @@ public:
    void addAutomatic(TR::AutomaticSymbol *p);
 
    void addVariableSizeSymbol(TR::AutomaticSymbol *s);
-   void addMethodMetaDataSymbol(TR::RegisterMappedSymbol*s);
+
+   /*
+    * \brief Get known object index of a parameter if there is any known object information available
+    *
+    * \parm ordinal
+    *     the ordinal of a parameter including the receiver if the method is a virtual method
+    */
+   TR::KnownObjectTable::Index getKnownObjectIndexForParm(int32_t ordinal);
 
    mcount_t            getResolvedMethodIndex() { return _methodIndex; }
    TR_ResolvedMethod * getResolvedMethod()      { return _resolvedMethod; }
@@ -329,7 +335,6 @@ private:
    List<TR::AutomaticSymbol>                  _automaticList;
    List<TR::ParameterSymbol>                  _parameterList;
    List<TR::AutomaticSymbol>                  _variableSizeSymbolList;
-   List<TR::RegisterMappedSymbol>             _methodMetaDataList;
    TR_Array<List<TR::SymbolReference> >     * _autoSymRefs;
    TR_Array<List<TR::SymbolReference> >     * _pendingPushSymRefs;
    TR_Array<TR::SymbolReference*>           * _parmSymRefs;

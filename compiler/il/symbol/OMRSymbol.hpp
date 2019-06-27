@@ -96,7 +96,8 @@ public:
 protected:
 
    /**
-    * Generic constructor, sets size to 0
+    * @brief Generic constructor for the creation of a new symbol.  The
+    *        size is set to 0.
     */
    Symbol() :
       _size(0),
@@ -107,14 +108,17 @@ protected:
    { }
 
    /**
-    * Create symbol of specified data type, inferring size
-    * from type.
+    * @brief Create symbol of specified data type, inferring the size
+    *        from the type.
+    * @param[in] d : TR::DataType of the new symbol
     */
    Symbol(TR::DataType d);
 
    /**
-    * Create symbol of specified data type, inferring size
-    * from type.
+    * @brief Create symbol of specified data type and specified size.
+    *
+    * @param[in] d : TR::DataType of the new symbol
+    * @param[in] size : size of new symbol
     */
    Symbol(TR::DataType d, uint32_t size);
 
@@ -388,9 +392,6 @@ public:
    inline bool isNonLinear();
    inline void setNonLinear();
 
-   inline void setGlobalLabel();
-   inline bool isGlobalLabel();
-
    inline void setRelativeLabel();
    inline bool isRelativeLabel();
 
@@ -533,7 +534,6 @@ public:
       NonLinear                    = 0x01000000, // TAROK and temporary.  This bit is used in conjunction with StartOfColdInstructionStream
                                                  //    to distinguish "classic" OOL instructions and the new form for Tarok.
 
-      IsGlobalLabel                = 0x30000000,
       LabelKindMask                = 0x30000000,
       OOLMask                      = 0x81000000, // Tarok and temporary
 

@@ -73,9 +73,7 @@
 #ifdef J9_PROJECT_SPECIFIC
 #include "control/RecompilationInfo.hpp"
 #endif
-#include "cs2/arrayof.h"
 #include "cs2/hashtab.h"
-#include "cs2/sparsrbit.h"
 #include "env/CompilerEnv.hpp"
 #include "env/IO.hpp"
 #include "env/Processors.hpp"
@@ -2039,14 +2037,14 @@ OMR::Z::CodeGenerator::deleteInst(TR::Instruction* old)
 void
 OMR::Z::CodeGenerator::doPreRAPeephole()
    {
-   TR_S390PreRAPeephole ph(self()->comp(), self());
+   TR_S390PreRAPeephole ph(self()->comp());
    ph.perform();
    }
 
 void
 OMR::Z::CodeGenerator::doPostRAPeephole()
    {
-   TR_S390PostRAPeephole ph(self()->comp(), self());
+   TR_S390PostRAPeephole ph(self()->comp());
    ph.perform();
    }
 
@@ -2258,7 +2256,7 @@ OMR::Z::CodeGenerator::doBinaryEncoding()
    // overload of the constructor which can accept a NULL preceding instruction. If cursor is NULL the generated
    // label instruction will be prepended to the start of the instruction stream.
    _methodBegin = new (self()->trHeapMemory()) TR::S390LabelInstruction(TR::InstOpCode::LABEL, self()->comp()->getStartTree()->getNode(), generateLabelSymbol(self()), static_cast<TR::Instruction*>(NULL), self());
-   
+
    _methodEnd = generateS390LabelInstruction(self(), TR::InstOpCode::LABEL, self()->comp()->findLastTree()->getNode(), generateLabelSymbol(self()));
 
    TR_S390BinaryEncodingData data;
@@ -2272,7 +2270,7 @@ OMR::Z::CodeGenerator::doBinaryEncoding()
    if (self()->comp()->getJittedMethodSymbol()->isJNI() && !self()->comp()->getOption(TR_FullSpeedDebug))
       {
       data.preProcInstruction = TR::Compiler->target.is64Bit() ?
-         data.cursorInstruction->getNext()->getNext()->getNext() : 
+         data.cursorInstruction->getNext()->getNext()->getNext() :
          data.cursorInstruction->getNext()->getNext();
       }
    else
@@ -4420,19 +4418,6 @@ OMR::Z::CodeGenerator::dumpPostGPRegisterAssignment(TR::Instruction * instructio
    }
 #endif
 
-bool
-OMR::Z::CodeGenerator::constLoadNeedsLiteralFromPool(TR::Node *node)
-   {
-   if (node->isClassUnloadingConst() || node->getType().isIntegral() || node->getType().isAddress())
-      {
-      return false;
-      }
-   else
-      {
-      return true;  // Floats/Doubles require literal pool
-      }
-   }
-
 void
 OMR::Z::CodeGenerator::setGlobalStaticBaseRegisterOnFlag()
    {
@@ -4499,23 +4484,6 @@ OMR::Z::CodeGenerator::supportsOnDemandLiteralPool()
       }
    }
 
-/**
- * Check if BNDS check should use a CLFI
- */
-bool
-OMR::Z::CodeGenerator::bndsChkNeedsLiteralFromPool(TR::Node *node)
-   {
-   int64_t value=getIntegralValue(node);
-
-   if (value <= GE_MAX_IMMEDIATE_VAL && value >= GE_MIN_IMMEDIATE_VAL)
-      {
-      return false;
-      }
-   else
-      {
-      return true;
-      }
-   }
 TR::Register *
 OMR::Z::CodeGenerator::evaluateLengthMinusOneForMemoryOps(TR::Node *node, bool clobberEvaluate, bool &lenMinusOne)
    {
@@ -5310,15 +5278,6 @@ bool OMR::Z::CodeGenerator::IsInMemoryType(TR::DataType type)
    return false;
 #endif
    }
-
-/**
- * Determine if the Left-to-right copy semantics is allowed on NDmemcpyWithPad
- * Communicates with the evaluator to do MVC semantics under certain condition no matter how the overlap is
- */
-bool OMR::Z::CodeGenerator::inlineNDmemcpyWithPad(TR::Node * node, int64_t * maxLengthPtr)
-      {
-      return false;
-      }
 
 
 uint32_t getRegMaskFromRange(TR::Instruction * inst);

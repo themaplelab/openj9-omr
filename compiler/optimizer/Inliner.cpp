@@ -255,8 +255,7 @@ TR_InlinerBase::TR_InlinerBase(TR::Optimizer * optimizer, TR::Optimization *opti
      _disableTailRecursion(false),
      _currentNumberOfNodes(optimizer->comp()->getAccurateNodeCount()),
      _disableInnerPrex(false),
-     _aggressivelyInlineInLoops(false),
-     _GlobalLabels(_trMemory)
+     _aggressivelyInlineInLoops(false)
    {
    _policy = optimization->manager()->getOptPolicy() ? static_cast<OMR_InlinerPolicy*>(optimization->manager()->getOptPolicy()) : optimizer->getInlinerPolicy();
    _util = optimizer->getInlinerUtil();
@@ -268,8 +267,6 @@ TR_InlinerBase::TR_InlinerBase(TR::Optimizer * optimizer, TR::Optimization *opti
    setInlineVirtuals(true);
    if (optimizer->getInlineSynchronized())
       setInlineSynchronized(true);
-
-   _GlobalLabels.init();
 
    _tracer = _util->getInlinerTracer(optimization);
 
@@ -3120,6 +3117,9 @@ TR_HandleInjectedBasicBlock::createTemps(bool replaceAllReferences)
                value = valueToTempConv;
                }
 
+            if (value->getOpCode().hasSymbolReference() && value->getSymbolReference()->hasKnownObjectIndex())
+               symRef = comp()->getSymRefTab()->findOrCreateTemporaryWithKnowObjectIndex(_methodSymbol, value->getSymbolReference()->getKnownObjectIndex());
+
             OMR_InlinerUtil::storeValueInATemp(comp(), value, symRef, tt, _methodSymbol, _injectedBasicBlockTemps, _availableTemps, 0);
             }
 
@@ -4074,7 +4074,9 @@ void TR_InlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSite *
 
       int32_t bytecodeSize = getPolicy()->getInitialBytecodeSize(calltarget->_calleeMethod, calltarget->_calleeSymbol, comp());
 
-      getUtil()->estimateAndRefineBytecodeSize(callsite, calltarget, callStack, bytecodeSize);
+      if (!forceInline(calltarget))
+         getUtil()->estimateAndRefineBytecodeSize(callsite, calltarget, callStack, bytecodeSize);
+
       if (calltarget->_calleeSymbol && strstr(calltarget->_calleeSymbol->signature(trMemory()), "FloatingDecimal"))
          {
          bytecodeSize >>= 1;
@@ -5617,7 +5619,7 @@ TR_CallSite::TR_CallSite(TR_ResolvedMethod *callerResolvedMethod,
                          TR::TreeTop *callNodeTreeTop,
                          TR::Node *parent,
                          TR::Node *callNode,
-                         TR_Method * interfaceMethod,
+                         TR::Method *interfaceMethod,
                          TR_OpaqueClassBlock *receiverClass,
                          int32_t vftSlot,
                          int32_t cpIndex,

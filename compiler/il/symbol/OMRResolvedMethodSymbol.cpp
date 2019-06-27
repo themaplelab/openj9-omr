@@ -126,7 +126,6 @@ OMR::ResolvedMethodSymbol::ResolvedMethodSymbol(TR_ResolvedMethod * method, TR::
      _automaticList(comp->trMemory()),
      _parameterList(comp->trMemory()),
      _variableSizeSymbolList(comp->trMemory()),
-     _methodMetaDataList(comp->trMemory()),
      _comp(comp),
      _firstJitTempIndex(-1),
      _cannotAttemptOSR(NULL),
@@ -1929,13 +1928,6 @@ OMR::ResolvedMethodSymbol::addVariableSizeSymbol(TR::AutomaticSymbol *s)
       _variableSizeSymbolList.add(s);
    }
 
-void
-OMR::ResolvedMethodSymbol::addMethodMetaDataSymbol(TR::RegisterMappedSymbol *s)
-   {
-   TR_ASSERT(!s || s->isMethodMetaData(), "should be method metadata");
-   if (!_methodMetaDataList.find(s))
-      _methodMetaDataList.add(s);
-   }
 
 // get/setTempIndex is called from TR_ResolvedMethod::makeParameterList
 int32_t
@@ -2494,6 +2486,13 @@ void OMR::ResolvedMethodSymbol::dumpProfilingOffsetInfo(TR::Compilation *comp)
 void OMR::ResolvedMethodSymbol::clearProfilingOffsetInfo()
    {
    _bytecodeProfilingOffsets.clear();
+   }
+
+
+TR::KnownObjectTable::Index
+OMR::ResolvedMethodSymbol::getKnownObjectIndexForParm(int32_t ordinal)
+   {
+   return TR::KnownObjectTable::UNKNOWN;
    }
 
 //Explicit instantiations

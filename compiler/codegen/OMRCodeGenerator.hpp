@@ -468,7 +468,7 @@ class OMR_EXTENSIBLE CodeGenerator
    rcount_t recursivelyDecReferenceCount(TR::Node*node);
    void evaluateChildrenWithMultipleRefCount(TR::Node*node);
 
-   void incRefCountForOpaquePseudoRegister(TR::Node * node, TR::CodeGenerator * cg, TR::Compilation * comp) {}
+   void incRefCountForOpaquePseudoRegister(TR::Node * node) {}
 
    void startUsingRegister(TR::Register *reg);
    void stopUsingRegister(TR::Register *reg);
@@ -677,9 +677,6 @@ class OMR_EXTENSIBLE CodeGenerator
    bool getSupportsNewObjectAlignment() { return false; }
    bool getSupportsTenuredObjectAlignment() { return false; }
    bool isObjectOfSizeWorthAligning(uint32_t size) { return false; }
-
-   // J9
-   int32_t getInternalPtrMapBit() { return 31;}
 
    uint32_t getMaxObjectSizeGuaranteedNotToOverflow() { return _maxObjectSizeGuaranteedNotToOverflow; }
 
@@ -1137,7 +1134,6 @@ class OMR_EXTENSIBLE CodeGenerator
    void apply32BitLabelRelativeRelocation(int32_t * cursor, TR::LabelSymbol *);
    void apply32BitLabelTableRelocation(int32_t * cursor, TR::LabelSymbol *);
 
-   TR::list<TR_Pair<TR_ResolvedMethod,TR::Instruction> *> &getJNICallSites() { return _jniCallSites; }  // registerAssumptions()
 
    bool needClassAndMethodPointerRelocations() { return false; }
    bool needRelocationsForStatics() { return false; }
@@ -1326,8 +1322,6 @@ class OMR_EXTENSIBLE CodeGenerator
    // symbol reference requires entry in the literal pool
    bool arithmeticNeedsLiteralFromPool(TR::Node *node) { return false; }
    bool bitwiseOpNeedsLiteralFromPool(TR::Node *parent, TR::Node *child) { return false; }
-   bool bndsChkNeedsLiteralFromPool(TR::Node *node) { return false; }
-   bool constLoadNeedsLiteralFromPool(TR::Node *node) { return false; }
    void setOnDemandLiteralPoolRun(bool answer) {}
    bool isLiteralPoolOnDemandOn () { return false; }
    bool supportsOnDemandLiteralPool() { return false; }
@@ -1396,9 +1390,6 @@ class OMR_EXTENSIBLE CodeGenerator
    bool propagateSignThroughBCDLeftShift(TR::DataType type) { return false; }
 
    bool supportsLengthMinusOneForMemoryOpts() {return false;}
-
-   // Java, likely Z
-   bool supportsTrapsInTMRegion() { return true; }
 
    // Allows a platform code generator to assert that a particular node operation will use 64 bit values
    // that are not explicitly present in the node datatype.
@@ -1511,9 +1502,6 @@ class OMR_EXTENSIBLE CodeGenerator
 
    bool getAccessStaticsIndirectly() {return _flags1.testAny(AccessStaticsIndirectly);}
    void setAccessStaticsIndirectly(bool b) {_flags1.set(AccessStaticsIndirectly, b);}
-
-   bool getSupportsBigDecimalLongLookasideVersioning() { return _flags3.testAny(SupportsBigDecimalLongLookasideVersioning);}
-   void setSupportsBigDecimalLongLookasideVersioning() { _flags3.set(SupportsBigDecimalLongLookasideVersioning);}
 
    bool getSupportsBDLLHardwareOverflowCheck() { return _flags3.testAny(SupportsBDLLHardwareOverflowCheck);}
    void setSupportsBDLLHardwareOverflowCheck() { _flags3.set(SupportsBDLLHardwareOverflowCheck);}
@@ -1758,7 +1746,7 @@ class OMR_EXTENSIBLE CodeGenerator
       // AVAILABLE                                        = 0x00000400,
       HasCCCarry                                          = 0x00000800,
       // AVAILABLE                                        = 0x00001000,
-      SupportsBigDecimalLongLookasideVersioning           = 0x00002000,
+      // AVAILABLE                                        = 0x00002000,
       RemoveRegisterHogsInLowerTreesWalk                  = 0x00004000,
       SupportsBDLLHardwareOverflowCheck                   = 0x00008000,
       InlinedGetCurrentThreadMethod                       = 0x00010000,
@@ -1882,13 +1870,10 @@ class OMR_EXTENSIBLE CodeGenerator
    TR::list<TR::Register*> *_spilledRegisterList;
    TR::list<OMR::RegisterUsage*> *_referencedRegistersList;
    int32_t _currentPathDepth;
-   TR::list<TR::Node*> _nodesSpineCheckedList;
+   
 
-   TR::list<TR_Pair<TR_ResolvedMethod, TR::Instruction> *> _jniCallSites; // list of instrutions representing direct jni call sites
 
    TR_Array<void *> _monitorMapping;
-
-   TR::list<TR::Node*> _compressedRefs;
 
    uint32_t _largestOutgoingArgSize;
 
@@ -1928,10 +1913,6 @@ class OMR_EXTENSIBLE CodeGenerator
    uint8_t _globalGPRPartitionLimit;
    uint8_t _globalFPRPartitionLimit;
    flags16_t _enabledFlags;
-
-   // MOVE TO J9 Z CodeGenerator
-   // isTemporaryBased storageReferences just have a symRef but some other routines expect a node so use the below to fill in this symRef on this node
-   TR::Node *_dummyTempStorageRefNode;
 
    public:
    static TR_TreeEvaluatorFunctionPointer _nodeToInstrEvaluators[];

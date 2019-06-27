@@ -111,7 +111,6 @@
 #include "optimizer/GlobalRegisterAllocator.hpp"
 #include "optimizer/RecognizedCallTransformer.hpp"
 #include "optimizer/SwitchAnalyzer.hpp"
-#include "optimizer/SelectInliner.hpp"
 #include "env/RegionProfiler.hpp"
 
 #if defined (_MSC_VER) && _MSC_VER < 1900
@@ -340,7 +339,7 @@ const OptimizationStrategy earlyGlobalOpts[] =
    {
    { methodHandleInvokeInliningGroup,  IfMethodHandleInvokes },
 #ifdef J9_PROJECT_SPECIFIC
-   { selectInliner                             },
+   { inlining                             },
 #endif
    { osrExceptionEdgeRemoval                       }, // most inlining is done by now
    //{ basicBlockOrdering,          IfLoops }, // early ordering with no extension
@@ -545,6 +544,7 @@ static const OptimizationStrategy ilgenStrategyOpts[] =
    { unsafeFastPath                                },
    { recognizedCallTransformer                     },
    { coldBlockMarker                               },
+   { CFGSimplification                             },
    { allocationSinking,             IfNews         },
    { invariantArgumentPreexistence, IfNotClassLoadPhaseAndNotProfiling }, // Should not run if a recompilation is possible
 #endif
@@ -761,7 +761,7 @@ OMR::Optimizer::Optimizer(TR::Compilation *comp, TR::ResolvedMethodSymbol *metho
    _opts[OMR::catchBlockRemoval] =
       new (comp->allocator()) TR::OptimizationManager(self(), TR_CatchBlockRemover::create, OMR::catchBlockRemoval);
    _opts[OMR::CFGSimplification] =
-      new (comp->allocator()) TR::OptimizationManager(self(), TR_CFGSimplifier::create, OMR::CFGSimplification);
+      new (comp->allocator()) TR::OptimizationManager(self(), TR::CFGSimplifier::create, OMR::CFGSimplification);
    _opts[OMR::checkcastAndProfiledGuardCoalescer] =
       new (comp->allocator()) TR::OptimizationManager(self(), TR_CheckcastAndProfiledGuardCoalescer::create, OMR::checkcastAndProfiledGuardCoalescer);
    _opts[OMR::coldBlockMarker] =
@@ -870,8 +870,6 @@ OMR::Optimizer::Optimizer(TR::Compilation *comp, TR::ResolvedMethodSymbol *metho
       new (comp->allocator()) TR::OptimizationManager(self(), TR::SwitchAnalyzer::create, OMR::switchAnalyzer);
 
    // NOTE: Please add new OMR optimizations here!
-   _opts[OMR::selectInliner] =
-      new (comp->allocator()) TR::OptimizationManager(self(), OMR::SelectInliner::create, OMR::selectInliner);
 
    // initialize OMR optimization groups
 
@@ -1174,7 +1172,7 @@ void OMR::Optimizer::dumpPostOptTrees()
    // do nothing for IlGen optimizer
    if (isIlGenOpt()) return;
 
-   TR_Method *method = comp()->getMethodSymbol()->getMethod();
+   TR::Method *method = comp()->getMethodSymbol()->getMethod();
    if ((debug("dumpPostLocalOptTrees") || comp()->getOption(TR_TraceTrees)))
       comp()->dumpMethodTrees("Post Optimization Trees");
    }

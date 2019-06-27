@@ -3861,8 +3861,8 @@ generateTestUnderMaskIfPossible(TR::Node * node, TR::CodeGenerator * cg, TR::Ins
           newBranchOpCond = convertComparisonBranchConditionToTestUnderMaskBranchCondition(constNode, fBranchOpCond);
           }
    else if (constNode &&
-         (node->getOpCodeValue()==TR::iflcmpeq || node->getOpCodeValue()==TR::iflucmpeq ||
-          node->getOpCodeValue()==TR::iflcmpne || node->getOpCodeValue()==TR::iflucmpne) &&
+         (node->getOpCodeValue()==TR::iflcmpeq ||
+          node->getOpCodeValue()==TR::iflcmpne) &&
          constNode->getLongInt() == 0 &&
          nonConstNode->getOpCodeValue()==TR::land &&
          nonConstNode->getReferenceCount() == 1 && nonConstNode->getRegister()==NULL &&
@@ -3890,7 +3890,7 @@ generateTestUnderMaskIfPossible(TR::Node * node, TR::CodeGenerator * cg, TR::Ins
       else
          generateRIInstruction(cg, TR::InstOpCode::TMHH, node, tempReg, (nonConstNode->getSecondChild()->getLongInt()&0xFFFF000000000000)>>48);
 
-      if (node->getOpCodeValue()==TR::iflcmpne || node->getOpCodeValue()==TR::iflucmpne)
+      if (node->getOpCodeValue()==TR::iflcmpne)
          {
          newBranchOpCond = TR::InstOpCode::COND_MASK7;
          }
@@ -3909,8 +3909,8 @@ generateTestUnderMaskIfPossible(TR::Node * node, TR::CodeGenerator * cg, TR::Ins
       cg->decReferenceCount(secondChild);
       }
    else if (constNode &&
-         (node->getOpCodeValue()==TR::ificmpeq || node->getOpCodeValue()==TR::ifiucmpeq ||
-          node->getOpCodeValue()==TR::ificmpne || node->getOpCodeValue()==TR::ifiucmpne) &&
+         (node->getOpCodeValue()==TR::ificmpeq ||
+          node->getOpCodeValue()==TR::ificmpne) &&
          constNode->getInt() == 0 &&
          nonConstNode->getOpCodeValue()==TR::iand &&
          nonConstNode->getReferenceCount() == 1 && nonConstNode->getRegister()==NULL &&
@@ -3931,7 +3931,7 @@ generateTestUnderMaskIfPossible(TR::Node * node, TR::CodeGenerator * cg, TR::Ins
       else
           generateRIInstruction(cg, TR::InstOpCode::TMLH, node, tempReg, (nonConstNode->getSecondChild()->getInt()&0xFFFF0000)>>16);
 
-      if (node->getOpCodeValue()==TR::ificmpne || node->getOpCodeValue()==TR::ifiucmpne)
+      if (node->getOpCodeValue()==TR::ificmpne)
          {
          newBranchOpCond = TR::InstOpCode::COND_MASK7;
          }
@@ -9897,12 +9897,12 @@ OMR::Z::TreeEvaluator::BBStartEvaluator(TR::Node * node, TR::CodeGenerator * cg)
 #endif
                    true)
                   {
-                  sym->setAllocatedIndex(cg->getGlobalRegister(child->getChild(i)->getGlobalRegisterNumber()));
+                  sym->setAssignedGlobalRegisterIndex(cg->getGlobalRegister(child->getChild(i)->getGlobalRegisterNumber()));
                   }
                else
                   {
-                  sym->setAllocatedHigh(cg->getGlobalRegister(child->getChild(i)->getHighGlobalRegisterNumber()));
-                  sym->setAllocatedLow(cg->getGlobalRegister(child->getChild(i)->getLowGlobalRegisterNumber()));
+                  sym->setAssignedHighGlobalRegisterIndex(cg->getGlobalRegister(child->getChild(i)->getHighGlobalRegisterNumber()));
+                  sym->setAssignedLowGlobalRegisterIndex(cg->getGlobalRegister(child->getChild(i)->getLowGlobalRegisterNumber()));
                   }
                }
             }
@@ -9992,6 +9992,13 @@ OMR::Z::TreeEvaluator::BBEndEvaluator(TR::Node * node, TR::CodeGenerator * cg)
                baseReg = cg->gprClobberEvaluate(baseAddr);    \
             else                                                      \
                baseReg = cg->evaluate(baseAddr);              \
+            }                                                         \
+         }
+
+#define AlwaysClobberRegisterForLoops(evaluateChildren,baseAddr,baseReg) \
+         { if (evaluateChildren)                                      \
+            {                                                         \
+            baseReg = cg->gprClobberEvaluate(baseAddr);               \
             }                                                         \
          }
 
@@ -11121,7 +11128,7 @@ OMR::Z::TreeEvaluator::arraysetEvaluator(TR::Node * node, TR::CodeGenerator * cg
          if (isZero)
             {
             MemClearVarLenMacroOp op(node, baseAddr, cg, elemsRegister, elemsExpr, lenMinusOne);
-            ClobberRegisterForLoops(evaluateChildren, op, baseAddr, baseReg);
+            AlwaysClobberRegisterForLoops(evaluateChildren, baseAddr, baseReg);
             op.setUseEXForRemainder(true);
             op.generate(baseReg);
             }
@@ -11130,14 +11137,14 @@ OMR::Z::TreeEvaluator::arraysetEvaluator(TR::Node * node, TR::CodeGenerator * cg
             if (useMVI)
                {
                MemInitVarLenMacroOp op(node, baseAddr, cg, elemsRegister, constExpr->getByte(), elemsExpr, lenMinusOne);
-               ClobberRegisterForLoops(evaluateChildren, op, baseAddr, baseReg);
+               AlwaysClobberRegisterForLoops(evaluateChildren, baseAddr, baseReg);
                op.setUseEXForRemainder(true);
                op.generate(baseReg);
                }
             else
                {
                MemInitVarLenMacroOp op(node, baseAddr, cg, elemsRegister, constExprRegister, elemsExpr, lenMinusOne);
-               ClobberRegisterForLoops(evaluateChildren, op, baseAddr, baseReg);
+               AlwaysClobberRegisterForLoops(evaluateChildren, baseAddr, baseReg);
                op.setUseEXForRemainder(true);
                op.generate(baseReg);
                }
@@ -12884,8 +12891,8 @@ TR::InstOpCode::S390BranchCondition getButestBranchCondition(TR::ILOpCodes opCod
    TR_ASSERT(cmpValue >= 0 && cmpValue <= 3, "Unexpected butest cc test value %d\n", cmpValue);
    switch(opCode)
          {
-         case TR::ifiucmpeq: case TR::ificmpeq: rowNum = 0; break;
-         case TR::ifiucmpne: case TR::ificmpne: rowNum = 1; break;
+         case TR::ificmpeq: rowNum = 0; break;
+         case TR::ificmpne: rowNum = 1; break;
          case TR::ifiucmpgt: rowNum = 2; break;
          case TR::ifiucmpge: rowNum = 3; break;
          case TR::ifiucmplt: rowNum = 4; break;
