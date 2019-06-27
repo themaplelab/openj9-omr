@@ -37,6 +37,7 @@ class BenefitInlinerBase: public TR_InlinerBase
    protected:
       virtual bool supportsMultipleTargetInlining () { return true; }
       BenefitInlinerBase(TR::Optimizer *optimizer, TR::Optimization *optimization);
+      TR::Region _cfgRegion;
    public:
       virtual void applyPolicyToTargets(TR_CallStack *, TR_CallSite *, TR::Block *block=NULL);
       int _callerIndex;
@@ -93,16 +94,6 @@ class BenefitInliner: public BenefitInlinerBase
                                     TR::Compilation *comp,
                                     int32_t depth=-1,
                                     bool allConsts=false);
-   };
-
-   class ByteCodeCFG : public TR::CFG
-   {
-   public:
-
-   ByteCodeCFG(TR::Compilation *c, TR::ResolvedMethodSymbol *m) : TR::CFG(c, m) {};
-
-   virtual int getStartBlockFrequency();
-   virtual TR::CFGNode *getStartForReverseSnapshot();
    };
 
    class AbsEnvInlinerUtil : public TR_J9InlinerUtil
