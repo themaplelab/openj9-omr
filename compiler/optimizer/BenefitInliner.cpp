@@ -11,16 +11,18 @@
 #include "optimizer/J9CallGraph.hpp"
 #include "optimizer/J9EstimateCodeSize.hpp"
 
+
 int32_t OMR::BenefitInlinerWrapper::perform()
    {
    TR::ResolvedMethodSymbol * sym = comp()->getMethodSymbol();
    int32_t budget = this->getBudget(sym);
    if (budget < 0) return -1;
 
-
    OMR::BenefitInliner inliner(optimizer(), this, budget);
+   inliner.initIDT(sym);
    inliner.obtainIDT(sym, budget);
    inliner.performInlining(sym);
+   inliner.traceIDT();
    return 1;
    }
 
@@ -56,6 +58,16 @@ OMR::BenefitInlinerWrapper::getBudget(TR::ResolvedMethodSymbol *resolvedMethodSy
       return 25;
    }
 
+void OMR::BenefitInliner::initIDT(TR::ResolvedMethodSymbol *root)
+   {
+   _idt = new (comp()->trMemory()->currentStackRegion()) IDT(this, &comp()->trMemory()->currentStackRegion(), root);
+   }
+
+void OMR::BenefitInliner::traceIDT()
+   {
+   _idt->printTrace();
+   }
+
 void
 OMR::BenefitInliner::obtainIDT(TR_CallSite *callsite, int32_t budget, TR_ByteCodeInfo &info, int cpIndex)
    {
@@ -74,9 +86,15 @@ OMR::BenefitInliner::obtainIDT(TR_CallSite *callsite, int32_t budget, TR_ByteCod
          callTarget->_calleeSymbol = resolvedMethodSymbol;
          callTarget->_myCallSite = callsite;
          if (!comp()->incInlineDepth(resolvedMethodSymbol, callsite->_bcInfo, callsite->_cpIndex, NULL, !callTarget->_myCallSite->isIndirectCall(), 0)) continue;
-         this->obtainIDT(resolvedMethodSymbol, budget);
-         comp()->decInlineDepth(true);
-         budget = oldBudget;
+
+         bool added = _idt->addToCurrentChild(callsite->_byteCodeIndex, resolvedMethodSymbol);
+         if (added) 
+            {
+            this->obtainIDT(resolvedMethodSymbol, budget);
+            _idt->popCurrent();
+            }
+            comp()->decInlineDepth(true);
+            budget = oldBudget;
          }
       this->_callerIndex--;
    }
@@ -86,23 +104,29 @@ OMR::BenefitInliner::obtainIDT(TR::ResolvedMethodSymbol *resolvedMethodSymbol, i
    {
       if (budget < 0) return;
 
-      TR_VerboseLog::vlogAcquire();
-      TR_VerboseLog::writeLine(TR_Vlog_SIP, "%d %s", this->_callerIndex, resolvedMethodSymbol->signature(this->comp()->trMemory()));
-      TR_VerboseLog::vlogRelease();
 
       TR_ResolvedMethod *resolvedMethod = resolvedMethodSymbol->getResolvedMethod();
       TR_CallStack *prevCallStack = this->_inliningCallStack;
       TR::CFG *cfg = NULL;
       TR::CFG *prevCFG = resolvedMethodSymbol->getFlowGraph();
       int32_t maxBytecodeIndex = resolvedMethodSymbol->getResolvedMethod()->maxBytecodeIndex();
-      if (!prevCallStack) {
+      if (!prevCallStack)
+         {
          TR_CallTarget *calltarget = new (this->_callStacksRegion) TR_CallTarget(NULL, resolvedMethodSymbol, resolvedMethod, NULL, resolvedMethod->containingClass(), NULL);
          TR_J9EstimateCodeSize *cfgGen = (TR_J9EstimateCodeSize *)TR_EstimateCodeSize::get(this, this->tracer(), 0);
          cfg = cfgGen->generateCFG(calltarget, NULL, this->_cfgRegion);
          resolvedMethodSymbol->setFlowGraph(prevCFG);
-      } else {
+         } 
+      else 
+         {
          cfg = resolvedMethodSymbol->getFlowGraph();
-      }
+         if (this->_inliningCallStack->isAnywhereOnTheStack(resolvedMethod, 1)) 
+         {
+            return;
+         }
+         }
+
+
       this->_inliningCallStack = new (this->_callStacksRegion) TR_CallStack(this->comp(), resolvedMethodSymbol, resolvedMethod, prevCallStack, budget);
 
       for (TR::ReversePostorderSnapshotBlockIterator blockIt (cfg->getStartForReverseSnapshot()->asBlock(), comp()); blockIt.currentBlock(); ++blockIt)
