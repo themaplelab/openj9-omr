@@ -22,7 +22,7 @@ IDT::IDT(TR_InlinerBase* inliner, TR::Region *mem, TR::ResolvedMethodSymbol* rms
 void
 IDT::printTrace() const
   {
-  if (comp()->trace(OMR::selectInliner)) {
+  if (comp()->trace(OMR::benefitInliner)) {
     const int candidates = size() - 1;
     TR_VerboseLog::writeLineLocked(TR_Vlog_SIP, "#IDT: %d candidate methods to inline into %s",
       candidates,
