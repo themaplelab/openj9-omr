@@ -755,7 +755,7 @@ OMR::AbsEnvInlinerUtil::computeMethodBranchProfileInfo2(TR::Block *cfgBlock, TR_
          {
 
          mbpInfo = TR_MethodBranchProfileInfo::addMethodBranchProfileInfo (callerIndex, comp());
-
+         calleeSymbol->setFlowGraph(calltarget->_cfg);
          calleeSymbol->getFlowGraph()->computeInitialBlockFrequencyBasedOnExternalProfiler(comp());
          uint32_t firstBlockFreq = calleeSymbol->getFlowGraph()->getInitialBlockFrequency();
          //uint32_t firstBlockFreq = calleeSymbol->getFlowGraph()->getStartBlockFrequency(); //?
@@ -802,6 +802,7 @@ OMR::BenefitInliner::BenefitInliner(TR::Optimizer *optimizer, TR::Optimization *
          BenefitInlinerBase(optimizer, optimization),
          _callSitesRegion(optimizer->comp()->region()),
          _callStacksRegion(optimizer->comp()->region()),
+         _holdingProposalRegion(optimizer->comp()->region()),
          _inliningCallStack(NULL),
          _budget(budget)
          {
