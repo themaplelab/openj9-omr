@@ -25,16 +25,18 @@ class IDT
     {
     public:
     Node(const IDT* idt, int idx, int32_t callsite_bci, TR::ResolvedMethodSymbol* rms, Node *parent);
+    Node(const IDT* idt, int idx, int32_t callsite_bci, TR::ResolvedMethodSymbol* rms, Node *parent, unsigned int benefit);
     int size() const;
     Node* addChildIfNotExists(IDT* idt,
                                  int32_t callsite_bci,
-                                 TR::ResolvedMethodSymbol* rms);
+                                 TR::ResolvedMethodSymbol* rms,
+                                 int benefit);
     const char* getName(const IDT* idt) const;
     void printNodeThenChildren(const IDT* idt, int callerIndex) const;
     Node *getParent();
     int getCalleeIndex() const;
-    unsigned int getCost();
-    unsigned int getBenefit();
+    unsigned int getCost() const;
+    unsigned int getBenefit() const;
     void buildIndices(IDT::Indices &indices);
     private:
     typedef TR::deque<Node, TR::Region&> Children;
@@ -43,6 +45,7 @@ class IDT
     int _callsite_bci;
     // NULL if 0, (Node* & 1) if 1, otherwise a deque*
     Children* _children;
+    unsigned int _benefit;
     TR::ResolvedMethodSymbol* _rms;
     bool nodeSimilar(int32_t callsite_bci, TR::ResolvedMethodSymbol* rms) const;
     uint32_t getBcSz() const;
@@ -65,7 +68,7 @@ public:
   IDT(TR_InlinerBase* inliner, TR::Region* mem, TR::ResolvedMethodSymbol* rms);
   Node* getRoot() const;
   TR::Compilation* comp() const;
-  bool addToCurrentChild(int32_t callsite_bci, TR::ResolvedMethodSymbol* rms);
+  bool addToCurrentChild(int32_t callsite_bci, TR::ResolvedMethodSymbol* rms, float callRatio);
   void popCurrent();
 
 public:
