@@ -177,15 +177,17 @@ IDT::Node::addChildIfNotExists(IDT* idt,
     }
 
   // 2+ children
-  IDT::Node::Children* children = _children;
+  //IDT::Node::Children* children = _children;
 
-  for (auto curr = children->begin(); curr != children->end(); ++curr)
+/*
+  for (auto curr = _children->begin(); curr != _children->end(); ++curr)
     {
     if (curr->nodeSimilar(callsite_bci, rms))
       {
       return nullptr;
       }
     }
+*/
 
   _children->push_back(IDT::Node(idt, idt->nextIdx(), callsite_bci, rms, this, benefit));
   return &_children->back();
@@ -212,14 +214,23 @@ IDT::size() const
     return getRoot()->size();
   }
 
+unsigned int
+IDT::Node::getNumChildren() const
+   {
+   if (_children == nullptr) return 0;
+   if (getOnlyChild() != nullptr) return 1;
+   return _children->size();
+   }
+
 int
 IDT::Node::size() const
   {
     if (_children == nullptr) {
       return 1;
     }
+    Node *child = this->getOnlyChild();
     if (getOnlyChild() != nullptr) {
-      return 2;
+      return 1 + child->size();
     }
     int sum = 1;
     for (auto child = _children->begin(); child != _children->end(); ++child) {
@@ -259,9 +270,22 @@ void IDT::popCurrent()
 
 IDT::Node *IDT::getNodeByCalleeIndex(int calleeIndex)
   {
-    if (_indices == nullptr)
-    {
-      buildIndices();
-    }
+    if (!_indices) return NULL;
     return (*_indices)[calleeIndex];
   }
+
+void
+IDT::Node::enqueue_subordinates(IDT::NodePtrPriorityQueue *q) const
+   {
+      int count = this->getNumChildren();
+      if (count == 1) {
+         IDT::Node* child = this->getOnlyChild();
+         q->push(child);
+         return;
+      }
+      for (int i = 0; i < count; i++)
+         {
+            IDT::Node *child = &(_children->at(i));
+            q->push(child);
+         }
+   }

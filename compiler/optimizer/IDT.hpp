@@ -6,6 +6,8 @@
 #include "infra/Cfg.hpp"
 #include "infra/deque.hpp"
 #include "infra/Stack.hpp"
+#include <queue>
+#include "infra/vector.hpp"
 
 /**
  * Class IDT 
@@ -21,6 +23,15 @@ class IDT
   public:
   class Node;
   typedef TR::deque<Node *, TR::Region&> Indices;
+  typedef TR::vector<Node*, TR::Region&> NodePtrVector;
+    struct NodePtrOrder
+      {
+      bool operator()(IDT::Node *left, IDT::Node *right)
+        {
+        return left->getCost() < right->getCost() || left->getBenefit() < right->getBenefit();
+        }
+      };
+  typedef std::priority_queue<Node*, NodePtrVector, IDT::NodePtrOrder> NodePtrPriorityQueue;
   class Node
     {
     public:
@@ -38,6 +49,7 @@ class IDT
     unsigned int getCost() const;
     unsigned int getBenefit() const;
     void buildIndices(IDT::Indices &indices);
+    void enqueue_subordinates(IDT::NodePtrPriorityQueue *q) const;
     private:
     typedef TR::deque<Node, TR::Region&> Children;
     Node *_parent;
@@ -45,6 +57,20 @@ class IDT
     int _callsite_bci;
     // NULL if 0, (Node* & 1) if 1, otherwise a deque*
     Children* _children;
+    public:
+    Node *prerequisite() const { return this->_parent; }
+    bool is_root() const { return this->_parent == NULL; }
+    unsigned int count() const
+      {
+      if (!_children) return 0;
+      int count = _children->size();
+      for (int i = 0; i < count; i++)
+         {
+         count += _children->at(i).count();
+         }
+      return count;
+      }
+    private:
     unsigned int _benefit;
     TR::ResolvedMethodSymbol* _rms;
     bool nodeSimilar(int32_t callsite_bci, TR::ResolvedMethodSymbol* rms) const;
@@ -52,7 +78,10 @@ class IDT
     // Returns NULL if 0 or > 1 children
     Node* getOnlyChild() const;
     void setOnlyChild(Node* child);
+    public:
+    unsigned int getNumChildren() const;
     };
+  
   private:
   TR::Region* _mem;
   TR_InlinerBase* _inliner;
