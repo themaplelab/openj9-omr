@@ -825,7 +825,6 @@ OMR::BenefitInlinerBase::BenefitInlinerBase(TR::Optimizer *optimizer, TR::Optimi
 
 OMR::BenefitInliner::BenefitInliner(TR::Optimizer *optimizer, TR::Optimization *optimization, uint32_t budget) : 
          BenefitInlinerBase(optimizer, optimization),
-         _holdingProposalRegion(optimizer->comp()->region()),
          _callSitesRegion(optimizer->comp()->region()),
          _callStacksRegion(optimizer->comp()->region()),
          _holdingProposalRegion(optimizer->comp()->region()),
