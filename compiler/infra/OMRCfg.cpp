@@ -3366,7 +3366,7 @@ OMR::CFG::getStartBlockFrequency()
       {
          auto asBlock = cfgNode->asBlock();
          if (!asBlock) continue;
-         if (cfgNode->getNumber() == 2)
+         if (cfgNode->getNumber() == 4)
          return asBlock->getFrequency();
       }
       return 0;
@@ -3375,7 +3375,6 @@ OMR::CFG::getStartBlockFrequency()
 TR::Block*
 OMR::CFG::getCfgNodeWithByteCodeIndex(int bcIndex)
    {
-   //TODO: no linear search
       TR::Block *block = NULL;
       for (auto cfgNode = this->getFirstNode(); cfgNode; cfgNode = cfgNode->getNext())
       {
@@ -3422,12 +3421,27 @@ void
 OMR::CFG::computeMethodBranchProfileInfo(AbsEnvInlinerUtil *util, TR_CallTarget* calltarget, TR::ResolvedMethodSymbol* callerSymbol, int callerIndex, TR::Block *callBlock)
    {
       TR::Block *cfgBlock = NULL;
-      for (TR::CFGNode *node = this->getFirstNode(); node; node = node->getNext())
+
+      for (auto cfgNode = this->getFirstNode(); cfgNode; cfgNode = cfgNode->getNext())
       {
-      cfgBlock = node->asBlock();
-      if (cfgBlock->getEntry() != NULL) break;
+         auto asBlock = cfgNode->asBlock();
+         if (!asBlock) continue;
+         if (cfgNode->getNumber() == 4)
+         cfgBlock = asBlock;
       }
 
       util->computeMethodBranchProfileInfo2(cfgBlock, calltarget, callerSymbol, callerIndex, callBlock);
    }
 
+TR::CFGNode *
+OMR::CFG::getStartForReverseSnapshot()
+   {
+   for (auto cfgNode = this->getFirstNode(); cfgNode; cfgNode = cfgNode->getNext())
+      {
+         auto asBlock = cfgNode->asBlock();
+         if (!asBlock) continue;
+         if (cfgNode->getNumber() == 4)
+         return cfgNode;
+      }
+      return NULL;
+   }
