@@ -153,7 +153,7 @@ class CFG
    void setStartAndEnd(TR::CFGNode * s, TR::CFGNode * e) { addNode(s); addNode(e); setStart(s); setEnd(e); }
 
    TR::CFGNode *getStart() {return _pStart;}
-   virtual TR::CFGNode *getStartForReverseSnapshot() { return this->getStart(); }
+   virtual TR::CFGNode *getStartForReverseSnapshot();
    TR::CFGNode *setStart(TR::CFGNode *p) {return (_pStart = p);}
 
    TR::CFGNode *getEnd() {return _pEnd;}
