@@ -21,8 +21,8 @@ int32_t OMR::BenefitInlinerWrapper::perform()
    OMR::BenefitInliner inliner(optimizer(), this, budget);
    inliner.initIDT(sym);
    inliner.obtainIDT(sym, budget);
-   inliner.performInlining(sym);
    inliner.traceIDT();
+   inliner.performInlining(sym);
    return 1;
    }
 
@@ -87,7 +87,7 @@ OMR::BenefitInliner::obtainIDT(TR_CallSite *callsite, int32_t budget, TR_ByteCod
          callTarget->_myCallSite = callsite;
          if (!comp()->incInlineDepth(resolvedMethodSymbol, callsite->_bcInfo, callsite->_cpIndex, NULL, !callTarget->_myCallSite->isIndirectCall(), 0)) continue;
 
-         bool added = _idt->addToCurrentChild(callsite->_byteCodeIndex, resolvedMethodSymbol);
+         bool added = _idt->addToCurrentChild(callsite->_byteCodeIndex, resolvedMethodSymbol, callTarget->_callRatio);
          if (added) 
             {
             this->obtainIDT(resolvedMethodSymbol, budget);
@@ -142,9 +142,6 @@ OMR::BenefitInliner::obtainIDT(TR::ResolvedMethodSymbol *resolvedMethodSymbol, i
       for (TR::ReversePostorderSnapshotBlockIterator blockIt (cfg->getStartForReverseSnapshot()->asBlock(), comp()); blockIt.currentBlock(); ++blockIt)
          {
             TR::Block *block = blockIt.currentBlock();
-            //TR_VerboseLog::vlogAcquire();
-            //TR_VerboseLog::writeLine(TR_Vlog_SIP, "block->getFrequency() = %d", block->getFrequency());
-            //TR_VerboseLog::vlogRelease();
             this->obtainIDT(resolvedMethodSymbol, block, budget);
          }
       
@@ -744,21 +741,15 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
          // now we have the call block
          cfg2->computeMethodBranchProfileInfo(this->getAbsEnvUtil(), calltarget, caller, this->_nodes, callblock);
          this->_nodes++;
-         TR_VerboseLog::vlogAcquire();
-         TR_VerboseLog::writeLine(TR_Vlog_SIP, "cfg start = %d call start freq = %d call block freq = %d", cfg->getStartBlockFrequency(), cfg2->getStartBlockFrequency(), callblock->getFrequency());
-         //TR_VerboseLog::writeLine(TR_Vlog_SIP, "cfg start = %d call start freq = %d call block freq = %d", cfg->getStartBlockFrequency(), cfgBlock->getFrequency(), callblock->getFrequency());
          //Now the frequencies should have been set...
          //bool allowInliningColdTargets = false;
          if (!allowInliningColdTargets && callblock->getFrequency() <= 6)
             {
-            TR_VerboseLog::writeLine(TR_Vlog_SIP, "Removing because callblock");
-            TR_VerboseLog::vlogRelease();
             callsite->removecalltarget(i,tracer(),DontInline_Callee);
             i--;
             continue;
             }
-         TR_VerboseLog::vlogRelease();
-         //TODO: Now I need to ask cfg for block of call...we have the bcIndex...
+         calltarget->_callRatio = (float)callblock->getFrequency() / cfg->getStartBlockFrequency();
       }
 
    return;
