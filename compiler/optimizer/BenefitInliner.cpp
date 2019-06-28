@@ -10,6 +10,9 @@
 #include "optimizer/BenefitInliner.hpp"
 #include "optimizer/J9CallGraph.hpp"
 #include "optimizer/J9EstimateCodeSize.hpp"
+#include "optimizer/PriorityPreorder.hpp"
+#include "optimizer/Growable_2d_array.hpp"
+#include "optimizer/InlinerPacking.hpp"
 
 
 int32_t OMR::BenefitInlinerWrapper::perform()
@@ -21,9 +24,19 @@ int32_t OMR::BenefitInlinerWrapper::perform()
    OMR::BenefitInliner inliner(optimizer(), this, budget);
    inliner.initIDT(sym);
    inliner.obtainIDT(sym, budget);
+   inliner.analyzeIDT();
    inliner.traceIDT();
-   inliner.performInlining(sym);
+   //inliner.performInlining(sym);
    return 1;
+   }
+
+void
+OMR::BenefitInliner::analyzeIDT()
+   {
+      if (this->_idt->size() == 1) return; // No Need to analyze, since there is nothing to inline.
+      PriorityPreorder items(this->_idt, this->comp());
+      Growable_2d_array_BitVectorImpl results(this->comp(), items.size(), 100, this);
+      forwards_BitVectorImpl(100, items, &results, this->comp(), this, this->_idt);
    }
 
 int32_t

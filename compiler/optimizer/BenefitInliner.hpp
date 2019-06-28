@@ -58,6 +58,7 @@ class BenefitInliner: public BenefitInlinerBase
          return false;
          }
       void initIDT(TR::ResolvedMethodSymbol *root);
+      void analyzeIDT();
       void obtainIDT(TR::ResolvedMethodSymbol *resolvedMethodSymbol, int32_t budget);
       void obtainIDT(TR_CallSite*, int32_t budget, TR_ByteCodeInfo &info, int cpIndex);
       void obtainIDT(TR::ResolvedMethodSymbol *callerSymbol, TR::Block *block, int32_t budget);
