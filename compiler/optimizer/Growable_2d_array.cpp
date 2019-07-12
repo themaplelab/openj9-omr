@@ -4,16 +4,11 @@
 
 #include "compiler/optimizer/Growable_2d_array.hpp"
 #include "compiler/optimizer/InliningProposal.hpp"
-
-#ifdef J9_PROJECT_SPECIFIC
-
 #include "compile/Compilation.hpp"
 #include "env/TypedAllocator.hpp"
 #include "env/StackMemoryRegion.hpp"
 #include "optimizer/BenefitInliner.hpp"
 #include "infra/BitVector.hpp"
-
-#endif
 
 
 Growable_2d_array_BitVectorImpl::Growable_2d_array_BitVectorImpl(TR::Compilation *comp, size_t rows, size_t cols, OMR::BenefitInliner*inliner)

@@ -1,15 +1,11 @@
-#include <iostream>
 #include <vector>
 #include <queue>
 
 #include "compiler/optimizer/PriorityPreorder.hpp"
 #include "compiler/optimizer/IDT.hpp"
 #include "compiler/infra/Assert.hpp"
-
-#ifdef J9_PROJECT_SPECIFIC
 #include "compile/Compilation.hpp"
 #include "optimizer/Inliner.hpp"
-#endif
 
 
 PriorityPreorder::PriorityPreorder(IDT* root, TR::Compilation* comp) : 
@@ -25,20 +21,16 @@ PriorityPreorder::PriorityPreorder(IDT* root, TR::Compilation* comp) :
 size_t
 PriorityPreorder::size() const {
   auto root = this->_root;
-  return root->size();
+  return root->howManyNodes();
 }
 
 IDT::Node*
 PriorityPreorder::get(size_t idx) {
   auto size = this->_entries.size();
-  // starting at array index = 1
-  // we want index = 2
-  // we have index = 1
   if (size > idx) {
      return this->_entries.at(idx);
   }
 
-  // we have idx = 2
   int totalSize = this->size();
   if (idx > totalSize - 1) {
     return NULL;

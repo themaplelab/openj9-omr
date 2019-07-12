@@ -1,49 +1,39 @@
 #include "IDT.hpp"
 
-#include "compiler/env/j9method.h"
-#include "compiler/optimizer/AbsOpStack.hpp"
-#include "compiler/optimizer/AbsVarArrayStatic.hpp"
-#include "compiler/optimizer/AbsEnvStatic.hpp"
-#include "compiler/infra/ILWalk.hpp"
-
 #define SINGLE_CHILD_BIT 1
 
 
-IDT::Node::Node(IDT* idt, int idx, int32_t callsite_bci, TR::ResolvedMethodSymbol* rms, IDT::Node *parent):
+IDT::Node::Node(const IDT* idt, int idx, int32_t callsite_bci, TR::ResolvedMethodSymbol* rms, IDT::Node *parent):
   _idx(idx),
-  _benefit(1), // must be positive
+  _benefit(-1),
   _callsite_bci(callsite_bci),
   _children(nullptr),
   _rms(rms),
-  _parent(parent),
-  _head(idt)
+  _parent(parent)
   {}
 
-IDT::Node::Node(IDT* idt, int idx, int32_t callsite_bci, TR::ResolvedMethodSymbol* rms, IDT::Node *parent, unsigned int benefit):
+IDT::Node::Node(const IDT* idt, int idx, int32_t callsite_bci, TR::ResolvedMethodSymbol* rms, IDT::Node *parent, unsigned int benefit):
   _idx(idx),
   _benefit(benefit),
   _callsite_bci(callsite_bci),
   _children(nullptr),
   _rms(rms),
-  _parent(parent),
-  _head(idt)
+  _parent(parent)
   {}
 
-IDT::IDT(TR_InlinerBase* inliner, TR::Region &mem, TR::ResolvedMethodSymbol* rms):
+IDT::IDT(TR_InlinerBase* inliner, TR::Region *mem, TR::ResolvedMethodSymbol* rms):
   _mem(mem),
-  _vp(nullptr),
-  _inliner(inliner),
+  _comp(inliner->comp()),
   _max_idx(-1),
-  _root(new (_mem) IDT::Node(this, nextIdx(), -1, rms, nullptr, 1)),
+  _root(new (*_mem) IDT::Node(this, nextIdx(), -1, rms, nullptr, 1)),
   _current(_root)
-  {
-  }
+  {}
 
 void
 IDT::printTrace() const
   {
   if (comp()->trace(OMR::benefitInliner)) {
-    const int candidates = howManyNodes() - 1;
+    const int candidates = this->howManyNodes() - 1;
     TR_VerboseLog::writeLineLocked(TR_Vlog_SIP, "#IDT: %d candidate methods to inline into %s",
       candidates,
       getRoot()->getName(this)
@@ -123,7 +113,7 @@ IDT::getRoot() const
 void
 IDT::buildIndices() 
   {
-    _indices = new (_mem) IDT::Indices(howManyNodes(), nullptr, _mem);
+    _indices = new (*_mem) IDT::Indices(this->howManyNodes(), nullptr, *_mem);
     getRoot()->buildIndices(*_indices);
   }
 
@@ -166,7 +156,7 @@ IDT::Node::getBenefit() const
 void
 IDT::Node::setBenefit(unsigned int benefit)
   {
-  this->_benefit = benefit;
+     this->_benefit = benefit;
   }
 
 IDT::Node*
@@ -178,18 +168,16 @@ IDT::Node::addChildIfNotExists(IDT* idt,
   // 0 Children
   if (_children == nullptr)
     {
-    IDT::Node* created = new (idt->_mem) IDT::Node(idt, idt->nextIdx(), callsite_bci, rms, this, benefit);
+    IDT::Node* created = new (*idt->_mem) IDT::Node(idt, idt->nextIdx(), callsite_bci, rms, this, benefit);
     setOnlyChild(created);
     return created;
     }
   // 1 Child
   IDT::Node* onlyChild = getOnlyChild();
-
   if (onlyChild && onlyChild->nodeSimilar(callsite_bci, rms)) return nullptr;
-
   if (onlyChild)
     {
-    _children = new (idt->_mem) IDT::Node::Children(idt->_mem);
+    _children = new (*idt->_mem) IDT::Node::Children(*idt->_mem);
     TR_ASSERT_FATAL(!((uintptr_t)_children & SINGLE_CHILD_BIT), "Maligned memory address.\n");
     _children->push_back(*onlyChild);
     // Fall through to two child case.
@@ -197,7 +185,7 @@ IDT::Node::addChildIfNotExists(IDT* idt,
 
   // 2+ children
   //IDT::Node::Children* children = _children;
-
+/*
   for (auto curr = _children->begin(); curr != _children->end(); ++curr)
     {
     if (curr->nodeSimilar(callsite_bci, rms))
@@ -205,6 +193,7 @@ IDT::Node::addChildIfNotExists(IDT* idt,
       return nullptr;
       }
     }
+*/
 
   _children->push_back(IDT::Node(idt, idt->nextIdx(), callsite_bci, rms, this, benefit));
   return &_children->back();
@@ -213,22 +202,21 @@ IDT::Node::addChildIfNotExists(IDT* idt,
 bool
 IDT::Node::nodeSimilar(int32_t callsite_bci, TR::ResolvedMethodSymbol* rms) const
   {
-  auto a = _rms->getResolvedMethod()->maxBytecodeIndex();
-  auto b = rms->getResolvedMethod()->maxBytecodeIndex();
-
-  return a == b && _callsite_bci == callsite_bci;
+  bool sameMethod = this->isSameMethod(rms);
+  bool sameCallSiteIndex = _callsite_bci == callsite_bci;
+  return sameMethod && sameCallSiteIndex;
   }
 
 TR::Compilation*
 IDT::comp() const
   {
-  return _inliner->comp();
+  return this->_comp;
   }
 
-unsigned int
+int
 IDT::howManyNodes() const
   {
-    return getRoot()->howManyDescendantsIncludingMe();
+    return this->getRoot()->howManyDescendantsIncludingMe();
   }
 
 unsigned int
@@ -239,42 +227,23 @@ IDT::Node::getNumChildren() const
    return _children->size();
    }
 
-unsigned int
+int
 IDT::Node::howManyDescendantsIncludingMe() const
   {
-   return 1 + this->howManyDescendants();
-    if (_children == nullptr) {
-      return 1;
-    }
-    Node *child = this->getOnlyChild();
-    if (getOnlyChild() != nullptr) {
-      return 1 + child->howManyDescendantsIncludingMe();
-    }
-    int sum = 1;
-    for (auto child = _children->begin(); child != _children->end(); ++child) {
-      sum += child->howManyDescendantsIncludingMe();
-    }
-    return sum;
-  }
-
-unsigned int
-IDT::Node::howManyDescendants() const
-  {
-  if (!_children) return 0;
-  IDT::Node *onlyChild = this->getOnlyChild();
-  if (onlyChild) return 1 + onlyChild->howManyDescendants();
-
-  int sum = 0;
-  for (auto child = _children->begin(); child != _children->end(); ++child)
-     {
-     sum += 1 + child->howManyDescendants();
-     }
-  return sum;
+    return 1 + this->howManyDescendants();
   }
 
 const char *
-IDT::Node::getName(const IDT *idt) const 
+IDT::Node::getName() const 
   {
+  //slow implementation TR::comp() is expensive but here we are in a context where we don't have access to IDT
+  return _rms->getResolvedMethod()->signature(TR::comp()->trMemory());
+  }
+
+const char *
+IDT::Node::getName(const IDT *idt) const
+  {
+  // fast implementation, idt has comp cached.
   return _rms->getResolvedMethod()->signature(idt->comp()->trMemory());
   }
 
@@ -331,12 +300,6 @@ IDT::Node::getCallerIndex() const
       return parent->getCalleeIndex();
    }
 
-bool
-IDT::Node::isRoot() const
-  {
-  return this->getParent() == nullptr;
-  }
-
 TR::ResolvedMethodSymbol*
 IDT::Node::getResolvedMethodSymbol() const
   {
@@ -370,114 +333,28 @@ IDT::Node::findChildWithBytecodeIndex(int bcIndex)
      return NULL;
   }
 
-const char *
-IDT::Node::getName() const 
+
+bool
+IDT::Node::isRoot() const
   {
-  //slow implementation TR::comp() is expensive but here we are in a context where we don't have access to IDT
-  return _rms->getResolvedMethod()->signature(TR::comp()->trMemory());
+     return NULL == this->_parent;
   }
 
-UDATA
-IDT::Node::maxStack() const
+unsigned int
+IDT::Node::howManyDescendants() const
   {
-   TR_ResolvedJ9Method *method = (TR_ResolvedJ9Method *)this->getResolvedMethodSymbol()->getResolvedMethod();
-  J9ROMMethod *romMethod = method->romMethod();
-  return J9_MAX_STACK_FROM_ROM_METHOD(romMethod);
-  }
+      if (!_children) return 0;
 
-IDATA
-IDT::Node::maxLocals() const
-  {
-   TR_ResolvedJ9Method *method = (TR_ResolvedJ9Method *)this->getResolvedMethodSymbol()->getResolvedMethod();
-  J9ROMMethod *romMethod = method->romMethod();
-  return J9_ARG_COUNT_FROM_ROM_METHOD(romMethod) + J9_TEMP_COUNT_FROM_ROM_METHOD(romMethod);
-  }
+      Node *child = this->getOnlyChild();
+      if (child != nullptr)
+      {
+        return 1 + child->howManyDescendants();
+      }
 
-TR::Region&
-IDT::Node::getAbsOpStackMemoryRegion() const
-  {
-  return this->_head->getMemoryRegion();
-  }
-
-TR::Region&
-IDT::Node::getAbsVarArrayMemoryRegion() const
-  {
-  return this->_head->getMemoryRegion();
-  }
-
-TR::Region&
-IDT::Node::getAbsEnvMemoryRegion() const
-  {
-  return this->_head->getMemoryRegion();
-  }
-
-TR::ValuePropagation*
-IDT::Node::getValuePropagation()
-  {
-  return this->_head->getValuePropagation();
-  }
-
-TR::ValuePropagation*
-IDT::getValuePropagation()
-  {
-  if (this->_vp != nullptr) return this->_vp;
-
-  TR::OptimizationManager* manager = this->_inliner->comp()->getOptimizer()->getOptimization(OMR::globalValuePropagation);
-  this->_vp = (TR::ValuePropagation*) manager->factory()(manager);
-  this->_vp->initialize();
-  return this->_vp;
-  }
-
-TR::Region&
-IDT::getMemoryRegion() const
-  {
-  return this->_mem;
-  }
-
-AbsOpStackStatic*
-IDT::Node::createAbsOpStack()
-  {
-  TR::Region &region = this->getAbsOpStackMemoryRegion();
-  const UDATA maxStack = this->maxStack();
-  return new (region) AbsOpStackStatic(region, maxStack);
-  }
-
-AbsVarArrayStatic*
-IDT::Node::createAbsVarArray()
-  {
-  TR::Region &region = this->getAbsVarArrayMemoryRegion();
-  const IDATA maxLocals = this->maxLocals();
-  return new (region) AbsVarArrayStatic(region, maxLocals);
-  }
-
-AbsEnvStatic*
-IDT::Node::createAbsEnv()
-  {
-  TR::Region &region = this->getAbsEnvMemoryRegion();
-  const UDATA maxStack = this->maxStack();
-  const IDATA maxLocals = this->maxLocals();
-  return new (region) AbsEnvStatic(region, maxStack, maxLocals, this->getValuePropagation());
-  }
-
-
-AbsEnvStatic*
-IDT::Node::enterMethod()
-  {
-  AbsEnvStatic *absEnv = this->createAbsEnv();
-  absEnv->enterMethod(this->getResolvedMethodSymbol());
-  absEnv->trace();
-  return absEnv;
-  }
-
-
-void
-IDT::Node::getMethodSummary()
-  {
-  TR::ResolvedMethodSymbol *rms = this->getResolvedMethodSymbol();
-  TR::CFG* cfg = rms->getFlowGraph();
-  TR::Block *startBlock = cfg->getStartForReverseSnapshot()->asBlock();
-  TR::Compilation *comp = this->_head->comp();
-  for (TR::ReversePostorderSnapshotBlockIterator blockIt (startBlock, comp); blockIt.currentBlock(); ++blockIt)
-     {
-     }
+      int count = _children->size();
+      for (int i = 0; i < count; i++)
+         {
+         count += _children->at(i).howManyDescendants();
+         }
+      return count;
   }

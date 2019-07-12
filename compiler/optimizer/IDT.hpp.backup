@@ -9,10 +9,6 @@
 #include <queue>
 #include "infra/vector.hpp"
 
-#include "compiler/optimizer/AbsEnvStatic.hpp"
-#include "compiler/optimizer/AbsOpStackStatic.hpp"
-#include "compiler/optimizer/AbsVarArrayStatic.hpp"
-#include "compiler/optimizer/ValuePropagation.hpp"
 
 /**
  * Class IDT 
@@ -26,7 +22,6 @@
 class IDT
   {
   public:
-  //TODO: can we move this definition outside?
   class Node;
   typedef TR::deque<Node *, TR::Region&> Indices;
   typedef TR::vector<Node*, TR::Region&> NodePtrVector;
@@ -41,35 +36,33 @@ class IDT
   class Node
     {
     public:
-    Node(IDT* idt, int idx, int32_t callsite_bci, TR::ResolvedMethodSymbol* rms, Node *parent);
-    Node(IDT* idt, int idx, int32_t callsite_bci, TR::ResolvedMethodSymbol* rms, Node *parent, unsigned int benefit);
-    unsigned int howManyDescendantsIncludingMe() const;
+    Node(const IDT* idt, int idx, int32_t callsite_bci, TR::ResolvedMethodSymbol* rms, Node *parent);
+    Node(const IDT* idt, int idx, int32_t callsite_bci, TR::ResolvedMethodSymbol* rms, Node *parent, unsigned int benefit);
+    int howManyDescendantsIncludingMe() const;
     Node* addChildIfNotExists(IDT* idt, int32_t callsite_bci, TR::ResolvedMethodSymbol* rms, int benefit);
-    const char* getName(const IDT* idt) const;
     const char* getName() const;
+    const char* getName(const IDT*) const;
     void printNodeThenChildren(const IDT* idt, int callerIndex) const;
-    Node *getParent() const;
+    IDT::Node *getParent() const;
+    int getCallerIndex() const;
     int getCalleeIndex() const;
+    int numberOfParameters();
+    bool isSameMethod(IDT::Node*) const;
+    bool isSameMethod(TR::ResolvedMethodSymbol*) const;
     unsigned int getCost() const;
     unsigned int getBenefit() const;
-    void setBenefit(unsigned int);
+    void setBenefit(unsigned int benefit);
     void buildIndices(IDT::Indices &indices);
     void enqueue_subordinates(IDT::NodePtrPriorityQueue *q) const;
-    unsigned int getNumChildren() const;
+    TR::ResolvedMethodSymbol * getResolvedMethodSymbol() const;
     bool isRoot() const;
-    IDT::Node* findChildWithBytecodeIndex(int bcIndex);
-    bool isSameMethod(IDT::Node* aNode) const;
-    bool isSameMethod(TR::ResolvedMethodSymbol *) const;
-    int numberOfParameters();
-    TR::ResolvedMethodSymbol* getResolvedMethodSymbol() const;
-    int getCallerIndex() const;
     unsigned int howManyDescendants() const;
-    AbsEnvStatic* enterMethod();
+    unsigned int getNumChildren() const;
+    IDT::Node* findChildWithBytecodeIndex(int);
     private:
-
     typedef TR::deque<Node, TR::Region&> Children;
+
     Node *_parent;
-    IDT* _head;
     int _idx;
     int _callsite_bci;
     // NULL if 0, (Node* & 1) if 1, otherwise a deque*
@@ -82,22 +75,11 @@ class IDT
     // Returns NULL if 0 or > 1 children
     Node* getOnlyChild() const;
     void setOnlyChild(Node* child);
-    UDATA maxStack() const;
-    IDATA maxLocals() const;
-    TR::Region &getAbsOpStackMemoryRegion() const;
-    TR::Region &getAbsVarArrayMemoryRegion() const;
-    TR::Region &getAbsEnvMemoryRegion() const;
-    AbsOpStackStatic* createAbsOpStack();
-    AbsVarArrayStatic* createAbsVarArray();
-    AbsEnvStatic* createAbsEnv();
-    void getMethodSummary();
-    TR::ValuePropagation *getValuePropagation();
     };
   
-private:
-  TR::Region& _mem;
-  TR::ValuePropagation *_vp;
-  TR_InlinerBase* _inliner;
+  private:
+  TR::Region* _mem;
+  TR::Compilation *_comp;
   int _max_idx = -1;
   Node *_root;
   Node *_current;
@@ -105,16 +87,14 @@ private:
   void buildIndices();
   typedef TR::deque<Node, TR::Region&> BuildStack;
   int nextIdx();
-  TR::ValuePropagation *getValuePropagation();
 
-public:
-  TR::Region &getMemoryRegion() const;
-  IDT(TR_InlinerBase* inliner, TR::Region& mem, TR::ResolvedMethodSymbol* rms);
+  public:
+  IDT(TR_InlinerBase* inliner, TR::Region* mem, TR::ResolvedMethodSymbol* rms);
   Node* getRoot() const;
   TR::Compilation* comp() const;
   bool addToCurrentChild(int32_t callsite_bci, TR::ResolvedMethodSymbol* rms, float callRatio);
   void popCurrent();
-  unsigned int howManyNodes() const;
+  int howManyNodes() const;
   void printTrace() const;
   IDT::Node *getNodeByCalleeIndex(int calleeIndex);
 };

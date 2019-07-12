@@ -1,14 +1,12 @@
 #pragma once
-#ifndef GROWABLE_2D_ARRAY_INCL
 
-#ifdef J9_PROJECT_SPECIFIC
+#ifndef GROWABLE_2D_ARRAY_INCL
+#define GROWABLE_2D_ARRAY_INCL
 
 #include "compiler/optimizer/InliningProposal.hpp"
 #include "compile/Compilation.hpp"
 #include "infra/BitVector.hpp"
 #include "compiler/optimizer/BenefitInliner.hpp"
-
-#endif
 
 
 class Growable_2d_array_BitVectorImpl {

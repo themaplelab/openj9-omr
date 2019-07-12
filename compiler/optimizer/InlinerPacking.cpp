@@ -25,10 +25,10 @@ forwards_BitVectorImpl(const int cost_budget, PriorityPreorder& items, Growable_
       int offset_col = budget - curr_set.getCost();
       prev_best = table->_get(offset_row, offset_col);
 
-      while( !curr_item->is_root() && !prev_best->inSet(curr_item->prerequisite())) {
+      while( !curr_item->isRoot() && !prev_best->inSet(curr_item->getParent())) {
 
-        curr_set.pushBack(curr_item->prerequisite());
-        curr_item = curr_item->prerequisite();
+        curr_set.pushBack(curr_item->getParent());
+        curr_item = curr_item->getParent();
         offset_col = budget - curr_set.getCost();
         prev_best = table->_get(offset_row, offset_col);
 
@@ -38,14 +38,14 @@ forwards_BitVectorImpl(const int cost_budget, PriorityPreorder& items, Growable_
       //TODO: rename, maybe to tableElem or tableCell what is this other set that I'm pointing to.
       temp = table->_get(offset_row, offset_col);
       common.intersectInPlace(curr_set, *temp);
-      bool prereqInTemp = curr_item->prerequisite() and temp->inSet(curr_item->prerequisite());
+      bool prereqInTemp = curr_item->getParent() and temp->inSet(curr_item->getParent());
 
       while( !common.isEmpty() || !(prereqInTemp or temp->isEmpty())) {
 
         offset_row--;
         temp = table->_get(offset_row, offset_col);
         common.intersectInPlace(curr_set, *temp);
-        prereqInTemp = curr_item->prerequisite() and temp->inSet(curr_item->prerequisite());
+        prereqInTemp = curr_item->getParent() and temp->inSet(curr_item->getParent());
 
       }
 
