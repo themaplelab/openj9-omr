@@ -13,6 +13,7 @@
 #include "optimizer/PriorityPreorder.hpp"
 #include "optimizer/Growable_2d_array.hpp"
 #include "optimizer/InlinerPacking.hpp"
+#include "optimizer/AbsOpStack.hpp"
 
 
 int32_t OMR::BenefitInlinerWrapper::perform()
@@ -24,16 +25,24 @@ int32_t OMR::BenefitInlinerWrapper::perform()
    OMR::BenefitInliner inliner(optimizer(), this, budget);
    inliner.initIDT(sym);
    inliner.obtainIDT(sym, budget);
+   inliner.abstractInterpreter();
    inliner.analyzeIDT();
    inliner.traceIDT();
    //inliner.performInlining(sym);
    return 1;
    }
 
+
+void
+OMR::BenefitInliner::abstractInterpreter()
+   {
+   this->_idt->getRoot()->enterMethod();
+   }
+
 void
 OMR::BenefitInliner::analyzeIDT()
    {
-      if (this->_idt->size() == 1) return; // No Need to analyze, since there is nothing to inline.
+      if (this->_idt->howManyNodes() == 1) return; // No Need to analyze, since there is nothing to inline.
       PriorityPreorder items(this->_idt, this->comp());
       Growable_2d_array_BitVectorImpl results(this->comp(), items.size(), 100, this);
       forwards_BitVectorImpl(100, items, &results, this->comp(), this, this->_idt);
@@ -73,7 +82,8 @@ OMR::BenefitInlinerWrapper::getBudget(TR::ResolvedMethodSymbol *resolvedMethodSy
 
 void OMR::BenefitInliner::initIDT(TR::ResolvedMethodSymbol *root)
    {
-   _idt = new (comp()->trMemory()->currentStackRegion()) IDT(this, &comp()->trMemory()->currentStackRegion(), root);
+   //TODO: can we do this in the initialization list?
+   _idt = new (comp()->trMemory()->currentStackRegion()) IDT(this, comp()->trMemory()->currentStackRegion(), root);
    }
 
 void OMR::BenefitInliner::traceIDT()
@@ -829,6 +839,7 @@ OMR::BenefitInlinerBase::BenefitInlinerBase(TR::Optimizer *optimizer, TR::Optimi
 
 OMR::BenefitInliner::BenefitInliner(TR::Optimizer *optimizer, TR::Optimization *optimization, uint32_t budget) : 
          BenefitInlinerBase(optimizer, optimization),
+         _absOpStackRegion(optimizer->comp()->region()),
          _callSitesRegion(optimizer->comp()->region()),
          _callStacksRegion(optimizer->comp()->region()),
          _holdingProposalRegion(optimizer->comp()->region()),
