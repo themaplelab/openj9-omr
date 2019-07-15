@@ -16,16 +16,16 @@ public:
   AbsOpStackStatic(TR::Region & region, unsigned int maxSize);
   void pop();
   void trace(OMR::ValuePropagation *);
-  void push(TR::VPConstraint *);
+  void push(AbsValue*);
   bool empty() const;
   size_t size() const;
-  TR::VPConstraint* top();
+  AbsValue* top();
 private:
   //typedef TR::typed_allocator<TR::reference_wrapper<TR::VPConstraint>, TR::Region> DequeAllocator;
   //typedef std::deque<TR::reference_wrapper<TR::VPConstraint>, DequeAllocator> StackContainer;
   //typedef std::stack<TR::reference_wrapper<TR::VPConstraint>, StackContainer> ConstraintStack;
-  typedef TR::typed_allocator<TR::VPConstraint*, TR::Region> DequeAllocator;
-  typedef std::deque<TR::VPConstraint*, DequeAllocator> StackContainer;
-  typedef std::stack<TR::VPConstraint*, StackContainer> ConstraintStack;
+  typedef TR::typed_allocator<AbsValue*, TR::Region> DequeAllocator;
+  typedef std::deque<AbsValue*, DequeAllocator> StackContainer;
+  typedef std::stack<AbsValue*, StackContainer> ConstraintStack;
   ConstraintStack _stack; 
 };

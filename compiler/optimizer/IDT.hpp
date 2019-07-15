@@ -92,6 +92,8 @@ class IDT
     AbsEnvStatic* createAbsEnv();
     void getMethodSummary();
     TR::ValuePropagation *getValuePropagation();
+    AbsEnvStatic* analyzeBasicBlock(TR::Block *, AbsEnvStatic*);
+    AbsEnvStatic* analyzeBasicBlock(TR::Block*, AbsEnvStatic*, unsigned int, unsigned int);
     };
   
 private:
