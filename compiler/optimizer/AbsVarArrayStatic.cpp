@@ -8,7 +8,7 @@ AbsVarArrayStatic::AbsVarArrayStatic(TR::Region &region, unsigned int maxSize) :
   }
 
 void
-AbsVarArrayStatic::at(unsigned int index, TR::VPConstraint *constraint)
+AbsVarArrayStatic::at(unsigned int index, AbsValue *constraint)
   {
   if (index == this->size())
      {
@@ -18,7 +18,7 @@ AbsVarArrayStatic::at(unsigned int index, TR::VPConstraint *constraint)
   _array.at(index) = constraint;
   }
 
-TR::VPConstraint*
+AbsValue*
 AbsVarArrayStatic::at(unsigned int index)
   {
   return _array.at(index);
@@ -40,13 +40,8 @@ AbsVarArrayStatic::trace(OMR::ValuePropagation *vp)
   int size = this->size();
   for (int i = 0; i < size; i++)
     {
-    TR::VPConstraint *c = this->at(i);
-    if (!c) 
-      traceMsg(comp, "a[%d] = NULL", i);
-    else {
-      traceMsg(comp, "a[%d] = ", i);
-      this->at(i)->print(vp);
-    }
+    traceMsg(comp, "a[%d] = ", i);
+    this->at(i)->print(vp);
     traceMsg(comp, "\n");
     }
   traceMsg(comp, "\n");

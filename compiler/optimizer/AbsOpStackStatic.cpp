@@ -6,10 +6,10 @@ AbsOpStackStatic::AbsOpStackStatic(TR::Region &region, unsigned int maxSize) :
   }
 
 void
-AbsOpStackStatic::push(TR::VPConstraint *constraint)
+AbsOpStackStatic::push(AbsValue *value)
   {
   //TODO: fix for types that occupy two stack positions.
-  _stack.push(constraint);
+  _stack.push(value);
   }
 
 void
@@ -19,7 +19,7 @@ AbsOpStackStatic::pop()
   _stack.pop();
   }
 
-TR::VPConstraint*
+AbsValue*
 AbsOpStackStatic::top()
   {
   //TODO: fix for types that occupy two stack positions.

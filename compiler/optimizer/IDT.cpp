@@ -5,6 +5,7 @@
 #include "compiler/optimizer/AbsVarArrayStatic.hpp"
 #include "compiler/optimizer/AbsEnvStatic.hpp"
 #include "compiler/infra/ILWalk.hpp"
+#include "compiler/il/OMRBlock.hpp"
 
 #define SINGLE_CHILD_BIT 1
 
@@ -465,7 +466,7 @@ IDT::Node::enterMethod()
   {
   AbsEnvStatic *absEnv = this->createAbsEnv();
   absEnv->enterMethod(this->getResolvedMethodSymbol());
-  absEnv->trace();
+  absEnv->trace(this->getName());
   return absEnv;
   }
 
@@ -477,7 +478,25 @@ IDT::Node::getMethodSummary()
   TR::CFG* cfg = rms->getFlowGraph();
   TR::Block *startBlock = cfg->getStartForReverseSnapshot()->asBlock();
   TR::Compilation *comp = this->_head->comp();
+  AbsEnvStatic *absEnv = this->enterMethod();
   for (TR::ReversePostorderSnapshotBlockIterator blockIt (startBlock, comp); blockIt.currentBlock(); ++blockIt)
      {
+        TR::Block *block = blockIt.currentBlock();
+        //analyzeBasicBlock(block, absEnv);
      }
+  }
+
+AbsEnvStatic*
+IDT::Node::analyzeBasicBlock(TR::Block *block, AbsEnvStatic* absEnv)
+  {
+      TR_VerboseLog::vlogAcquire();
+      //int end = block->getBlockBCIndex() + block->getBlockSize();
+      //TR_VerboseLog::writeLine(TR_Vlog_SIP, "block start = %d, end = %d", block->getBlockBCIndex(), end);
+      TR_VerboseLog::vlogRelease();
+  }
+
+AbsEnvStatic*
+IDT::Node::analyzeBasicBlock(TR::Block *block, AbsEnvStatic* absEnv, unsigned int start, unsigned int end)
+  {
+  return NULL;
   }
