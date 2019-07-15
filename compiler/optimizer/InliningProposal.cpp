@@ -134,3 +134,15 @@ InliningProposal::unionInPlace(InliningProposal &a, InliningProposal &b)
   // compute the cost and benefit lazily
   // TODO: recompute cost, recompute benefit. Which method computes them?
   }
+
+bool
+InliningProposal::overlaps(InliningProposal *p)
+{
+  TR_BitVectorIterator bvi(*p->_nodes);
+  int32_t igNodeIndex;
+  while (bvi.hasMoreElements()) {
+     igNodeIndex = bvi.getNextElement();
+     if (!this->_nodes->isSet(igNodeIndex)) return false;
+  }
+  return true;
+}

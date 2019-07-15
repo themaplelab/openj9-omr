@@ -10,6 +10,10 @@
 #include "optimizer/BenefitInliner.hpp"
 #include "optimizer/J9CallGraph.hpp"
 #include "optimizer/J9EstimateCodeSize.hpp"
+#include "optimizer/PriorityPreorder.hpp"
+#include "optimizer/Growable_2d_array.hpp"
+#include "optimizer/InlinerPacking.hpp"
+#include "optimizer/AbsOpStack.hpp"
 
 
 int32_t OMR::BenefitInlinerWrapper::perform()
@@ -21,9 +25,27 @@ int32_t OMR::BenefitInlinerWrapper::perform()
    OMR::BenefitInliner inliner(optimizer(), this, budget);
    inliner.initIDT(sym);
    inliner.obtainIDT(sym, budget);
-   inliner.performInlining(sym);
+   inliner.abstractInterpreter();
+   inliner.analyzeIDT();
    inliner.traceIDT();
+   //inliner.performInlining(sym);
    return 1;
+   }
+
+
+void
+OMR::BenefitInliner::abstractInterpreter()
+   {
+   this->_idt->getRoot()->enterMethod();
+   }
+
+void
+OMR::BenefitInliner::analyzeIDT()
+   {
+      if (this->_idt->howManyNodes() == 1) return; // No Need to analyze, since there is nothing to inline.
+      PriorityPreorder items(this->_idt, this->comp());
+      Growable_2d_array_BitVectorImpl results(this->comp(), items.size(), 100, this);
+      forwards_BitVectorImpl(100, items, &results, this->comp(), this, this->_idt);
    }
 
 int32_t
@@ -60,7 +82,8 @@ OMR::BenefitInlinerWrapper::getBudget(TR::ResolvedMethodSymbol *resolvedMethodSy
 
 void OMR::BenefitInliner::initIDT(TR::ResolvedMethodSymbol *root)
    {
-   _idt = new (comp()->trMemory()->currentStackRegion()) IDT(this, &comp()->trMemory()->currentStackRegion(), root);
+   //TODO: can we do this in the initialization list?
+   _idt = new (comp()->trMemory()->currentStackRegion()) IDT(this, comp()->trMemory()->currentStackRegion(), root);
    }
 
 void OMR::BenefitInliner::traceIDT()
@@ -87,7 +110,7 @@ OMR::BenefitInliner::obtainIDT(TR_CallSite *callsite, int32_t budget, TR_ByteCod
          callTarget->_myCallSite = callsite;
          if (!comp()->incInlineDepth(resolvedMethodSymbol, callsite->_bcInfo, callsite->_cpIndex, NULL, !callTarget->_myCallSite->isIndirectCall(), 0)) continue;
 
-         bool added = _idt->addToCurrentChild(callsite->_byteCodeIndex, resolvedMethodSymbol);
+         bool added = _idt->addToCurrentChild(callsite->_byteCodeIndex, resolvedMethodSymbol, callTarget->_callRatio);
          if (added) 
             {
             this->obtainIDT(resolvedMethodSymbol, budget);
@@ -115,15 +138,25 @@ OMR::BenefitInliner::obtainIDT(TR::ResolvedMethodSymbol *resolvedMethodSymbol, i
          TR_CallTarget *calltarget = new (this->_callStacksRegion) TR_CallTarget(NULL, resolvedMethodSymbol, resolvedMethod, NULL, resolvedMethod->containingClass(), NULL);
          TR_J9EstimateCodeSize *cfgGen = (TR_J9EstimateCodeSize *)TR_EstimateCodeSize::get(this, this->tracer(), 0);
          cfg = cfgGen->generateCFG(calltarget, NULL, this->_cfgRegion);
-         resolvedMethodSymbol->setFlowGraph(prevCFG);
+
+         //TR_MethodBranchProfileInfo *mbpInfo = TR_MethodBranchProfileInfo::getMethodBranchProfileInfo(this->_nodes, comp());
+         cfg->computeInitialBlockFrequencyBasedOnExternalProfiler(comp());
+         uint32_t firstBlockFreq = cfg->getInitialBlockFrequency();
+         int32_t blockFreq = 6;
+         float freqScaleFactor = 0.0;
+         //mbpInfo->setInitialBlockFrequency(firstBlockFreq);
+         //mbpInfo->setCallFactor(freqScaleFactor);
+         cfg->setFrequencies();
+         //resolvedMethodSymbol->setFlowGraph(prevCFG);
+         resolvedMethodSymbol->setFlowGraph(cfg);
          } 
       else 
          {
          cfg = resolvedMethodSymbol->getFlowGraph();
          if (this->_inliningCallStack->isAnywhereOnTheStack(resolvedMethod, 1)) 
-         {
+            {
             return;
-         }
+            }
          }
 
 
@@ -136,6 +169,7 @@ OMR::BenefitInliner::obtainIDT(TR::ResolvedMethodSymbol *resolvedMethodSymbol, i
          }
       
        this->_inliningCallStack = prevCallStack;
+       resolvedMethodSymbol->setFlowGraph(prevCFG);
    }
 
 void
@@ -731,10 +765,14 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
          cfg2->computeMethodBranchProfileInfo(this->getAbsEnvUtil(), calltarget, caller, this->_nodes, callblock);
          this->_nodes++;
          //Now the frequencies should have been set...
-         TR_VerboseLog::vlogAcquire();
-         TR_VerboseLog::writeLine(TR_Vlog_SIP, "cfg start = %d call start freq = %d call block freq = %d", cfg->getStartBlockFrequency(), cfg2->getStartBlockFrequency(), callblock->getFrequency());
-         TR_VerboseLog::vlogRelease();
-         //TODO: Now I need to ask cfg for block of call...we have the bcIndex...
+         //bool allowInliningColdTargets = false;
+         if (!allowInliningColdTargets && callblock->getFrequency() <= 6)
+            {
+            callsite->removecalltarget(i,tracer(),DontInline_Callee);
+            i--;
+            continue;
+            }
+         calltarget->_callRatio = (float)callblock->getFrequency() / cfg->getStartBlockFrequency();
       }
 
    return;
@@ -749,13 +787,14 @@ OMR::AbsEnvInlinerUtil::computeMethodBranchProfileInfo2(TR::Block *cfgBlock, TR_
       {
 
       TR::ResolvedMethodSymbol * calleeSymbol = calltarget->_calleeSymbol;
+      calleeSymbol->setFlowGraph(calltarget->_cfg);
 
       TR_MethodBranchProfileInfo *mbpInfo = TR_MethodBranchProfileInfo::getMethodBranchProfileInfo(callerIndex, comp());
       if (!mbpInfo)
          {
 
          mbpInfo = TR_MethodBranchProfileInfo::addMethodBranchProfileInfo (callerIndex, comp());
-
+         calleeSymbol->setFlowGraph(calltarget->_cfg);
          calleeSymbol->getFlowGraph()->computeInitialBlockFrequencyBasedOnExternalProfiler(comp());
          uint32_t firstBlockFreq = calleeSymbol->getFlowGraph()->getInitialBlockFrequency();
          //uint32_t firstBlockFreq = calleeSymbol->getFlowGraph()->getStartBlockFrequency(); //?
@@ -800,8 +839,10 @@ OMR::BenefitInlinerBase::BenefitInlinerBase(TR::Optimizer *optimizer, TR::Optimi
 
 OMR::BenefitInliner::BenefitInliner(TR::Optimizer *optimizer, TR::Optimization *optimization, uint32_t budget) : 
          BenefitInlinerBase(optimizer, optimization),
+         _absOpStackRegion(optimizer->comp()->region()),
          _callSitesRegion(optimizer->comp()->region()),
          _callStacksRegion(optimizer->comp()->region()),
+         _holdingProposalRegion(optimizer->comp()->region()),
          _inliningCallStack(NULL),
          _budget(budget)
          {

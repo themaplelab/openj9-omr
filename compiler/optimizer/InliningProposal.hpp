@@ -27,6 +27,7 @@ class InliningProposal
   bool inSet(int calleeIndex);
   void intersectInPlace(InliningProposal &, InliningProposal&);
   void unionInPlace(InliningProposal &, InliningProposal&);
+  bool overlaps(InliningProposal *p);
 
   private:
   InliningProposal() = delete;
