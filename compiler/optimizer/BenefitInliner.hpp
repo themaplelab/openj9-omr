@@ -66,6 +66,7 @@ class BenefitInliner: public BenefitInlinerBase
       void traceIDT();
       TR::Region _holdingProposalRegion;
    private:
+      TR::CFG *_rootRms;
       TR::Region _absOpStackRegion;
       TR::Region _callSitesRegion;
       TR::Region _callStacksRegion;

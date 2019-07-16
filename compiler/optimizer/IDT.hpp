@@ -13,6 +13,8 @@
 #include "compiler/optimizer/AbsOpStackStatic.hpp"
 #include "compiler/optimizer/AbsVarArrayStatic.hpp"
 #include "compiler/optimizer/ValuePropagation.hpp"
+#include "compiler/il/OMRBlock.hpp"
+#include "infra/Cfg.hpp"
 
 /**
  * Class IDT 
@@ -62,9 +64,11 @@ class IDT
     bool isSameMethod(TR::ResolvedMethodSymbol *) const;
     int numberOfParameters();
     TR::ResolvedMethodSymbol* getResolvedMethodSymbol() const;
+    void setResolvedMethodSymbol(TR::ResolvedMethodSymbol* rms) { this->_rms = rms; }
     int getCallerIndex() const;
     unsigned int howManyDescendants() const;
     AbsEnvStatic* enterMethod();
+    void getMethodSummary();
     private:
 
     typedef TR::deque<Node, TR::Region&> Children;
@@ -90,10 +94,9 @@ class IDT
     AbsOpStackStatic* createAbsOpStack();
     AbsVarArrayStatic* createAbsVarArray();
     AbsEnvStatic* createAbsEnv();
-    void getMethodSummary();
     TR::ValuePropagation *getValuePropagation();
-    AbsEnvStatic* analyzeBasicBlock(TR::Block *, AbsEnvStatic*);
-    AbsEnvStatic* analyzeBasicBlock(TR::Block*, AbsEnvStatic*, unsigned int, unsigned int);
+    AbsEnvStatic* analyzeBasicBlock(OMR::Block *, AbsEnvStatic*);
+    AbsEnvStatic* analyzeBasicBlock(OMR::Block*, AbsEnvStatic*, unsigned int, unsigned int);
     };
   
 private:

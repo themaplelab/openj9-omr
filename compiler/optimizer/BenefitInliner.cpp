@@ -36,7 +36,8 @@ int32_t OMR::BenefitInlinerWrapper::perform()
 void
 OMR::BenefitInliner::abstractInterpreter()
    {
-   this->_idt->getRoot()->enterMethod();
+   this->_idt->getRoot()->getMethodSummary();
+   this->_idt->getRoot()->getResolvedMethodSymbol()->setFlowGraph(this->_rootRms);
    }
 
 void
@@ -137,6 +138,7 @@ OMR::BenefitInliner::obtainIDT(TR::ResolvedMethodSymbol *resolvedMethodSymbol, i
          {
          TR_CallTarget *calltarget = new (this->_callStacksRegion) TR_CallTarget(NULL, resolvedMethodSymbol, resolvedMethod, NULL, resolvedMethod->containingClass(), NULL);
          TR_J9EstimateCodeSize *cfgGen = (TR_J9EstimateCodeSize *)TR_EstimateCodeSize::get(this, this->tracer(), 0);
+         this->_rootRms = prevCFG;
          cfg = cfgGen->generateCFG(calltarget, NULL, this->_cfgRegion);
 
          //TR_MethodBranchProfileInfo *mbpInfo = TR_MethodBranchProfileInfo::getMethodBranchProfileInfo(this->_nodes, comp());
@@ -161,7 +163,6 @@ OMR::BenefitInliner::obtainIDT(TR::ResolvedMethodSymbol *resolvedMethodSymbol, i
 
 
       this->_inliningCallStack = new (this->_callStacksRegion) TR_CallStack(this->comp(), resolvedMethodSymbol, resolvedMethod, prevCallStack, budget);
-
       for (TR::ReversePostorderSnapshotBlockIterator blockIt (cfg->getStartForReverseSnapshot()->asBlock(), comp()); blockIt.currentBlock(); ++blockIt)
          {
             TR::Block *block = blockIt.currentBlock();
@@ -169,7 +170,6 @@ OMR::BenefitInliner::obtainIDT(TR::ResolvedMethodSymbol *resolvedMethodSymbol, i
          }
       
        this->_inliningCallStack = prevCallStack;
-       resolvedMethodSymbol->setFlowGraph(prevCFG);
    }
 
 void
@@ -844,6 +844,7 @@ OMR::BenefitInliner::BenefitInliner(TR::Optimizer *optimizer, TR::Optimization *
          _callStacksRegion(optimizer->comp()->region()),
          _holdingProposalRegion(optimizer->comp()->region()),
          _inliningCallStack(NULL),
+         _rootRms(NULL),
          _budget(budget)
          {
          }
