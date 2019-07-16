@@ -763,6 +763,8 @@ TR_Debug::print(TR::FILE *pOutFile, TR::Block * block, uint32_t indentation)
    if (block->getNumber() >= 0)
       trfprintf(pOutFile, "%4d ", block->getNumber());
    trfprintf(pOutFile, "[%s] ", getName(block));
+   trfprintf(pOutFile, "start = %d\n", block->getBlockBCIndex());
+   trfprintf(pOutFile, "end = %d\n", block->getBlockBCIndex() + block->getBlockSize());
 
    // If there are no nodes associated with this block, it must be the entry or
    // exit node.
