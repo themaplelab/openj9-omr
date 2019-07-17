@@ -5,9 +5,10 @@
 #include "compiler/optimizer/AbsVarArrayStatic.hpp"
 #include "compiler/optimizer/AbsEnvStatic.hpp"
 #include "compiler/infra/ILWalk.hpp"
+#include "compiler/infra/OMRCfg.hpp"
 #include "compiler/il/OMRBlock.hpp"
 #include "il/Block.hpp"
-#include "compiler/infra/OMRCfg.hpp"
+#include "ilgen/J9ByteCodeIterator.hpp"
 
 #define SINGLE_CHILD_BIT 1
 
@@ -226,6 +227,12 @@ TR::Compilation*
 IDT::comp() const
   {
   return _inliner->comp();
+  }
+
+TR::Compilation*
+IDT::Node::comp() const
+  {
+  return this->_head->comp();
   }
 
 unsigned int
@@ -459,7 +466,8 @@ IDT::Node::createAbsEnv()
   TR::Region &region = this->getAbsEnvMemoryRegion();
   const UDATA maxStack = this->maxStack();
   const IDATA maxLocals = this->maxLocals();
-  return new (region) AbsEnvStatic(region, maxStack, maxLocals, this->getValuePropagation());
+  TR::ResolvedMethodSymbol *rms = this->getResolvedMethodSymbol();
+  return new (region) AbsEnvStatic(region, maxStack, maxLocals, this->getValuePropagation(), rms);
   }
 
 
@@ -468,7 +476,8 @@ IDT::Node::enterMethod()
   {
   AbsEnvStatic *absEnv = this->createAbsEnv();
   absEnv->enterMethod(this->getResolvedMethodSymbol());
-  absEnv->trace(this->getName());
+  if (comp()->trace(OMR::benefitInliner))
+    absEnv->trace(this->getName());
   return absEnv;
   }
 
@@ -476,23 +485,41 @@ IDT::Node::enterMethod()
 void
 IDT::Node::getMethodSummary()
   {
-  TR::ResolvedMethodSymbol *rms = this->getResolvedMethodSymbol();
-  TR::CFG* cfg = rms->getFlowGraph();
-  TR::Compilation *comp = this->_head->comp();
-  AbsEnvStatic *absEnv = this->enterMethod();
+  TR::ResolvedMethodSymbol *resolvedMethodSymbol = this->getResolvedMethodSymbol();
+  TR_ResolvedMethod *resolvedMethod = resolvedMethodSymbol->getResolvedMethod();
+  TR_ResolvedJ9Method *resolvedJ9Method = static_cast<TR_ResolvedJ9Method*>(resolvedMethod);
+  TR_J9VMBase *vm = static_cast<TR_J9VMBase*>(this->comp()->fe());
+  TR_J9ByteCodeIterator bci(resolvedMethodSymbol, resolvedJ9Method, vm, this->comp());
+
+  TR::CFG* cfg = resolvedMethodSymbol->getFlowGraph();
   TR::CFGNode *cfgNode = cfg->getStartForReverseSnapshot();
   TR::Block *startBlock = cfgNode->asBlock();
+  TR::Compilation *comp = this->comp();
+  AbsEnvStatic *absEnv = this->enterMethod();
+
+
   for (TR::ReversePostorderSnapshotBlockIterator blockIt (startBlock, comp); blockIt.currentBlock(); ++blockIt)
      {
         OMR::Block *block = blockIt.currentBlock();
-        analyzeBasicBlock(block, absEnv);
+        analyzeBasicBlock(block, absEnv, bci);
      }
+
   }
 
 AbsEnvStatic*
-IDT::Node::analyzeBasicBlock(OMR::Block *block, AbsEnvStatic* absEnv)
+IDT::Node::analyzeBasicBlock(OMR::Block *block, AbsEnvStatic* absEnv, TR_J9ByteCodeIterator &bci)
   {
-  return NULL;
+  int start = block->getBlockBCIndex();
+  int end = start + block->getBlockSize() - 1;
+  bci.setIndex(start);
+  if (this->comp()->trace(OMR::benefitInliner))
+     {
+     traceMsg(this->comp(), "basic block start = %d end = %d\n", start, end);
+     }
+  for (TR_J9ByteCode bc = bci.current(); bc != J9BCunknown && bci.currentByteCodeIndex() < end; bc = bci.next())
+     {
+     absEnv->interpret(bc, bci);
+     }
   }
 
 AbsEnvStatic*
