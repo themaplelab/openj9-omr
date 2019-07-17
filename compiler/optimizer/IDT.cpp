@@ -502,6 +502,7 @@ IDT::Node::getMethodSummary()
      {
         OMR::Block *block = blockIt.currentBlock();
         analyzeBasicBlock(block, absEnv, bci);
+        break;
      }
 
   }

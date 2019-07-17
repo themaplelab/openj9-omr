@@ -36,7 +36,7 @@ int32_t OMR::BenefitInlinerWrapper::perform()
 void
 OMR::BenefitInliner::abstractInterpreter()
    {
-   //this->_idt->getRoot()->getMethodSummary();
+   this->_idt->getRoot()->getMethodSummary();
    this->_idt->getRoot()->getResolvedMethodSymbol()->setFlowGraph(this->_rootRms);
    }
 
