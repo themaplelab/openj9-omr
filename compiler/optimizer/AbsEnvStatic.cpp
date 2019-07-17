@@ -99,10 +99,10 @@ AbsEnvStatic::enterMethod(TR::ResolvedMethodSymbol *rms)
           i = i+1;
           this->at(i, new (_region) AbsValue(NULL, TR::NoType));
         continue;
-
-        //TODO: what about vectors and aggregates?
         break;
+
         default:
+        //TODO: what about vectors and aggregates?
         break;
      }
      const bool isClass = parameter->isClass();
@@ -340,7 +340,7 @@ AbsEnvStatic::trace(const char* methodName)
   {
   if (methodName) traceMsg(TR::comp(), "method %s\n", methodName);
   this->_array.trace(this->_vp);
-  this->_stack.trace(this->_vp);
+  this->_stack.trace(this->_vp, this->_region);
   }
 
 void

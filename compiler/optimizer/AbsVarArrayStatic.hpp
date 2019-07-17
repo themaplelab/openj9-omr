@@ -1,7 +1,8 @@
 #pragma once
 
-#include <vector>
+#include "env/Region.hpp"
 #include "compiler/infra/ReferenceWrapper.hpp"
+#include "compiler/infra/deque.hpp"
 #include "compiler/env/Region.hpp"
 #include "compiler/optimizer/VPConstraint.hpp"
 #include "compiler/optimizer/ValuePropagation.hpp"
@@ -17,9 +18,6 @@ public:
   size_t size() const;
   AbsValue *at(unsigned int);
 private:
-  //typedef TR::typed_allocator<TR::reference_wrapper<TR::VPConstraint>, TR::Region> VectorAllocator;
-  //typedef std::vector<TR::reference_wrapper<TR::VPConstraint>, VectorAllocator> ConstraintArray;
-  typedef TR::typed_allocator<AbsValue*, TR::Region> VectorAllocator;
-  typedef std::vector<AbsValue*, VectorAllocator> ConstraintArray;
+  typedef TR::deque<AbsValue*, TR::Region&> ConstraintArray;
   ConstraintArray _array;
 };
