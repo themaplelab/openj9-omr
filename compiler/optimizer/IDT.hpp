@@ -14,7 +14,8 @@
 #include "compiler/optimizer/AbsVarArrayStatic.hpp"
 #include "compiler/optimizer/ValuePropagation.hpp"
 #include "compiler/il/OMRBlock.hpp"
-#include "infra/Cfg.hpp"
+#include "compiler/ilgen/J9ByteCodeIterator.hpp"
+#include "compiler/infra/Cfg.hpp"
 
 /**
  * Class IDT 
@@ -95,8 +96,9 @@ class IDT
     AbsVarArrayStatic* createAbsVarArray();
     AbsEnvStatic* createAbsEnv();
     TR::ValuePropagation *getValuePropagation();
-    AbsEnvStatic* analyzeBasicBlock(OMR::Block *, AbsEnvStatic*);
+    AbsEnvStatic* analyzeBasicBlock(OMR::Block *, AbsEnvStatic*, TR_J9ByteCodeIterator &);
     AbsEnvStatic* analyzeBasicBlock(OMR::Block*, AbsEnvStatic*, unsigned int, unsigned int);
+    TR::Compilation* comp() const;
     };
   
 private:

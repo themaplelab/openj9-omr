@@ -45,6 +45,11 @@ AbsOpStackStatic::trace(OMR::ValuePropagation *vp)
   TR::Compilation *comp = TR::comp();
   traceMsg(comp, "contents of operand stack:\n");
   int size = this->size();
+  if (size == 0)
+    {
+    traceMsg(comp, "<empty>\n");
+    return;
+    }
   for (int i = 0; i < size; i++)
     {
     copy.top()->print(vp);
