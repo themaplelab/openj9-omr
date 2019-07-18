@@ -50,6 +50,7 @@ AbsOpStackStatic::trace(OMR::ValuePropagation *vp, TR::Region &region)
     traceMsg(comp, "\n");
     return;
     }
+  // maybe trStackRegion instead of region?
   ConstraintStack copy(StackContainer(0, nullptr, region));
   copy = this->_stack;
   traceMsg(comp, "<top>\n");

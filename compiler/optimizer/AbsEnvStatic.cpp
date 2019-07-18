@@ -164,6 +164,12 @@ AbsEnvStatic::at(unsigned int index)
   }
 
 void
+AbsEnvStatic::aload0getfield(int i, TR_J9ByteCodeIterator &bci) {
+  this->aload0();
+  //this->getfield(i, bci);
+}
+
+void
 AbsEnvStatic::interpret(TR_J9ByteCode bc, TR_J9ByteCodeIterator &bci)
   {
   TR::Compilation *comp = TR::comp();
@@ -173,6 +179,7 @@ AbsEnvStatic::interpret(TR_J9ByteCode bc, TR_J9ByteCodeIterator &bci)
   switch(bc)
      {
      //alphabetical order
+     case 215: this->aload0getfield(0, bci); break; //aload0getfield
      case J9BCaaload: this->aaload(); break;
      case J9BCaastore: this->aastore(); break;
      case J9BCaconstnull: this->aconstnull(); break;
@@ -267,6 +274,7 @@ AbsEnvStatic::interpret(TR_J9ByteCode bc, TR_J9ByteCodeIterator &bci)
      case J9BCiaload: this->aaload(); break; //TODO own function
      case J9BCiand: this->iand(); break;
      case J9BCiastore: this->aastore(); break; //TODO own function
+     case J9BCiconstm1: this->iconstm1(); break;
      case J9BCiconst0: this->iconst0(); break;
      case J9BCiconst1: this->iconst1(); break;
      case J9BCiconst2: this->iconst2(); break;
@@ -300,10 +308,10 @@ AbsEnvStatic::interpret(TR_J9ByteCode bc, TR_J9ByteCodeIterator &bci)
      case J9BCineg: this->ineg(); break;
      case J9BCinstanceof: this->instanceof(bci.next2Bytes(), bci.currentByteCodeIndex(), bci); break;
      // invokes...
-     case J9BCinvokevirtual: this->invokevirtual(bci.currentByteCodeIndex(), bci.next2Bytes()); break;
-     case J9BCinvokespecial: this->invokespecial(bci.currentByteCodeIndex(), bci.next2Bytes()); break;
-     case J9BCinvokestatic: this->invokestatic(bci.currentByteCodeIndex(), bci.next2Bytes()); break;
-     case J9BCinvokeinterface: this->invokeinterface(bci.currentByteCodeIndex(), bci.next2Bytes()); break;
+     case J9BCinvokevirtual: this->invokevirtual(bci.currentByteCodeIndex(), bci.next2Bytes(), bci); break;
+     case J9BCinvokespecial: this->invokespecial(bci.currentByteCodeIndex(), bci.next2Bytes(), bci); break;
+     case J9BCinvokestatic: this->invokestatic(bci.currentByteCodeIndex(), bci.next2Bytes(), bci); break;
+     case J9BCinvokeinterface: this->invokeinterface(bci.currentByteCodeIndex(), bci.next2Bytes(), bci); break;
      //case J9BCinvokespecial: this->invokeinterface(bci.currentByteCodeIndex(), bci.next2Bytes()); break;
      case J9BCior: this->ior(); break;
      case J9BCirem: this->irem(); break;
@@ -978,6 +986,11 @@ AbsEnvStatic::ineg() {
 }
 
 void
+AbsEnvStatic::iconstm1() {
+  this->iconst(-1);
+}
+
+void
 AbsEnvStatic::iconst0() {
   this->iconst(0);
 }
@@ -1312,6 +1325,14 @@ void
 AbsEnvStatic::l2i() {
   AbsValue *value1 = this->pop();
   AbsValue *value2 = this->pop();
+  bool nonnull = value2->_vp;
+  if (!nonnull)
+    {
+    AbsValue *result1 = this->getTopDataType(TR::Int32);
+    this->push(result1);
+    return;
+    }
+
   bool canCompute = value2->_vp && value2->_vp->asLongConstraint();
   if (!canCompute)
      {
@@ -1330,6 +1351,15 @@ AbsEnvStatic::land() {
   AbsValue* value2 = this->pop();
   AbsValue *value3 = this->pop();
   AbsValue *value4 = this->pop();
+  bool nonnull = value2->_vp && value4->_vp;
+  if (!nonnull)
+    {
+    AbsValue *result1 = this->getTopDataType(TR::Int64);
+    AbsValue *result2 = this->getTopDataType(TR::NoType);
+    this->push(result1);
+    this->push(result2);
+    return;
+    }
   bool allConstants = value2->_vp->asLongConst() && value4->_vp->asLongConst();
   if (!allConstants)
      {
@@ -1352,6 +1382,15 @@ AbsEnvStatic::ldiv() {
   AbsValue* value2 = this->pop();
   AbsValue* value3 = this->pop();
   AbsValue* value4 = this->pop();
+  bool nonnull = value2->_vp && value4->_vp;
+  if (!nonnull)
+    {
+    AbsValue *result1 = this->getTopDataType(TR::Int64);
+    AbsValue *result2 = this->getTopDataType(TR::NoType);
+    this->push(result1);
+    this->push(result2);
+    return;
+    }
   bool allConstants = value2->_vp->asLongConst() && value4->_vp->asLongConst();
   if (!allConstants)
      {
@@ -1385,6 +1424,15 @@ AbsEnvStatic::lmul() {
   AbsValue* value2 = this->pop();
   AbsValue* value3 = this->pop();
   AbsValue* value4 = this->pop();
+  bool nonnull = value2->_vp && value4->_vp;
+  if (!nonnull)
+    {
+    AbsValue *result1 = this->getTopDataType(TR::Int64);
+    AbsValue *result2 = this->getTopDataType(TR::NoType);
+    this->push(result1);
+    this->push(result2);
+    return;
+    }
   bool allConstants = value2->_vp->asLongConst() && value4->_vp->asLongConst();
   if (!allConstants)
      {
@@ -1407,6 +1455,13 @@ void
 AbsEnvStatic::lneg() {
   AbsValue *value1 = this->pop();
   AbsValue *value2 = this->pop();
+  bool nonnull = value2->_vp;
+  if (!nonnull)
+    {
+    this->push(value2);
+    this->push(value1);
+    return;
+    }
   bool allConstants = value2->_vp->asLongConst();
   if (!allConstants)
      {
@@ -1430,6 +1485,15 @@ AbsEnvStatic::lor() {
   AbsValue* value2 = this->pop();
   AbsValue* value3 = this->pop();
   AbsValue* value4 = this->pop();
+  bool nonnull = value2->_vp && value4->_vp;
+  if (!nonnull)
+    {
+    AbsValue *result1 = this->getTopDataType(TR::Int64);
+    AbsValue *result2 = this->getTopDataType(TR::NoType);
+    this->push(result1);
+    this->push(result2);
+    return;
+    }
   bool allConstants = value2->_vp->asLongConst() && value2->_vp->asLongConst();
   if (!allConstants)
      {
@@ -1452,6 +1516,15 @@ AbsEnvStatic::lrem() {
   AbsValue* value2 = this->pop();
   AbsValue* value3 = this->pop();
   AbsValue* value4 = this->pop();
+  bool nonnull = value2->_vp && value4->_vp;
+  if (!nonnull)
+    {
+    AbsValue *result1 = this->getTopDataType(TR::Int64);
+    AbsValue *result2 = this->getTopDataType(TR::NoType);
+    this->push(result1);
+    this->push(result2);
+    return;
+    }
   bool allConstants = value2->_vp->asLongConst() && value4->_vp->asLongConst();
   if (!allConstants)
      {
@@ -1462,8 +1535,8 @@ AbsEnvStatic::lrem() {
      return;
      }
 
-  long int1 = value1->_vp->asLongConst()->getLow();
-  long int2 = value2->_vp->asLongConst()->getLow();
+  long int1 = value2->_vp->asLongConst()->getLow();
+  long int2 = value4->_vp->asLongConst()->getLow();
   long result = int1 - (int1/ int2) * int2;
   this->push(new (_region) AbsValue(TR::VPLongConst::create(this->_vp, result), TR::Int64));
   AbsValue *result2 = this->getTopDataType(TR::NoType);
@@ -1472,11 +1545,19 @@ AbsEnvStatic::lrem() {
 
 void
 AbsEnvStatic::lshl() {
-  AbsValue *value1 = this->pop();
-  AbsValue* value2 = this->pop();
-  AbsValue* value3 = this->pop();
-  AbsValue* value4 = this->pop();
-  bool allConstants = value2->_vp->asLongConst() && value4->_vp->asLongConst();
+  AbsValue *value2 = this->pop(); // int
+  AbsValue* value0 = this->pop(); // nothing
+  AbsValue* value1 = this->pop(); // long
+  bool nonnull = value2->_vp && value1->_vp;
+  if (!nonnull)
+    {
+    AbsValue *result1 = this->getTopDataType(TR::Int64);
+    AbsValue *result2 = this->getTopDataType(TR::NoType);
+    this->push(result1);
+    this->push(result2);
+    return;
+    }
+  bool allConstants = value2->_vp->asIntConst() && value1->_vp->asLongConst();
   if (!allConstants)
      {
      AbsValue *result1 = this->getTopDataType(TR::Int64);
@@ -1487,7 +1568,7 @@ AbsEnvStatic::lshl() {
      }
 
   long int1 = value1->_vp->asLongConst()->getLow();
-  long int2 = value2->_vp->asLongConst()->getLow() & 0x1f;
+  long int2 = value2->_vp->asIntConst()->getLow() & 0x1f;
   long result = int1 << int2;
   this->push(new (_region) AbsValue(TR::VPLongConst::create(this->_vp, result), TR::Int64));
   AbsValue *result2 = this->getTopDataType(TR::NoType);
@@ -1496,11 +1577,19 @@ AbsEnvStatic::lshl() {
 
 void
 AbsEnvStatic::lshr() {
-  AbsValue *value1 = this->pop();
-  AbsValue* value2 = this->pop();
-  AbsValue* value3 = this->pop();
-  AbsValue* value4 = this->pop();
-  bool allConstants = value2->_vp->asLongConst() && value4->_vp->asLongConst();
+  AbsValue *value2 = this->pop(); // int
+  AbsValue* value0 = this->pop(); // nothing
+  AbsValue* value1 = this->pop(); // long
+  bool nonnull = value2->_vp && value1->_vp;
+  if (!nonnull)
+    {
+    AbsValue *result1 = this->getTopDataType(TR::Int64);
+    AbsValue *result2 = this->getTopDataType(TR::NoType);
+    this->push(result1);
+    this->push(result2);
+    return;
+    }
+  bool allConstants = value2->_vp->asIntConst() && value1->_vp->asLongConst();
   if (!allConstants)
      {
      AbsValue *result1 = this->getTopDataType(TR::Int64);
@@ -1511,7 +1600,7 @@ AbsEnvStatic::lshr() {
      }
 
   long int1 = value1->_vp->asLongConst()->getLow();
-  long int2 = value2->_vp->asLongConst()->getLow() & 0x1f;
+  long int2 = value2->_vp->asIntConst()->getLow() & 0x1f;
   long result = int1 >> int2;
   this->push(new (_region) AbsValue(TR::VPLongConst::create(this->_vp, result), TR::Int64));
   AbsValue *result2 = this->getTopDataType(TR::NoType);
@@ -1520,33 +1609,7 @@ AbsEnvStatic::lshr() {
 
 void
 AbsEnvStatic::lushr() {
-  AbsValue *value1 = this->pop();
-  AbsValue* value2 = this->pop();
-  AbsValue* value3 = this->pop();
-  AbsValue* value4 = this->pop();
-  bool allConstants = value2->_vp->asLongConst() && value4->_vp->asLongConst();
-  if (!allConstants)
-     {
-     AbsValue *result1 = this->getTopDataType(TR::Int64);
-     AbsValue *result2 = this->getTopDataType(TR::NoType);
-     this->push(result1);
-     this->push(result2);
-     return;
-     }
-
-  long int1 = value1->_vp->asLongConst()->getLow();
-  long int2 = value2->_vp->asLongConst()->getLow() & 0x1f;
-  if (int2 == 0)
-     {
-     this->push(value2);
-     this->push(value1);
-     return;
-     }
-  long result = int1 >> int2;
-  result &= 0x7FFFFFFFFFFFFFFF;
-  this->push(new (_region) AbsValue(TR::VPLongConst::create(this->_vp, result), TR::Int64));
-  AbsValue *result2 = this->getTopDataType(TR::NoType);
-  this->push(result2);
+  this->lshr();
 }
 
 void
@@ -1555,6 +1618,15 @@ AbsEnvStatic::lxor() {
   AbsValue* value2 = this->pop();
   AbsValue* value3 = this->pop();
   AbsValue* value4 = this->pop();
+  bool nonnull = value2->_vp && value4->_vp;
+  if (!nonnull)
+    {
+    AbsValue *result1 = this->getTopDataType(TR::Int64);
+    AbsValue *result2 = this->getTopDataType(TR::NoType);
+    this->push(result1);
+    this->push(result2);
+    return;
+    }
   bool allConstants = value2->_vp->asLongConst() && value4->_vp->asLongConst();
   if (!allConstants)
      {
@@ -1893,7 +1965,7 @@ AbsEnvStatic::sipush(int16_t _short) {
 void
 AbsEnvStatic::iinc(int index, int incval) {
   AbsValue *value1 = this->at(index);
-  TR::VPIntConstraint *value = value1->_vp->asIntConstraint();
+  TR::VPIntConstraint *value = value1->_vp ? value1->_vp->asIntConstraint() : nullptr;
   if (!value)
     {
     return;
@@ -2039,45 +2111,56 @@ AbsEnvStatic::newarray(int atype) {
 }
 
 void
-AbsEnvStatic::invokevirtual(int bcIndex, int cpIndex) {
-  invoke(bcIndex, cpIndex);
+AbsEnvStatic::invokevirtual(int bcIndex, int cpIndex, TR_J9ByteCodeIterator &bci) {
+  invoke(bcIndex, cpIndex, bci, TR::MethodSymbol::Kinds::Virtual);
 }
 
 void
-AbsEnvStatic::invokestatic(int bcIndex, int cpIndex) {
-  invoke(bcIndex, cpIndex);
+AbsEnvStatic::invokestatic(int bcIndex, int cpIndex, TR_J9ByteCodeIterator &bci) {
+  invoke(bcIndex, cpIndex, bci, TR::MethodSymbol::Kinds::Static);
 }
 
 void
-AbsEnvStatic::invokespecial(int bcIndex, int cpIndex) {
-  invoke(bcIndex, cpIndex);
+AbsEnvStatic::invokespecial(int bcIndex, int cpIndex, TR_J9ByteCodeIterator &bci) {
+  invoke(bcIndex, cpIndex, bci, TR::MethodSymbol::Kinds::Special);
 }
 
 void
-AbsEnvStatic::invokedynamic(int bcIndex, int cpIndex) {
-  invoke(bcIndex, cpIndex);
+AbsEnvStatic::invokedynamic(int bcIndex, int cpIndex, TR_J9ByteCodeIterator &bci) {
+  invoke(bcIndex, cpIndex, bci, TR::MethodSymbol::Kinds::ComputedVirtual);
 }
 
 void
-AbsEnvStatic::invokeinterface(int bcIndex, int cpIndex) {
-  invoke(bcIndex, cpIndex);
+AbsEnvStatic::invokeinterface(int bcIndex, int cpIndex, TR_J9ByteCodeIterator &bci) {
+  invoke(bcIndex, cpIndex, bci, TR::MethodSymbol::Kinds::Interface);
 }
 
 void
-AbsEnvStatic::invoke(int bcIndex, int cpIndex) {
-  IDT::Node *temp = this->_node->findChildWithBytecodeIndex(bcIndex);
-  if (!temp) //TODO... we have to handle this case... in the meanwhile I would like to stop the abstract interpretation.
-    {
-    // safest assumption (to avoid segfaulting) assume no arguments and returns a double or long...
-    // this invalidates the stack for now.
-    AbsValue *result2 = this->getTopDataType(TR::NoType);
-    this->push(result2);
-    this->push(result2);
-    return;
-    }
-  auto method= temp->getResolvedMethodSymbol()->getResolvedMethod();
+AbsEnvStatic::invoke(int bcIndex, int cpIndex, TR_J9ByteCodeIterator &bci, TR::MethodSymbol::Kinds kind) {
+  auto callerResolvedMethodSymbol = this->_rms;
+  auto callerResolvedMethod = callerResolvedMethodSymbol->getResolvedMethod();
+  TR::Compilation *comp = TR::comp();
+  TR::SymbolReference *symRef;
+  switch(kind) {
+    case TR::MethodSymbol::Kinds::Virtual:
+      symRef = comp->getSymRefTab()->findOrCreateVirtualMethodSymbol(callerResolvedMethodSymbol, cpIndex);
+    break;
+    case TR::MethodSymbol::Kinds::Interface:
+      symRef =comp->getSymRefTab()->findOrCreateInterfaceMethodSymbol(callerResolvedMethodSymbol, cpIndex);
+    break;
+    case TR::MethodSymbol::Kinds::Static:
+      symRef = comp->getSymRefTab()->findOrCreateStaticMethodSymbol(callerResolvedMethodSymbol, cpIndex);
+    break;
+    case TR::MethodSymbol::Kinds::Special:
+      symRef = comp->getSymRefTab()->findOrCreateSpecialMethodSymbol(callerResolvedMethodSymbol, cpIndex);
+    break;
+  }
+  TR_Method *method = comp->fej9()->createMethod(comp->trMemory(), callerResolvedMethod->containingClass(), cpIndex);
   // how many pops?
-  uint32_t params = method->numberOfParameters();
+  uint32_t params = method->numberOfExplicitParameters();
+  int isStatic = kind == TR::MethodSymbol::Kinds::Static;
+  int numberOfImplicitParameters = isStatic ? 0 : 1;
+  if (numberOfImplicitParameters == 1) this->pop();
   for (int i = 0; i < params; i++) {
     TR::DataType datatype = method->parmType(i);
     this->pop();
@@ -2092,23 +2175,29 @@ AbsEnvStatic::invoke(int bcIndex, int cpIndex) {
   }
 
   //pushes?
+  if (method->returnTypeWidth() == 0) return;
 
   //how many pushes?
   TR::DataType datatype = method->returnType();
-  AbsValue *result = nullptr;
-  AbsValue *result2 = nullptr;
   switch(datatype) {
       case TR::Float:
       case TR::Int32:
       case TR::Int16:
       case TR::Int8:
       case TR::Address:
-        result = this->getTopDataType(datatype);
+        {
+        AbsValue *result = this->getTopDataType(datatype);
         this->push(result);
+        }
+        break;
       case TR::Double:
       case TR::Int64:
-        result2 = this->getTopDataType(TR::NoType);
+        {
+        AbsValue *result = this->getTopDataType(datatype);
+        this->push(result);
+        AbsValue *result2 = this->getTopDataType(TR::NoType);
         this->push(result2);
+        }
         break;
       default:
         break;

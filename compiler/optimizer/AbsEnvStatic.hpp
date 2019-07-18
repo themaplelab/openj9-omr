@@ -36,6 +36,7 @@ private:
   AbsValue *at(unsigned int);
 
   // abstract interpreter
+  void aload0getfield(int, TR_J9ByteCodeIterator &);
   void aaload();
   void anewarray(int);
   void newarray(int);
@@ -118,6 +119,7 @@ private:
   void idiv();
   void imul();
   void ineg();
+  void iconstm1();
   void iconst0();
   void iconst1();
   void iconst2();
@@ -191,14 +193,14 @@ private:
   void putfield();
   void putstatic();
   void _new(int);
-  void invokevirtual(int, int);
-  void invokespecial(int, int);
-  void invokestatic(int, int);
-  void invokedynamic(int, int);
-  void invokeinterface(int, int);
+  void invokevirtual(int, int, TR_J9ByteCodeIterator &);
+  void invokespecial(int, int, TR_J9ByteCodeIterator &);
+  void invokestatic(int, int, TR_J9ByteCodeIterator &);
+  void invokedynamic(int, int, TR_J9ByteCodeIterator &);
+  void invokeinterface(int, int, TR_J9ByteCodeIterator &);
 
   // abstract interpreter helper
-  void invoke(int, int);
+  void invoke(int, int, TR_J9ByteCodeIterator &, TR::MethodSymbol::Kinds);
   void aloadn(int);
   void pushConstInt(int);
   void pushNull();
