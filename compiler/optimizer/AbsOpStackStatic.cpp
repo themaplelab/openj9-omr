@@ -50,12 +50,13 @@ AbsOpStackStatic::trace(OMR::ValuePropagation *vp, TR::Region &region)
     traceMsg(comp, "\n");
     return;
     }
-  ConstraintStack copy(this->_stack);
+  ConstraintStack copy(StackContainer(0, nullptr, region));
+  copy = this->_stack;
   traceMsg(comp, "<top>\n");
   for (int i = 0; i < size; i++) {
     AbsValue *value = copy.top();
     copy.pop();
-    traceMsg(comp, "[%d] = ", size - i);
+    traceMsg(comp, "fp[%d] = ", size - i - 1);
     if (value) value->print(vp);
     traceMsg(comp, "\n");
   }

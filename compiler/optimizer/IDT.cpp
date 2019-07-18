@@ -1,9 +1,9 @@
 #include "IDT.hpp"
 
 #include "compiler/env/j9method.h"
-#include "compiler/optimizer/AbsOpStack.hpp"
-#include "compiler/optimizer/AbsVarArrayStatic.hpp"
-#include "compiler/optimizer/AbsEnvStatic.hpp"
+//#include "compiler/optimizer/AbsOpStack.hpp"
+//#include "compiler/optimizer/AbsVarArrayStatic.hpp"
+//#include "compiler/optimizer/AbsEnvStatic.hpp"
 #include "compiler/infra/ILWalk.hpp"
 #include "compiler/infra/OMRCfg.hpp"
 #include "compiler/il/OMRBlock.hpp"
@@ -376,8 +376,15 @@ IDT::Node::isSameMethod(IDT::Node* aNode) const
 IDT::Node*
 IDT::Node::findChildWithBytecodeIndex(int bcIndex)
   {
-     TR_ASSERT_FATAL(false, "unimplemented");
-     return NULL;
+    int size = this->getNumChildren();
+    if (size == 0) return nullptr;
+    if (size == 1) return this->getOnlyChild();
+    for (int i = 0; i < size; i++) {
+       if (_children->at(i)._callsite_bci == bcIndex)
+          return (&(_children->at(i)));
+    }
+  TR_ASSERT_FATAL(false, "why shouldn't be here");
+  return nullptr;
   }
 
 const char *
@@ -403,6 +410,7 @@ IDT::Node::maxLocals() const
   return J9_ARG_COUNT_FROM_ROM_METHOD(romMethod) + J9_TEMP_COUNT_FROM_ROM_METHOD(romMethod);
   }
 
+/*
 TR::Region&
 IDT::Node::getAbsOpStackMemoryRegion() const
   {
@@ -420,6 +428,7 @@ IDT::Node::getAbsEnvMemoryRegion() const
   {
   return this->_head->getMemoryRegion();
   }
+*/
 
 TR::ValuePropagation*
 IDT::Node::getValuePropagation()
@@ -444,22 +453,7 @@ IDT::getMemoryRegion() const
   return this->_mem;
   }
 
-AbsOpStackStatic*
-IDT::Node::createAbsOpStack()
-  {
-  TR::Region &region = this->getAbsOpStackMemoryRegion();
-  const UDATA maxStack = this->maxStack();
-  return new (region) AbsOpStackStatic(region, maxStack);
-  }
-
-AbsVarArrayStatic*
-IDT::Node::createAbsVarArray()
-  {
-  TR::Region &region = this->getAbsVarArrayMemoryRegion();
-  const IDATA maxLocals = this->maxLocals();
-  return new (region) AbsVarArrayStatic(region, maxLocals);
-  }
-
+/*
 AbsEnvStatic*
 IDT::Node::createAbsEnv()
   {
@@ -528,3 +522,4 @@ IDT::Node::analyzeBasicBlock(OMR::Block *block, AbsEnvStatic* absEnv, unsigned i
   {
   return NULL;
   }
+*/

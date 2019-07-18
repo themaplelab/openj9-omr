@@ -6,18 +6,20 @@
 #include "compiler/optimizer/VPConstraint.hpp"
 #include "compiler/optimizer/ValuePropagation.hpp"
 #include "compiler/optimizer/AbsValue.hpp"
+#include "compiler/optimizer/IDT.hpp"
 
 class AbsEnvStatic {
 public:
-  // TODO: change TR::ResolvedMethodSymbol* for IDT::Node*
-  AbsEnvStatic(TR::Region&, UDATA, IDATA, TR::ValuePropagation *, TR::ResolvedMethodSymbol*rms);
-
+  AbsEnvStatic(TR::Region &region, IDT::Node *node);
   void trace(const char* methodName = NULL);
-  void enterMethod(TR::ResolvedMethodSymbol *);
-  void interpret(TR_J9ByteCode, TR_J9ByteCodeIterator &);
+  void interpret();
 
 
 private:
+  void interpret(TR_J9ByteCode, TR_J9ByteCodeIterator &);
+  void enterMethod(TR::ResolvedMethodSymbol *);
+  void interpret(OMR::Block *, AbsEnvStatic *absEnv, TR_J9ByteCodeIterator &);
+  IDT::Node *_node;
   TR::ValuePropagation *_vp;
   TR::ResolvedMethodSymbol *_rms;
   TR::Region &_region;
@@ -35,6 +37,9 @@ private:
 
   // abstract interpreter
   void aaload();
+  void anewarray(int);
+  void newarray(int);
+  void arraylength();
   void aastore();
   void aconstnull();
   void multianewarray(int, int);
@@ -92,6 +97,7 @@ private:
   void fstore1();
   void fstore2();
   void fstore3();
+  void fmul();
   void fload(int);
   void fload0();
   void fload1();
@@ -155,6 +161,7 @@ private:
   void ladd();
   void lsub();
   void l2i();
+  void ldc(int, TR_J9ByteCodeIterator &);
   void land();
   void ldiv();
   void lmul();
@@ -179,12 +186,29 @@ private:
   void swap();
   void sipush(int16_t);
   void iinc(int, int);
+  void monitorenter();
+  void monitorexit();
+  void putfield();
+  void putstatic();
+  void _new(int);
+  void invokevirtual(int, int);
+  void invokespecial(int, int);
+  void invokestatic(int, int);
+  void invokedynamic(int, int);
+  void invokeinterface(int, int);
 
   // abstract interpreter helper
+  void invoke(int, int);
   void aloadn(int);
   void pushConstInt(int);
   void pushNull();
   void iconst(int);
+  void ldcString(int);
+  void ldcAddress(int, TR_J9ByteCodeIterator &);
+  void ldcInt32(int, TR_J9ByteCodeIterator &);
+  void ldcInt64(int, TR_J9ByteCodeIterator &);
+  void ldcFloat();
+  void ldcDouble();
   AbsValue* getClassConstraint(TR_OpaqueClassBlock *);
   AbsValue* getTopDataType(TR::DataType);
 };
