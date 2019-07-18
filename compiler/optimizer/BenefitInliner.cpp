@@ -13,7 +13,7 @@
 #include "optimizer/PriorityPreorder.hpp"
 #include "optimizer/Growable_2d_array.hpp"
 #include "optimizer/InlinerPacking.hpp"
-#include "optimizer/AbsOpStack.hpp"
+#include "optimizer/AbsEnvStatic.hpp"
 
 
 int32_t OMR::BenefitInlinerWrapper::perform()
@@ -36,7 +36,8 @@ int32_t OMR::BenefitInlinerWrapper::perform()
 void
 OMR::BenefitInliner::abstractInterpreter()
    {
-   this->_idt->getRoot()->getMethodSummary();
+   AbsEnvStatic absEnv(_absEnvRegion, this->_idt->getRoot());
+   absEnv.interpret();
    this->_idt->getRoot()->getResolvedMethodSymbol()->setFlowGraph(this->_rootRms);
    }
 
@@ -839,7 +840,7 @@ OMR::BenefitInlinerBase::BenefitInlinerBase(TR::Optimizer *optimizer, TR::Optimi
 
 OMR::BenefitInliner::BenefitInliner(TR::Optimizer *optimizer, TR::Optimization *optimization, uint32_t budget) : 
          BenefitInlinerBase(optimizer, optimization),
-         _absOpStackRegion(optimizer->comp()->region()),
+         _absEnvRegion(optimizer->comp()->region()),
          _callSitesRegion(optimizer->comp()->region()),
          _callStacksRegion(optimizer->comp()->region()),
          _holdingProposalRegion(optimizer->comp()->region()),

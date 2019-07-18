@@ -67,7 +67,7 @@ class BenefitInliner: public BenefitInlinerBase
       TR::Region _holdingProposalRegion;
    private:
       TR::CFG *_rootRms;
-      TR::Region _absOpStackRegion;
+      TR::Region _absEnvRegion;
       TR::Region _callSitesRegion;
       TR::Region _callStacksRegion;
       TR_CallStack *_inliningCallStack;
