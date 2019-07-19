@@ -2,24 +2,64 @@
 #include "compiler/infra/ReferenceWrapper.hpp"
 
 AbsVarArrayStatic::AbsVarArrayStatic(TR::Region &region, unsigned int maxSize) :
-  _array(maxSize, nullptr, region)
+  _array(0, nullptr, region)
   {
+  }
+
+AbsVarArrayStatic::AbsVarArrayStatic(const AbsVarArrayStatic &other, TR::Region &region) :
+  _array(other._array)
+  {
+  //_array = other._array;
+  }
+
+void
+AbsVarArrayStatic::merge(const AbsVarArrayStatic &array, TR::Region &regionAbsEnv, OMR::ValuePropagation *vp)
+  {
+  //TR_ASSERT(this->size() == array.size(), "array different sizes");
+  // arrays CAN be different sizes, just not the stack.
+  TR::Region &region = TR::comp()->trMemory()->currentStackRegion();
+  ConstraintArray copy(array._array);
+  int copySize = copy.size();
+  int size = this->size();
+  size = size > copySize ? size : copySize;
+  for (int i = 0; i < size; i++)
+     {
+        AbsValue *self = i < this->size() ? this->at(i) : nullptr;
+        AbsValue *other = i < copy.size() ? copy.at(i) : nullptr;
+        if (!self && other) {
+           this->at(i, other);
+           continue;
+        }
+        else if (self && other) {
+          AbsValue *merge = self->merge(other, regionAbsEnv, vp);
+          this->at(i, merge);
+        } else {
+          this->at(i, nullptr);
+        }
+     }
   }
 
 void
 AbsVarArrayStatic::at(unsigned int index, AbsValue *constraint)
-//AbsVarArrayStatic::at(unsigned int index, TR::reference_wrapper<AbsValue> constraint)
   {
+  if (this->size() > index)
+     {
+     _array.at(index) = constraint;
+     return;
+     }
   if (index == this->size())
      {
      _array.push_back(constraint);
      return;
      }
-  _array.at(index) = constraint;
+  while (this->size() < index)
+     {
+     _array.push_back(nullptr);
+     }
+     _array.push_back(constraint);
   }
 
 AbsValue*
-//TR::reference_wrapper<AbsValue>
 AbsVarArrayStatic::at(unsigned int index)
   {
   return _array.at(index);
@@ -34,15 +74,16 @@ AbsVarArrayStatic::size() const
 void
 AbsVarArrayStatic::trace(OMR::ValuePropagation *vp)
   {
-  // only works with single thread compilation
-  // otherwise printing statements might intertwine.
   TR::Compilation *comp = TR::comp();
   traceMsg(comp, "contents of variable array:\n");
   int size = this->size();
   for (int i = 0; i < size; i++)
     {
-    if (!this->at(i)) break;
     traceMsg(comp, "a[%d] = ", i);
+    if (!this->at(i)) {
+       traceMsg(comp, "nullptr");
+       continue;
+    }
     this->at(i)->print(vp);
     traceMsg(comp, "\n");
     }

@@ -136,6 +136,7 @@ OMR::Block::init(TR::TreeTop *entry, TR::TreeTop *exit)
    _debugCounters = NULL;
    _flags = 0;
    _moreflags = 0;
+   _absEnv = NULL;
    }
 
 TR::Block*
@@ -156,7 +157,8 @@ OMR::Block::Block(TR::Block &other, TR::TreeTop *entry, TR::TreeTop *exit) :
    _lastInstruction(other._lastInstruction),
    _blockSize(other._blockSize),
    _debugCounters(other._debugCounters),
-   _catchBlockExtension(NULL)
+   _catchBlockExtension(NULL),
+   _absEnv(other._absEnv)
    {
    if (entry && entry->getNode()) entry->getNode()->setBlock(self());
    if (exit && exit->getNode())   exit->getNode()->setBlock(self());
@@ -2520,6 +2522,45 @@ OMR::Block::setIsSuperCold(bool b)
    }
 
 bool
+OMR::Block::hasOnlyOnePredecessor()
+{
+  TR::CFGEdgeList &predecessors = this->getPredecessors();
+  int count = 0;
+  for (auto i = predecessors.begin(), e = predecessors.end(); i != e; ++i)
+  {
+     auto *edge = *i;
+     TR::Block *aBlock = edge->getFrom()->asBlock();
+     TR::Block *check = edge->getTo()->asBlock();
+     if (check != this) {
+        continue;
+     }
+     count++;
+     if (count > 1) return false;
+  }
+  return true;
+}
+
+bool
+OMR::Block::hasAbstractInterpretedAllPredecessors()
+  {
+  TR::CFGEdgeList &predecessors = this->getPredecessors();
+  for (auto i = predecessors.begin(), e = predecessors.end(); i != e; ++i)
+  {
+     auto *edge = *i;
+     TR::Block *aBlock = edge->getFrom()->asBlock();
+     TR::Block *check = edge->getTo()->asBlock();
+     if (check != this) {
+        continue;
+     }
+     if (aBlock->_absEnv == NULL)
+     {
+       return false;
+     }
+  }
+  return true;
+  }
+
+bool
 OMR::Block::isSuperCold()
    {
    return _flags.testAny(_isSuperCold);
@@ -2747,3 +2788,5 @@ TR_ExtendedBlockSuccessorIterator::setCurrentBlock(TR::Block * b)
    TR::Block * nextBlock = b->getNextBlock();
    _nextBlockInExtendedBlock = nextBlock && nextBlock->isExtensionOfPreviousBlock() ? nextBlock : 0;
    }
+
+
