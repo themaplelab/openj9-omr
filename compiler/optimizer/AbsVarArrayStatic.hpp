@@ -13,6 +13,11 @@
 class AbsVarArrayStatic {
 public:
   AbsVarArrayStatic(TR::Region &region, unsigned int maxSize);
+  AbsVarArrayStatic(const AbsVarArrayStatic&, TR::Region &);
+  AbsVarArrayStatic(const AbsVarArrayStatic&) = delete; // we need TR::Region
+
+
+  void merge(const AbsVarArrayStatic &, TR::Region &, OMR::ValuePropagation *);
   void trace(OMR::ValuePropagation *vp);
   void at(unsigned int, AbsValue*);
   size_t size() const;

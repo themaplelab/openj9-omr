@@ -11,14 +11,17 @@
 class AbsEnvStatic {
 public:
   AbsEnvStatic(TR::Region &region, IDT::Node *node);
+  AbsEnvStatic(AbsEnvStatic&);
   void trace(const char* methodName = NULL);
   void interpret();
 
 
 private:
+  void merge(AbsEnvStatic&);
+  AbsEnvStatic *mergeAllPredecessors(OMR::Block *);
   void interpret(TR_J9ByteCode, TR_J9ByteCodeIterator &);
   void enterMethod(TR::ResolvedMethodSymbol *);
-  void interpret(OMR::Block *, AbsEnvStatic *absEnv, TR_J9ByteCodeIterator &);
+  void interpret(OMR::Block *, TR_J9ByteCodeIterator &);
   IDT::Node *_node;
   TR::ValuePropagation *_vp;
   TR::ResolvedMethodSymbol *_rms;
@@ -38,6 +41,8 @@ private:
   // abstract interpreter
   void aload0getfield(int, TR_J9ByteCodeIterator &);
   void aaload();
+  void daload();
+  void laload();
   void anewarray(int);
   void newarray(int);
   void arraylength();
@@ -211,6 +216,7 @@ private:
   void ldcInt64(int, TR_J9ByteCodeIterator &);
   void ldcFloat();
   void ldcDouble();
+  void factFlow(OMR::Block *);
   AbsValue* getClassConstraint(TR_OpaqueClassBlock *);
   AbsValue* getTopDataType(TR::DataType);
 };
