@@ -22,6 +22,35 @@ AbsEnvStatic::AbsEnvStatic(TR::Region &region, IDT::Node *node) :
 {
 }
 
+AbsEnvStatic::AbsEnvStatic(AbsEnvStatic &other) :
+  _region(other._region),
+  _array(other._array, other._region),
+  _stack(other._stack, other._region),
+  _node(other._node),
+  _vp(other._vp),
+  _rms(other._rms)
+{
+}
+
+void
+AbsEnvStatic::merge(AbsEnvStatic &other)
+{
+   traceMsg(TR::comp(), "Merging abstract environment A");
+   this->trace();
+
+   
+   TR::Region &region = TR::comp()->trMemory()->currentStackRegion();
+   // TODO: can I do without copying, maybe if I forgot about const &
+   AbsEnvStatic copyOfOther(other);
+   traceMsg(TR::comp(), "Merging abstract environment B");
+   copyOfOther.trace();
+
+   this->_array.merge(copyOfOther._array, this->_region, this->_vp);
+   this->_stack.merge(copyOfOther._stack, this->_region, this->_vp);
+   this->trace();
+   
+}
+
 //TODO: get rid of _vp
 //TODO: get rid of _rms
 //TODO? get rid of _region
@@ -173,8 +202,10 @@ void
 AbsEnvStatic::interpret(TR_J9ByteCode bc, TR_J9ByteCodeIterator &bci)
   {
   TR::Compilation *comp = TR::comp();
-  if (comp->trace(OMR::benefitInliner))
+  if (comp->trace(OMR::benefitInliner)) {
      bci.printByteCode();
+     traceMsg(comp, "has size of = %d\n", bci.size(bc));
+  }
 
   switch(bc)
      {
@@ -189,7 +220,7 @@ AbsEnvStatic::interpret(TR_J9ByteCode bc, TR_J9ByteCodeIterator &bci)
      case J9BCaload2: this->aload2(); break;
      case J9BCaload3: this->aload3(); break;
      case J9BCanewarray: this->anewarray(bci.next2Bytes()); break;
-     //TODO: case J9BCareturn: this->areturn(); break;
+     //case J9BCareturn: this->pop(); break; // FIXME: own function? other semantics for return;
      case J9BCarraylength: this->arraylength(); break;
      case J9BCastore: this->astore(bci.nextByte()); break;
      case J9BCastorew: this->astore(bci.next2Bytes()); break; // WARN: internal bytecode
@@ -208,7 +239,7 @@ AbsEnvStatic::interpret(TR_J9ByteCode bc, TR_J9ByteCodeIterator &bci)
      case J9BCd2i: this->d2i(); break;
      case J9BCd2l: this->d2l(); break;
      case J9BCdadd: this->dadd(); break;
-     case J9BCdaload: this->aaload(); break; //TODO own function
+     case J9BCdaload: this->daload(); break;
      case J9BCdastore: this->aastore(); break; //TODO own function
      case J9BCdcmpl: case J9BCdcmpg: this->dcmpl(); break; //TODO: own functions?
      case J9BCdconst0: case J9BCdconst1: this->dconst0(); break; //TODO: own functions?
@@ -221,7 +252,7 @@ AbsEnvStatic::interpret(TR_J9ByteCode bc, TR_J9ByteCodeIterator &bci)
      case J9BCdmul: this->dmul(); break;
      case J9BCdneg: /* yeah nothing */ break;
      case J9BCdrem: this->drem(); break;
-     //TODO: case J9BCdreturn
+     //case J9BCdreturn: this->pop(); this->pop(); break; //FIXME: return semantics
      case J9BCdstore: this->dstore(bci.nextByte()); break;
      case J9BCdstorew: this->dstore(bci.next2Bytes()); break; // WARN: internal bytecode
      case J9BCdstore0: this->dstore0(); break;
@@ -252,7 +283,7 @@ AbsEnvStatic::interpret(TR_J9ByteCode bc, TR_J9ByteCodeIterator &bci)
      case J9BCfmul: this->fmul(); break;
      case J9BCfneg: /* yeah nothing */ break;
      case J9BCfrem: this->frem(); break;
-     //TODO: case J9BCfreturn
+     //case J9BCfreturn: this->pop(); break; //FIXME: return semantics
      case J9BCfstore: this->fstore(bci.nextByte()); break;
      case J9BCfstorew: this->fstore(bci.next2Bytes()); break; // WARN: internal bytecode
      case J9BCfstore0: this->fstore0(); break;
@@ -315,7 +346,8 @@ AbsEnvStatic::interpret(TR_J9ByteCode bc, TR_J9ByteCodeIterator &bci)
      //case J9BCinvokespecial: this->invokeinterface(bci.currentByteCodeIndex(), bci.next2Bytes()); break;
      case J9BCior: this->ior(); break;
      case J9BCirem: this->irem(); break;
-     // ireturn
+     //case J9BCireturn: this->pop; break; //
+     case J9BCgenericReturn: this->_stack.size() != 0 ? this->pop() : 0; break; //FIXME return semantics
      case J9BCishl: this->ishl(); break;
      case J9BCishr: this->ishr(); break;
      case J9BCistore: this->istore(bci.nextByte()); break;
@@ -333,7 +365,7 @@ AbsEnvStatic::interpret(TR_J9ByteCode bc, TR_J9ByteCodeIterator &bci)
      case J9BCl2f: this->l2f(); break;
      case J9BCl2i: this->l2i(); break;
      case J9BCladd: this->ladd(); break;
-     case J9BClaload: this->aaload(); break; //TODO own function
+     case J9BClaload: this->laload(); break;
      case J9BCland: this->land(); break;
      case J9BClastore: this->aastore(); break; //TODO own function
      case J9BClcmp: this->lcmp(); break;
@@ -351,10 +383,10 @@ AbsEnvStatic::interpret(TR_J9ByteCode bc, TR_J9ByteCodeIterator &bci)
      case J9BClload3: this->lload3(); break;
      case J9BClmul: this->lmul(); break;
      case J9BClneg: this->lneg(); break;
-     // lookupswitch
+     case J9BClookupswitch : this->pop(); break; // TODO
      case J9BClor: this->lor(); break;
      case J9BClrem: this->lrem(); break;
-     // lreturn
+     //case J9BClreturn: this->pop(); this->pop(); break; //FIXME: return semantics
      case J9BClshl: this->lshl(); break;
      case J9BClshr: this->lshr(); break;
      case J9BClstore: this->dstore(bci.nextByte()); break; // TODO: own functions?
@@ -382,7 +414,11 @@ AbsEnvStatic::interpret(TR_J9ByteCode bc, TR_J9ByteCodeIterator &bci)
      case J9BCsastore: this->aastore(); break;
      case J9BCsipush: this->sipush(bci.next2Bytes()); break;
      case J9BCswap: this->swap(); break;
-     // tableswitch
+     case J9BCReturnC: this->pop(); break;
+     case J9BCReturnS: this->pop(); break;
+     case J9BCReturnB: this->pop(); break;
+     case J9BCReturnZ: /*yeah nothing */ break;
+     case J9BCtableswitch: this->pop(); break;
      //TODO: clean me
      case J9BCwide:
        {
@@ -404,7 +440,7 @@ AbsEnvStatic::interpret(TR_J9ByteCode bc, TR_J9ByteCodeIterator &bci)
           }
        }
      break;
-     case J9BCgenericReturn: /* yeah nothing */ break;
+     //case J9BCgenericReturn: /* yeah nothing */ break;
      default:
      break;
      }
@@ -441,6 +477,28 @@ AbsEnvStatic::aaload()
   AbsValue *index = this->pop();
   AbsValue *arrayRef = this->pop();
   this->pushNull();
+  }
+
+void
+AbsEnvStatic::laload()
+  {
+  AbsValue *index = this->pop();
+  AbsValue *arrayRef = this->pop();
+  AbsValue *value1 = this->getTopDataType(TR::Int64);
+  AbsValue *value2 = this->getTopDataType(TR::NoType);
+  push(value1);
+  push(value2);
+  }
+
+void
+AbsEnvStatic::daload()
+  {
+  AbsValue *index = this->pop();
+  AbsValue *arrayRef = this->pop();
+  AbsValue *value1 = this->getTopDataType(TR::Double);
+  AbsValue *value2 = this->getTopDataType(TR::NoType);
+  push(value1);
+  push(value2);
   }
 
 void
@@ -1991,9 +2049,8 @@ void
 AbsEnvStatic::putstatic() {
   // WONTFIX we do not model the heap
   AbsValue *value1 = this->pop();
-  AbsValue *value2 = this->pop();
-  if (!value2->isType2()) {
-    this->push(value2);
+  if (!value1->_dt == TR::NoType) { // category type 2
+    AbsValue *value2 = this->pop();
   }
 }
 
@@ -2023,7 +2080,7 @@ AbsEnvStatic::ldcFloat() {
 
 void
 AbsEnvStatic::ldcDouble() {
-   AbsValue *result = this->getTopDataType(TR::Float);
+   AbsValue *result = this->getTopDataType(TR::Double);
    AbsValue *result2 = this->getTopDataType(TR::NoType);
    this->push(result);
    this->push(result2);
@@ -2063,7 +2120,12 @@ AbsEnvStatic::ldc(int cpIndex, TR_J9ByteCodeIterator &bci) {
      case TR::Float: this->ldcFloat(); break;
      case TR::Double: this->ldcDouble(); break;
      case TR::Address: this->ldcAddress(cpIndex, bci); break;
-     default: break;
+     default: {
+       //TODO: arrays and what nots.
+       AbsValue *result = this->getTopDataType(TR::Address);
+      this->push(result);
+      
+     } break;
    }
 }
 
@@ -2200,6 +2262,11 @@ AbsEnvStatic::invoke(int bcIndex, int cpIndex, TR_J9ByteCodeIterator &bci, TR::M
         }
         break;
       default:
+        {
+        //TODO: 
+        AbsValue *result = this->getTopDataType(TR::Address);
+        this->push(result);
+        }
         break;
   }
   
@@ -2212,7 +2279,7 @@ AbsEnvStatic::interpret()
   TR::Compilation *comp = TR::comp();
   TR::ResolvedMethodSymbol *resolvedMethodSymbol = this->_rms;
   this->enterMethod(resolvedMethodSymbol);
-  this->trace();
+  this->trace(this->_node->getName());
   TR_ResolvedMethod *resolvedMethod = resolvedMethodSymbol->getResolvedMethod();
   TR_ResolvedJ9Method *resolvedJ9Method = static_cast<TR_ResolvedJ9Method*>(resolvedMethod);
   TR_J9VMBase *vm = static_cast<TR_J9VMBase*>(comp->fe());
@@ -2221,26 +2288,105 @@ AbsEnvStatic::interpret()
   TR::CFGNode *cfgNode = cfg->getStartForReverseSnapshot();
   TR::Block *startBlock = cfgNode->asBlock();
 
+  // TODO: maybe instead of region try trCurrentStackRegion
+  TR::list<OMR::Block*, TR::Region&> queue(_region);
+  bool first = true;
   for (TR::ReversePostorderSnapshotBlockIterator blockIt (startBlock, comp); blockIt.currentBlock(); ++blockIt)
      {
         OMR::Block *block = blockIt.currentBlock();
-        interpret(block, this, bci);
-        break;
+        if (first) {
+           block->_absEnv = this;
+           first = false;
+        }
+        block->setVisitCount(0);
+        queue.push_back(block);
      }
+
+  while (!queue.empty()) {
+    OMR::Block *block = queue.front();
+    queue.pop_front();
+    interpret(block, bci);
+    // TODO: merging
+  }
 }
 
 void
-AbsEnvStatic::interpret(OMR::Block *block, AbsEnvStatic *absEnv, TR_J9ByteCodeIterator &bci) {
+AbsEnvStatic::interpret(OMR::Block *block, TR_J9ByteCodeIterator &bci) {
   int start = block->getBlockBCIndex();
-  int end = start + block->getBlockSize() - 1;
+  int end = start + block->getBlockSize();
+  if (start < 0 || end < 1) return;
   bci.setIndex(start);
   TR::Compilation *comp = TR::comp();
   if (comp->trace(OMR::benefitInliner))
      {
-     traceMsg(comp, "basic block start = %d end = %d\n", start, end);
+     traceMsg(comp, "basic block %d start = %d end = %d\n", block->getNumber(), start, end);
      }
+  this->factFlow(block);
   for (TR_J9ByteCode bc = bci.current(); bc != J9BCunknown && bci.currentByteCodeIndex() < end; bc = bci.next())
      {
-     absEnv->interpret(bc, bci);
+     if (block->_absEnv)
+     block->_absEnv->interpret(bc, bci);
      }
+
+}
+
+void
+AbsEnvStatic::factFlow(OMR::Block *block) {
+  int start = block->getBlockBCIndex();
+  if (start == 0) {
+     return; // _absEnv should already be computed and stored there.
+  }
+
+  // has no predecessors (apparently can happen... maybe dead code?)
+  if (block->getPredecessors().size() == 0) {
+    return;
+  }
+
+  // this can happen I think if we have a loop that has some CFG inside. So its better to just return without assigning anything
+  // as we should only visit if we actually have abs env to propagate
+  if (block->hasOnlyOnePredecessor() && !block->getPredecessors().front()->getFrom()->asBlock()->_absEnv) {
+    //TODO: put it at the end of the queue?
+    return;
+  }
+
+  // should never be null if we only have one predecessor and there are no loops.
+  if (block->hasOnlyOnePredecessor() && block->getPredecessors().front()->getFrom()->asBlock()->_absEnv) {
+    AbsEnvStatic *absEnv = new (_region) AbsEnvStatic(*block->getPredecessors().front()->getFrom()->asBlock()->_absEnv);
+    block->_absEnv = absEnv;
+    return;
+  }
+
+  // multiple predecessors...
+  if (block->hasAbstractInterpretedAllPredecessors()) {
+     block->_absEnv = this->mergeAllPredecessors(block);
+     return;
+  }
+  
+}
+
+AbsEnvStatic *
+AbsEnvStatic::mergeAllPredecessors(OMR::Block *block) {
+  TR::CFGEdgeList &predecessors = block->getPredecessors();
+  AbsEnvStatic *absEnv = nullptr;
+  bool first = true;
+  for (auto i = predecessors.begin(), e = predecessors.end(); i != e; ++i)
+  {
+     auto *edge = *i;
+     TR::Block *aBlock = edge->getFrom()->asBlock();
+     TR::Block *check = edge->getTo()->asBlock();
+     if (check != block) {
+        continue;
+     }
+     //TODO: can aBlock->_absEnv be null?
+     TR_ASSERT(aBlock->_absEnv, "absEnv is null, i don't think this is possible");
+     if (first) {
+        first = false;
+        // copy the first one
+        absEnv = new (_region) AbsEnvStatic(*aBlock->_absEnv);
+        continue;
+     }
+     // merge with the rest;
+     absEnv->merge(*aBlock->_absEnv);
+  }
+  return absEnv;
 }

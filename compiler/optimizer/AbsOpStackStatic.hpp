@@ -14,8 +14,11 @@ class AbsOpStackStatic
 {
 public:
   AbsOpStackStatic(TR::Region & region, unsigned int maxSize);
+  //AbsOpStackStatic(AbsOpStackStatic&, TR::Region &);
+  AbsOpStackStatic(const AbsOpStackStatic&, TR::Region &);
+  AbsOpStackStatic(const AbsOpStackStatic&) = delete; // we need a region...
 
-
+  void merge(const AbsOpStackStatic &, TR::Region &, OMR::ValuePropagation *);
   void pop();
   void trace(OMR::ValuePropagation *, TR::Region &region);
   void push(AbsValue*);
@@ -24,6 +27,7 @@ public:
   AbsValue* top();
 
 private:
+  //typedef TR::deque<AbsValue*, TR::Region&> ConstraintStack;
   typedef TR::deque<AbsValue*, TR::Region&> StackContainer;
   typedef std::stack<AbsValue*, StackContainer> ConstraintStack;
   

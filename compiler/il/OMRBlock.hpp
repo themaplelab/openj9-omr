@@ -50,6 +50,8 @@ namespace OMR { typedef OMR::Block BlockConnector; }
 #include "infra/List.hpp"
 #include "optimizer/Optimizer.hpp"
 
+
+class AbsEnvStatic;
 class TR_BitVector;
 class TR_BlockStructure;
 class TR_Debug;
@@ -144,6 +146,9 @@ class OMR_EXTENSIBLE Block : public TR::CFGNode
    TR::TreeTop * getLastNonControlFlowTreeTop();
 
    int32_t getNumberOfRealTreeTops();
+
+   bool hasOnlyOnePredecessor();
+   bool hasAbstractInterpretedAllPredecessors();
 
    /// getNextBlock and getPrevBlock return the next/previous block in the "textual" orders of blocks
    TR::Block * getNextBlock();
@@ -477,6 +482,8 @@ class OMR_EXTENSIBLE Block : public TR::CFGNode
    /**
     * Flag functions end
     */
+
+   AbsEnvStatic *_absEnv;
 
    private:
 
