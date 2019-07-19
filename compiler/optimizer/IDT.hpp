@@ -9,12 +9,13 @@
 #include <queue>
 #include "infra/vector.hpp"
 
-#include "compiler/optimizer/AbsEnvStatic.hpp"
-#include "compiler/optimizer/AbsOpStackStatic.hpp"
-#include "compiler/optimizer/AbsVarArrayStatic.hpp"
+//#include "compiler/optimizer/AbsEnvStatic.hpp"
+//#include "compiler/optimizer/AbsOpStackStatic.hpp"
+//#include "compiler/optimizer/AbsVarArrayStatic.hpp"
 #include "compiler/optimizer/ValuePropagation.hpp"
 #include "compiler/il/OMRBlock.hpp"
-#include "infra/Cfg.hpp"
+#include "compiler/ilgen/J9ByteCodeIterator.hpp"
+#include "compiler/infra/Cfg.hpp"
 
 /**
  * Class IDT 
@@ -67,8 +68,11 @@ class IDT
     void setResolvedMethodSymbol(TR::ResolvedMethodSymbol* rms) { this->_rms = rms; }
     int getCallerIndex() const;
     unsigned int howManyDescendants() const;
-    AbsEnvStatic* enterMethod();
-    void getMethodSummary();
+    UDATA maxStack() const;
+    IDATA maxLocals() const;
+    TR::ValuePropagation *getValuePropagation();
+    //AbsEnvStatic* enterMethod();
+    //void getMethodSummary();
     private:
 
     typedef TR::deque<Node, TR::Region&> Children;
@@ -86,17 +90,13 @@ class IDT
     // Returns NULL if 0 or > 1 children
     Node* getOnlyChild() const;
     void setOnlyChild(Node* child);
-    UDATA maxStack() const;
-    IDATA maxLocals() const;
-    TR::Region &getAbsOpStackMemoryRegion() const;
-    TR::Region &getAbsVarArrayMemoryRegion() const;
-    TR::Region &getAbsEnvMemoryRegion() const;
-    AbsOpStackStatic* createAbsOpStack();
-    AbsVarArrayStatic* createAbsVarArray();
-    AbsEnvStatic* createAbsEnv();
-    TR::ValuePropagation *getValuePropagation();
-    AbsEnvStatic* analyzeBasicBlock(OMR::Block *, AbsEnvStatic*);
-    AbsEnvStatic* analyzeBasicBlock(OMR::Block*, AbsEnvStatic*, unsigned int, unsigned int);
+    //TR::Region &getAbsOpStackMemoryRegion() const;
+    //TR::Region &getAbsVarArrayMemoryRegion() const;
+    //TR::Region &getAbsEnvMemoryRegion() const;
+    //AbsEnvStatic* createAbsEnv();
+    //AbsEnvStatic* analyzeBasicBlock(OMR::Block *, AbsEnvStatic*, TR_J9ByteCodeIterator &);
+    //AbsEnvStatic* analyzeBasicBlock(OMR::Block*, AbsEnvStatic*, unsigned int, unsigned int);
+    TR::Compilation* comp() const;
     };
   
 private:

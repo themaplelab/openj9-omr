@@ -15,6 +15,9 @@ public:
     traceMsg(TR::comp(), "constraint: ");
     this->_vp->print(vp);
   };
+  bool isType2() {
+    return this->_dt == TR::Double || this->_dt == TR::Int64;
+  }
 
   TR::VPConstraint *_vp;
   TR::DataType _dt;

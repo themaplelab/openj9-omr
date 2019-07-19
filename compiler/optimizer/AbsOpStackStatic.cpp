@@ -1,28 +1,28 @@
 #include "compiler/optimizer/AbsOpStackStatic.hpp"
 
+#include "env/Region.hpp"
+#include "compiler/infra/deque.hpp"
+
 AbsOpStackStatic::AbsOpStackStatic(TR::Region &region, unsigned int maxSize) :
-  _stack(StackContainer(DequeAllocator(region)))
+  _stack(StackContainer(0, nullptr, region))
   {
   }
 
 void
 AbsOpStackStatic::push(AbsValue *value)
   {
-  //TODO: fix for types that occupy two stack positions.
   _stack.push(value);
   }
 
 void
 AbsOpStackStatic::pop()
   {
-  //TODO: fix for types that occupy two stack positions.
   _stack.pop();
   }
 
 AbsValue*
 AbsOpStackStatic::top()
   {
-  //TODO: fix for types that occupy two stack positions.
   return _stack.top();
   }
 
@@ -39,17 +39,28 @@ AbsOpStackStatic::size() const
   }
 
 void
-AbsOpStackStatic::trace(OMR::ValuePropagation *vp)
+AbsOpStackStatic::trace(OMR::ValuePropagation *vp, TR::Region &region)
   {
-  AbsOpStackStatic copy(*this);
   TR::Compilation *comp = TR::comp();
   traceMsg(comp, "contents of operand stack:\n");
   int size = this->size();
-  for (int i = 0; i < size; i++)
+  if (size == 0)
     {
-    copy.top()->print(vp);
-    copy.pop();
+    traceMsg(comp, "<empty>\n");
     traceMsg(comp, "\n");
+    return;
     }
+  // maybe trStackRegion instead of region?
+  ConstraintStack copy(StackContainer(0, nullptr, region));
+  copy = this->_stack;
+  traceMsg(comp, "<top>\n");
+  for (int i = 0; i < size; i++) {
+    AbsValue *value = copy.top();
+    copy.pop();
+    traceMsg(comp, "fp[%d] = ", size - i - 1);
+    if (value) value->print(vp);
+    traceMsg(comp, "\n");
+  }
+  traceMsg(comp, "<bottom>\n");
   traceMsg(comp, "\n");
   }

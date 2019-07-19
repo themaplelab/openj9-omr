@@ -2,13 +2,13 @@
 #include "compiler/infra/ReferenceWrapper.hpp"
 
 AbsVarArrayStatic::AbsVarArrayStatic(TR::Region &region, unsigned int maxSize) :
-  _array(VectorAllocator(region))
+  _array(maxSize, nullptr, region)
   {
-  _array.reserve(maxSize);
   }
 
 void
 AbsVarArrayStatic::at(unsigned int index, AbsValue *constraint)
+//AbsVarArrayStatic::at(unsigned int index, TR::reference_wrapper<AbsValue> constraint)
   {
   if (index == this->size())
      {
@@ -19,6 +19,7 @@ AbsVarArrayStatic::at(unsigned int index, AbsValue *constraint)
   }
 
 AbsValue*
+//TR::reference_wrapper<AbsValue>
 AbsVarArrayStatic::at(unsigned int index)
   {
   return _array.at(index);
@@ -40,6 +41,7 @@ AbsVarArrayStatic::trace(OMR::ValuePropagation *vp)
   int size = this->size();
   for (int i = 0; i < size; i++)
     {
+    if (!this->at(i)) break;
     traceMsg(comp, "a[%d] = ", i);
     this->at(i)->print(vp);
     traceMsg(comp, "\n");
