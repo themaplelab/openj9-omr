@@ -1,4 +1,4 @@
-#include "compiler/optimizer/AbsEnvStaticBase.hpp"
+#include "compiler/optimizer/AbsEnvStatic.hpp"
 
 #include "compile/SymbolReferenceTable.hpp"
 #include "compile/J9SymbolReferenceTable.hpp"
@@ -12,7 +12,7 @@
 #include "compiler/il/OMRBlock.hpp"
 #include "il/Block.hpp"
 
-AbsEnvStaticBase::AbsEnvStaticBase(TR::Region &region, IDT::Node *node) :
+AbsEnvStatic::AbsEnvStatic(TR::Region &region, IDT::Node *node) :
   _region(region),
   _array(region, node->maxLocals()),
   _stack(region, node->maxStack()),
@@ -22,7 +22,7 @@ AbsEnvStaticBase::AbsEnvStaticBase(TR::Region &region, IDT::Node *node) :
 {
 }
 
-AbsEnvStaticBase::AbsEnvStaticBase(AbsEnvStaticBase &other) :
+AbsEnvStatic::AbsEnvStatic(AbsEnvStatic &other) :
   _region(other._region),
   _array(other._array, other._region),
   _stack(other._stack, other._region),
@@ -32,25 +32,25 @@ AbsEnvStaticBase::AbsEnvStaticBase(AbsEnvStaticBase &other) :
 {
 }
 
-AbsEnvStaticBase *AbsEnvStaticBase::getWidened()
+AbsEnvStatic *AbsEnvStatic::getWidened()
   {
-  AbsEnvStaticBase *top = new (_region) AbsEnvStaticBase(*this);
+  AbsEnvStatic *top = new (_region) AbsEnvStatic(*this);
   top->_array = *top->_array.getWidened(_region);
   top->_stack = *top->_stack.getWidened(_region);
   return top;
   }
 
 void
-AbsEnvStaticBase::merge(AbsEnvStaticBase &other)
+AbsEnvStatic::merge(AbsEnvStatic &other)
 {
-   traceMsg(TR::comp(), "Merging abstract environment A");
+   traceMsg(TR::comp(), "Merging abstract environment A\n");
    this->trace();
 
    
    TR::Region &region = TR::comp()->trMemory()->currentStackRegion();
    // TODO: can I do without copying, maybe if I forgot about const &
-   AbsEnvStaticBase copyOfOther(other);
-   traceMsg(TR::comp(), "Merging abstract environment B");
+   AbsEnvStatic copyOfOther(other);
+   traceMsg(TR::comp(), "Merging abstract environment B\n");
    copyOfOther.trace();
 
    this->_array.merge(copyOfOther._array, this->_region, this->_vp);
@@ -65,7 +65,7 @@ AbsEnvStaticBase::merge(AbsEnvStaticBase &other)
 //TODO? get rid of _node
 
 AbsValue*
-AbsEnvStaticBase::pop()
+AbsEnvStatic::pop()
   {
   AbsValue *absValue = this->_stack.top();
   this->_stack.pop();
@@ -73,26 +73,26 @@ AbsEnvStaticBase::pop()
   }
 
 void
-AbsEnvStaticBase::push(AbsValue *absValue)
+AbsEnvStatic::push(AbsValue *absValue)
   {
   this->_stack.push(absValue);
   }
 
 void
-AbsEnvStaticBase::pushNull()
+AbsEnvStatic::pushNull()
   {
   this->_stack.push(new (_region) AbsValue(NULL, TR::Address));
   }
 
 void
-AbsEnvStaticBase::pushConstInt(int n)
+AbsEnvStatic::pushConstInt(int n)
   {
   TR::VPIntConst *intConst = TR::VPIntConst::create(this->_vp, n);
   this->_stack.push(new (_region) AbsValue(intConst, TR::Int32));
   }
 
 void
-AbsEnvStaticBase::enterMethod(TR::ResolvedMethodSymbol *rms)
+AbsEnvStatic::enterMethod(TR::ResolvedMethodSymbol *rms)
   {
   TR_ResolvedMethod *resolvedMethod = rms->getResolvedMethod();
   const auto numberOfParameters = resolvedMethod->numberOfParameters();
@@ -172,14 +172,14 @@ AbsEnvStaticBase::enterMethod(TR::ResolvedMethodSymbol *rms)
   }
 
 AbsValue*
-AbsEnvStaticBase::getTopDataType(TR::DataType dt)
+AbsEnvStatic::getTopDataType(TR::DataType dt)
   {
   // TODO: Don't allocate new memory and always return the same set of values
   return new (_region) AbsValue(NULL, dt);
   }
 
 AbsValue*
-AbsEnvStaticBase::getClassConstraint(TR_OpaqueClassBlock *opaqueClass)
+AbsEnvStatic::getClassConstraint(TR_OpaqueClassBlock *opaqueClass)
   {
   if (!opaqueClass) return NULL;
 
@@ -189,25 +189,25 @@ AbsEnvStaticBase::getClassConstraint(TR_OpaqueClassBlock *opaqueClass)
   }
 
 void
-AbsEnvStaticBase::at(unsigned int index, AbsValue *constraint)
+AbsEnvStatic::at(unsigned int index, AbsValue *constraint)
   {
   this->_array.at(index, constraint);
   }
 
 AbsValue*
-AbsEnvStaticBase::at(unsigned int index)
+AbsEnvStatic::at(unsigned int index)
   {
   return this->_array.at(index);
   }
 
 void
-AbsEnvStaticBase::aload0getfield(int i, TR_J9ByteCodeIterator &bci) {
+AbsEnvStatic::aload0getfield(int i, TR_J9ByteCodeIterator &bci) {
   this->aload0();
   //this->getfield(i, bci);
 }
 
 void
-AbsEnvStaticBase::interpretByteCode(TR_J9ByteCode bc, TR_J9ByteCodeIterator &bci)
+AbsEnvStatic::interpretByteCode(TR_J9ByteCode bc, TR_J9ByteCodeIterator &bci)
   {
   TR::Compilation *comp = TR::comp();
   if (comp->trace(OMR::benefitInliner)) {
@@ -462,7 +462,7 @@ AbsEnvStaticBase::interpretByteCode(TR_J9ByteCode bc, TR_J9ByteCodeIterator &bci
 //TODO, no strings here...
 // We need to unnest IDT::Node
 void
-AbsEnvStaticBase::trace(const char* methodName)
+AbsEnvStatic::trace(const char* methodName)
   {
   if (methodName) traceMsg(TR::comp(), "method %s\n", methodName);
   this->_array.trace(this->_vp);
@@ -470,7 +470,7 @@ AbsEnvStaticBase::trace(const char* methodName)
   }
 
 void
-AbsEnvStaticBase::multianewarray(int cpIndex, int dimensions)
+AbsEnvStatic::multianewarray(int cpIndex, int dimensions)
 {
   for (int i = 0; i < dimensions; i++)
     {
@@ -480,7 +480,7 @@ AbsEnvStaticBase::multianewarray(int cpIndex, int dimensions)
 }
 
 void
-AbsEnvStaticBase::aaload()
+AbsEnvStatic::aaload()
   {
   AbsValue *index = this->pop();
   AbsValue *arrayRef = this->pop();
@@ -488,7 +488,7 @@ AbsEnvStaticBase::aaload()
   }
 
 void
-AbsEnvStaticBase::laload()
+AbsEnvStatic::laload()
   {
   AbsValue *index = this->pop();
   AbsValue *arrayRef = this->pop();
@@ -499,7 +499,7 @@ AbsEnvStaticBase::laload()
   }
 
 void
-AbsEnvStaticBase::daload()
+AbsEnvStatic::daload()
   {
   AbsValue *index = this->pop();
   AbsValue *arrayRef = this->pop();
@@ -510,7 +510,7 @@ AbsEnvStaticBase::daload()
   }
 
 void
-AbsEnvStaticBase::aastore()
+AbsEnvStatic::aastore()
   {
   //TODO:
   AbsValue *value = this->pop();
@@ -521,71 +521,71 @@ AbsEnvStaticBase::aastore()
   }
 
 void
-AbsEnvStaticBase::aconstnull() {
+AbsEnvStatic::aconstnull() {
   TR::VPConstraint *null = TR::VPNullObject::create(this->_vp);
   AbsValue *absValue = new (_region) AbsValue(null, TR::Address);
   this->push(absValue);
 }
 
 void
-AbsEnvStaticBase::aload(int n) {
+AbsEnvStatic::aload(int n) {
   this->aloadn(n);
 }
 
 void
-AbsEnvStaticBase::aload0() {
+AbsEnvStatic::aload0() {
   this->aloadn(0);
 }
 
 void
-AbsEnvStaticBase::aload1() {
+AbsEnvStatic::aload1() {
   this->aloadn(1);
 }
 
 void
-AbsEnvStaticBase::aload2() {
+AbsEnvStatic::aload2() {
   this->aloadn(2);
 }
 
 void
-AbsEnvStaticBase::aload3() {
+AbsEnvStatic::aload3() {
   this->aloadn(3);
 }
 
 void
-AbsEnvStaticBase::aloadn(int n) {
+AbsEnvStatic::aloadn(int n) {
   AbsValue *constraint = this->at(n);
   this->push(constraint);
 }
 
 void
-AbsEnvStaticBase::astore(int varIndex) {
+AbsEnvStatic::astore(int varIndex) {
   AbsValue* constraint = this->pop();
   this->at(varIndex, constraint);
 }
 
 void
-AbsEnvStaticBase::astore0() {
+AbsEnvStatic::astore0() {
   this->astore(0);
 }
 
 void
-AbsEnvStaticBase::astore1() {
+AbsEnvStatic::astore1() {
   this->astore(1);
 }
 
 void
-AbsEnvStaticBase::astore2() {
+AbsEnvStatic::astore2() {
   this->astore(2);
 }
 
 void
-AbsEnvStaticBase::astore3() {
+AbsEnvStatic::astore3() {
   this->astore(3);
 }
 
 void
-AbsEnvStaticBase::bipush(int byte) {
+AbsEnvStatic::bipush(int byte) {
   TR::VPShortConst *data = TR::VPShortConst::create(this->_vp, byte);
   //TODO: should I use TR::Int32 or something else?
   AbsValue *absValue = new (_region) AbsValue(data, TR::Int32);
@@ -593,17 +593,17 @@ AbsEnvStaticBase::bipush(int byte) {
 }
 
 void
-AbsEnvStaticBase::bastore() {
+AbsEnvStatic::bastore() {
   this->aastore();
 }
 
 void
-AbsEnvStaticBase::baload() {
+AbsEnvStatic::baload() {
   this->aaload();
 }
 
 void
-AbsEnvStaticBase::checkcast(int cpIndex, int bytecodeIndex) {
+AbsEnvStatic::checkcast(int cpIndex, int bytecodeIndex) {
   AbsValue *absValue = this->pop();
   TR::VPConstraint *objectRef = absValue->_vp;
   if (!objectRef)
@@ -623,14 +623,14 @@ AbsEnvStaticBase::checkcast(int cpIndex, int bytecodeIndex) {
 }
 
 void
-AbsEnvStaticBase::dup() {
+AbsEnvStatic::dup() {
   AbsValue *value = this->pop();
   this->push(value);
   this->push(value); 
 }
 
 void
-AbsEnvStaticBase::dupx1() {
+AbsEnvStatic::dupx1() {
   AbsValue *value1 = this->pop();
   AbsValue *value2 = this->pop();
   this->push(value1);
@@ -639,7 +639,7 @@ AbsEnvStaticBase::dupx1() {
 }
 
 void
-AbsEnvStaticBase::dupx2() {
+AbsEnvStatic::dupx2() {
   AbsValue *value1 = this->pop();
   AbsValue *value2 = this->pop();
   AbsValue *value3 = this->pop();
@@ -650,7 +650,7 @@ AbsEnvStaticBase::dupx2() {
 }
 
 void
-AbsEnvStaticBase::dup2() {
+AbsEnvStatic::dup2() {
   AbsValue *value1 = this->pop();
   AbsValue *value2 = this->pop();
   this->push(value2);
@@ -660,7 +660,7 @@ AbsEnvStaticBase::dup2() {
 }
 
 void
-AbsEnvStaticBase::dup2x1() {
+AbsEnvStatic::dup2x1() {
   AbsValue *value1 = this->pop();
   AbsValue *value2 = this->pop();
   AbsValue *value3 = this->pop();
@@ -672,7 +672,7 @@ AbsEnvStaticBase::dup2x1() {
 }
 
 void
-AbsEnvStaticBase::dup2x2() {
+AbsEnvStatic::dup2x2() {
   AbsValue *value1 = this->pop();
   AbsValue *value2 = this->pop();
   AbsValue *value3 = this->pop();
@@ -686,7 +686,7 @@ AbsEnvStaticBase::dup2x2() {
 }
 
 void
-AbsEnvStaticBase::getstatic(int cpIndex, TR_J9ByteCodeIterator &bci) {
+AbsEnvStatic::getstatic(int cpIndex, TR_J9ByteCodeIterator &bci) {
    void* staticAddress;
    TR::DataType type = TR::NoType;
    bool isVolatile;
@@ -714,7 +714,7 @@ AbsEnvStaticBase::getstatic(int cpIndex, TR_J9ByteCodeIterator &bci) {
 
 
 void
-AbsEnvStaticBase::getfield(int cpIndex, TR_J9ByteCodeIterator &bci) {
+AbsEnvStatic::getfield(int cpIndex, TR_J9ByteCodeIterator &bci) {
    AbsValue *objectref = this->pop();
    uint32_t fieldOffset;
    TR::DataType type = TR::NoType;
@@ -742,7 +742,7 @@ AbsEnvStaticBase::getfield(int cpIndex, TR_J9ByteCodeIterator &bci) {
 }
 
 void
-AbsEnvStaticBase::iand() {
+AbsEnvStatic::iand() {
   AbsValue *value1 = this->pop();
   AbsValue* value2 = this->pop();
   bool nonnull = value1->_vp && value2->_vp;
@@ -766,7 +766,7 @@ AbsEnvStaticBase::iand() {
 }
 
 void
-AbsEnvStaticBase::instanceof(int cpIndex, int byteCodeIndex, TR_J9ByteCodeIterator &bci) {
+AbsEnvStatic::instanceof(int cpIndex, int byteCodeIndex, TR_J9ByteCodeIterator &bci) {
   AbsValue *objectRef = this->pop();
   if (!objectRef->_vp)
      {
@@ -827,7 +827,7 @@ AbsEnvStaticBase::instanceof(int cpIndex, int byteCodeIndex, TR_J9ByteCodeIterat
 }
 
 void
-AbsEnvStaticBase::ior() {
+AbsEnvStatic::ior() {
   AbsValue *value1 = this->pop();
   AbsValue* value2 = this->pop();
   bool nonnull = value1->_vp && value2->_vp;
@@ -851,7 +851,7 @@ AbsEnvStaticBase::ior() {
 }
 
 void
-AbsEnvStaticBase::ixor() {
+AbsEnvStatic::ixor() {
   AbsValue *value1 = this->pop();
   AbsValue* value2 = this->pop();
   bool nonnull = value1->_vp && value2->_vp;
@@ -875,7 +875,7 @@ AbsEnvStaticBase::ixor() {
 }
 
 void
-AbsEnvStaticBase::irem() {
+AbsEnvStatic::irem() {
   AbsValue *value1 = this->pop();
   AbsValue* value2 = this->pop();
   bool nonnull = value1->_vp && value2->_vp;
@@ -900,7 +900,7 @@ AbsEnvStaticBase::irem() {
 }
 
 void
-AbsEnvStaticBase::ishl() {
+AbsEnvStatic::ishl() {
   AbsValue *value1 = this->pop();
   AbsValue* value2 = this->pop();
   bool nonnull = value1->_vp && value2->_vp;
@@ -925,7 +925,7 @@ AbsEnvStaticBase::ishl() {
 }
 
 void
-AbsEnvStaticBase::ishr() {
+AbsEnvStatic::ishr() {
   AbsValue *value1 = this->pop();
   AbsValue* value2 = this->pop();
   bool nonnull = value1->_vp && value2->_vp;
@@ -951,7 +951,7 @@ AbsEnvStaticBase::ishr() {
 }
 
 void
-AbsEnvStaticBase::iushr() {
+AbsEnvStatic::iushr() {
   AbsValue *value1 = this->pop();
   AbsValue* value2 = this->pop();
   bool nonnull = value1->_vp && value2->_vp;
@@ -978,7 +978,7 @@ AbsEnvStaticBase::iushr() {
 }
 
 void
-AbsEnvStaticBase::idiv() {
+AbsEnvStatic::idiv() {
   AbsValue *value1 = this->pop();
   AbsValue* value2 = this->pop();
   bool nonnull = value1->_vp && value2->_vp;
@@ -1010,7 +1010,7 @@ AbsEnvStaticBase::idiv() {
 }
 
 void
-AbsEnvStaticBase::imul() {
+AbsEnvStatic::imul() {
   AbsValue *value1 = this->pop();
   AbsValue* value2 = this->pop();
   bool nonnull = value1->_vp && value2->_vp;
@@ -1035,7 +1035,7 @@ AbsEnvStaticBase::imul() {
 }
 
 void
-AbsEnvStaticBase::ineg() {
+AbsEnvStatic::ineg() {
   AbsValue *value1 = this->pop();
   bool allConstants = value1->_vp && value1->_vp->asIntConst();
   if (!allConstants)
@@ -1052,185 +1052,185 @@ AbsEnvStaticBase::ineg() {
 }
 
 void
-AbsEnvStaticBase::iconstm1() {
+AbsEnvStatic::iconstm1() {
   this->iconst(-1);
 }
 
 void
-AbsEnvStaticBase::iconst0() {
+AbsEnvStatic::iconst0() {
   this->iconst(0);
 }
 
 void
-AbsEnvStaticBase::iconst1() {
+AbsEnvStatic::iconst1() {
   this->iconst(1);
 }
 
 void
-AbsEnvStaticBase::iconst2() {
+AbsEnvStatic::iconst2() {
   this->iconst(2);
 }
 
 void
-AbsEnvStaticBase::iconst3() {
+AbsEnvStatic::iconst3() {
   this->iconst(3);
 }
 
 void
-AbsEnvStaticBase::iconst4() {
+AbsEnvStatic::iconst4() {
   this->iconst(4);
 }
 
 void
-AbsEnvStaticBase::iconst5() {
+AbsEnvStatic::iconst5() {
   this->iconst(5);
 }
 
 void
-AbsEnvStaticBase::iconst(int n) {
+AbsEnvStatic::iconst(int n) {
   this->pushConstInt(n);
 }
 
 void
-AbsEnvStaticBase::ifeq(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
+AbsEnvStatic::ifeq(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
   this->pop();
 }
 
 void
-AbsEnvStaticBase::ifne(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
+AbsEnvStatic::ifne(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
   this->pop();
 }
 
 void
-AbsEnvStaticBase::iflt(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
+AbsEnvStatic::iflt(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
   this->pop();
 }
 
 void
-AbsEnvStaticBase::ifle(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
+AbsEnvStatic::ifle(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
   this->pop();
 }
 
 void
-AbsEnvStaticBase::ifgt(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
+AbsEnvStatic::ifgt(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
   this->pop();
 }
 
 void
-AbsEnvStaticBase::ifge(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
+AbsEnvStatic::ifge(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
   this->pop();
 }
 
 void
-AbsEnvStaticBase::ifnull(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
+AbsEnvStatic::ifnull(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
   this->pop();
 }
 
 void
-AbsEnvStaticBase::ifnonnull(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
+AbsEnvStatic::ifnonnull(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
   this->pop();
 }
 
 void
-AbsEnvStaticBase::ificmpge(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
-  this->pop();
-  this->pop();
-}
-
-void
-AbsEnvStaticBase::ificmpeq(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
+AbsEnvStatic::ificmpge(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
   this->pop();
   this->pop();
 }
 
 void
-AbsEnvStaticBase::ificmpne(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
+AbsEnvStatic::ificmpeq(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
   this->pop();
   this->pop();
 }
 
 void
-AbsEnvStaticBase::ificmplt(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
+AbsEnvStatic::ificmpne(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
   this->pop();
   this->pop();
 }
 
 void
-AbsEnvStaticBase::ificmpgt(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
+AbsEnvStatic::ificmplt(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
   this->pop();
   this->pop();
 }
 
 void
-AbsEnvStaticBase::ificmple(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
+AbsEnvStatic::ificmpgt(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
   this->pop();
   this->pop();
 }
 
 void
-AbsEnvStaticBase::ifacmpeq(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
+AbsEnvStatic::ificmple(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
   this->pop();
   this->pop();
 }
 
 void
-AbsEnvStaticBase::ifacmpne(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
+AbsEnvStatic::ifacmpeq(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
   this->pop();
   this->pop();
 }
 
 void
-AbsEnvStaticBase::iload(int n) {
+AbsEnvStatic::ifacmpne(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
+  this->pop();
+  this->pop();
+}
+
+void
+AbsEnvStatic::iload(int n) {
   this->aloadn(n);
 }
 
 void
-AbsEnvStaticBase::iload0() {
+AbsEnvStatic::iload0() {
   this->iload(0);
 }
 
 void
-AbsEnvStaticBase::iload1() {
+AbsEnvStatic::iload1() {
   this->iload(1);
 }
 
 void
-AbsEnvStaticBase::iload2() {
+AbsEnvStatic::iload2() {
   this->iload(2);
 }
 
 void
-AbsEnvStaticBase::iload3() {
+AbsEnvStatic::iload3() {
   this->iload(3);
 }
 
 void
-AbsEnvStaticBase::istore(int n) {
+AbsEnvStatic::istore(int n) {
   this->at(n, this->pop());
 }
 
 void
-AbsEnvStaticBase::istore0() {
+AbsEnvStatic::istore0() {
   this->at(0, this->pop());
 }
 
 void
-AbsEnvStaticBase::istore1() {
+AbsEnvStatic::istore1() {
   this->at(1, this->pop());
 }
 
 void
-AbsEnvStaticBase::istore2() {
+AbsEnvStatic::istore2() {
   this->at(2, this->pop());
 }
 
 void
-AbsEnvStaticBase::istore3() {
+AbsEnvStatic::istore3() {
   this->at(3, this->pop());
 }
 
 void
-AbsEnvStaticBase::isub() {
+AbsEnvStatic::isub() {
   AbsValue *value1 = this->pop();
   AbsValue *value2 = this->pop();
   bool nonnull = value1->_vp && value2->_vp;
@@ -1247,7 +1247,7 @@ AbsEnvStaticBase::isub() {
 }
 
 void
-AbsEnvStaticBase::iadd() {
+AbsEnvStatic::iadd() {
   AbsValue *value1 = this->pop();
   AbsValue *value2 = this->pop();
   bool nonnull = value1->_vp && value2->_vp;
@@ -1264,7 +1264,7 @@ AbsEnvStaticBase::iadd() {
 }
 
 void
-AbsEnvStaticBase::i2d() {
+AbsEnvStatic::i2d() {
   AbsValue *value = this->pop();
   AbsValue *result = this->getTopDataType(TR::Double);
   this->push(result);
@@ -1273,14 +1273,14 @@ AbsEnvStaticBase::i2d() {
 }
 
 void
-AbsEnvStaticBase::i2f() {
+AbsEnvStatic::i2f() {
   AbsValue *value = this->pop();
   AbsValue *result = this->getTopDataType(TR::Float);
   this->push(result);
 }
 
 void
-AbsEnvStaticBase::i2l() {
+AbsEnvStatic::i2l() {
   AbsValue *value = this->pop();
   AbsValue *result = this->getTopDataType(TR::Int64);
   this->push(result);
@@ -1289,22 +1289,22 @@ AbsEnvStaticBase::i2l() {
 }
 
 void
-AbsEnvStaticBase::i2s() {
+AbsEnvStatic::i2s() {
   //empty?
 }
 
 void
-AbsEnvStaticBase::i2c() {
+AbsEnvStatic::i2c() {
   //empty?
 }
 
 void
-AbsEnvStaticBase::i2b() {
+AbsEnvStatic::i2b() {
   // empty?
 }
 
 void
-AbsEnvStaticBase::dadd() {
+AbsEnvStatic::dadd() {
   AbsValue *value1 = this->pop();
   AbsValue *value2 = this->pop();
   AbsValue *value3 = this->pop();
@@ -1316,7 +1316,7 @@ AbsEnvStaticBase::dadd() {
 }
 
 void
-AbsEnvStaticBase::dsub() {
+AbsEnvStatic::dsub() {
   AbsValue *value1 = this->pop();
   AbsValue *value2 = this->pop();
   AbsValue *value3 = this->pop();
@@ -1328,7 +1328,7 @@ AbsEnvStaticBase::dsub() {
 }
 
 void
-AbsEnvStaticBase::fsub() {
+AbsEnvStatic::fsub() {
   AbsValue *value1 = this->pop();
   AbsValue *value2 = this->pop();
   AbsValue *result = this->getTopDataType(TR::Float);
@@ -1336,7 +1336,7 @@ AbsEnvStaticBase::fsub() {
 }
 
 void
-AbsEnvStaticBase::fadd() {
+AbsEnvStatic::fadd() {
   AbsValue *value1 = this->pop();
   AbsValue *value2 = this->pop();
   AbsValue *result = this->getTopDataType(TR::Float);
@@ -1344,7 +1344,7 @@ AbsEnvStaticBase::fadd() {
 }
 
 void
-AbsEnvStaticBase::ladd() {
+AbsEnvStatic::ladd() {
   AbsValue *value1 = this->pop();
   AbsValue *value2 = this->pop();
   AbsValue *value3 = this->pop();
@@ -1366,7 +1366,7 @@ AbsEnvStaticBase::ladd() {
 }
 
 void
-AbsEnvStaticBase::lsub() {
+AbsEnvStatic::lsub() {
   AbsValue *value1 = this->pop();
   AbsValue *value2 = this->pop();
   AbsValue *value3 = this->pop();
@@ -1388,7 +1388,7 @@ AbsEnvStaticBase::lsub() {
 }
 
 void
-AbsEnvStaticBase::l2i() {
+AbsEnvStatic::l2i() {
   AbsValue *value1 = this->pop();
   AbsValue *value2 = this->pop();
   bool nonnull = value2->_vp;
@@ -1412,7 +1412,7 @@ AbsEnvStaticBase::l2i() {
 }
 
 void
-AbsEnvStaticBase::land() {
+AbsEnvStatic::land() {
   AbsValue *value1 = this->pop();
   AbsValue* value2 = this->pop();
   AbsValue *value3 = this->pop();
@@ -1443,7 +1443,7 @@ AbsEnvStaticBase::land() {
 }
 
 void
-AbsEnvStaticBase::ldiv() {
+AbsEnvStatic::ldiv() {
   AbsValue *value1 = this->pop();
   AbsValue* value2 = this->pop();
   AbsValue* value3 = this->pop();
@@ -1485,7 +1485,7 @@ AbsEnvStaticBase::ldiv() {
 }
 
 void
-AbsEnvStaticBase::lmul() {
+AbsEnvStatic::lmul() {
   AbsValue *value1 = this->pop();
   AbsValue* value2 = this->pop();
   AbsValue* value3 = this->pop();
@@ -1518,7 +1518,7 @@ AbsEnvStaticBase::lmul() {
 }
 
 void
-AbsEnvStaticBase::lneg() {
+AbsEnvStatic::lneg() {
   AbsValue *value1 = this->pop();
   AbsValue *value2 = this->pop();
   bool nonnull = value2->_vp;
@@ -1546,7 +1546,7 @@ AbsEnvStaticBase::lneg() {
 }
 
 void
-AbsEnvStaticBase::lor() {
+AbsEnvStatic::lor() {
   AbsValue *value1 = this->pop();
   AbsValue* value2 = this->pop();
   AbsValue* value3 = this->pop();
@@ -1577,7 +1577,7 @@ AbsEnvStaticBase::lor() {
 }
 
 void
-AbsEnvStaticBase::lrem() {
+AbsEnvStatic::lrem() {
   AbsValue *value1 = this->pop();
   AbsValue* value2 = this->pop();
   AbsValue* value3 = this->pop();
@@ -1610,7 +1610,7 @@ AbsEnvStaticBase::lrem() {
 }
 
 void
-AbsEnvStaticBase::lshl() {
+AbsEnvStatic::lshl() {
   AbsValue *value2 = this->pop(); // int
   AbsValue* value0 = this->pop(); // nothing
   AbsValue* value1 = this->pop(); // long
@@ -1642,7 +1642,7 @@ AbsEnvStaticBase::lshl() {
 }
 
 void
-AbsEnvStaticBase::lshr() {
+AbsEnvStatic::lshr() {
   AbsValue *value2 = this->pop(); // int
   AbsValue* value0 = this->pop(); // nothing
   AbsValue* value1 = this->pop(); // long
@@ -1674,12 +1674,12 @@ AbsEnvStaticBase::lshr() {
 }
 
 void
-AbsEnvStaticBase::lushr() {
+AbsEnvStatic::lushr() {
   this->lshr();
 }
 
 void
-AbsEnvStaticBase::lxor() {
+AbsEnvStatic::lxor() {
   AbsValue *value1 = this->pop();
   AbsValue* value2 = this->pop();
   AbsValue* value3 = this->pop();
@@ -1708,7 +1708,7 @@ AbsEnvStaticBase::lxor() {
 }
 
 void
-AbsEnvStaticBase::l2d() {
+AbsEnvStatic::l2d() {
   this->pop();
   this->pop();
   AbsValue *result = this->getTopDataType(TR::Double);
@@ -1718,7 +1718,7 @@ AbsEnvStaticBase::l2d() {
 }
 
 void
-AbsEnvStaticBase::l2f() {
+AbsEnvStatic::l2f() {
   this->pop();
   this->pop();
   AbsValue *result = this->getTopDataType(TR::Float);
@@ -1726,7 +1726,7 @@ AbsEnvStaticBase::l2f() {
 }
 
 void
-AbsEnvStaticBase::d2f() {
+AbsEnvStatic::d2f() {
   this->pop();
   this->pop();
   AbsValue *result = this->getTopDataType(TR::Float);
@@ -1734,7 +1734,7 @@ AbsEnvStaticBase::d2f() {
 }
 
 void
-AbsEnvStaticBase::f2d() {
+AbsEnvStatic::f2d() {
   this->pop();
   AbsValue *result1 = this->getTopDataType(TR::Double);
   AbsValue *result2 = this->getTopDataType(TR::NoType);
@@ -1743,14 +1743,14 @@ AbsEnvStaticBase::f2d() {
 }
 
 void
-AbsEnvStaticBase::f2i() {
+AbsEnvStatic::f2i() {
   this->pop();
   AbsValue *result1 = this->getTopDataType(TR::Int32);
   this->push(result1);
 }
 
 void
-AbsEnvStaticBase::f2l() {
+AbsEnvStatic::f2l() {
   this->pop();
   AbsValue *result1 = this->getTopDataType(TR::Int64);
   AbsValue *result2 = this->getTopDataType(TR::NoType);
@@ -1759,7 +1759,7 @@ AbsEnvStaticBase::f2l() {
 }
 
 void
-AbsEnvStaticBase::d2i() {
+AbsEnvStatic::d2i() {
   this->pop();
   this->pop();
   AbsValue *result = this->getTopDataType(TR::Int32);
@@ -1767,7 +1767,7 @@ AbsEnvStaticBase::d2i() {
 }
 
 void
-AbsEnvStaticBase::d2l() {
+AbsEnvStatic::d2l() {
   this->pop();
   this->pop();
   AbsValue *result1 = this->getTopDataType(TR::Int64);
@@ -1777,37 +1777,37 @@ AbsEnvStaticBase::d2l() {
 }
 
 void
-AbsEnvStaticBase::lload(int n) {
+AbsEnvStatic::lload(int n) {
   aload(n);
   aload(n + 1);
 }
 
 void
-AbsEnvStaticBase::lload0() {
+AbsEnvStatic::lload0() {
   aload(0);
   aload(1);
 }
 
 void
-AbsEnvStaticBase::lload1() {
+AbsEnvStatic::lload1() {
   aload(1);
   aload(2);
 }
 
 void
-AbsEnvStaticBase::lload2() {
+AbsEnvStatic::lload2() {
   aload(2);
   aload(3);
 }
 
 void
-AbsEnvStaticBase::lload3() {
+AbsEnvStatic::lload3() {
   aload(3);
   aload(4);
 }
 
 void
-AbsEnvStaticBase::dconst0() {
+AbsEnvStatic::dconst0() {
   AbsValue *result1 = this->getTopDataType(TR::Double);
   AbsValue *result2 = this->getTopDataType(TR::NoType);
   this->push(result1);
@@ -1815,43 +1815,43 @@ AbsEnvStaticBase::dconst0() {
 }
 
 void
-AbsEnvStaticBase::fconst0() {
+AbsEnvStatic::fconst0() {
   AbsValue *result1 = this->getTopDataType(TR::Float);
   this->push(result1);
 }
 
 void
-AbsEnvStaticBase::dload(int n) {
+AbsEnvStatic::dload(int n) {
   aload(n);
   aload(n + 1);
 }
 
 void
-AbsEnvStaticBase::dload0() {
+AbsEnvStatic::dload0() {
   aload(0);
   aload(1);
 }
 
 void
-AbsEnvStaticBase::dload1() {
+AbsEnvStatic::dload1() {
   aload(1);
   aload(2);
 }
 
 void
-AbsEnvStaticBase::dload2() {
+AbsEnvStatic::dload2() {
   aload(2);
   aload(3);
 }
 
 void
-AbsEnvStaticBase::dload3() {
+AbsEnvStatic::dload3() {
   aload(3);
   aload(4);
 }
 
 void
-AbsEnvStaticBase::dstore(int n) {
+AbsEnvStatic::dstore(int n) {
   AbsValue *top = this->pop();
   AbsValue *bottom = this->pop();
   this->at(n, bottom);
@@ -1859,27 +1859,27 @@ AbsEnvStaticBase::dstore(int n) {
 }
 
 void
-AbsEnvStaticBase::dstore0() {
+AbsEnvStatic::dstore0() {
   this->dstore(0);
 }
 
 void
-AbsEnvStaticBase::dstore1() {
+AbsEnvStatic::dstore1() {
   this->dstore(1);
 }
 
 void
-AbsEnvStaticBase::dstore2() {
+AbsEnvStatic::dstore2() {
   this->dstore(2);
 }
 
 void
-AbsEnvStaticBase::dstore3() {
+AbsEnvStatic::dstore3() {
   this->dstore(3);
 }
 
 void
-AbsEnvStaticBase::lconst0() {
+AbsEnvStatic::lconst0() {
   AbsValue *result = this->getTopDataType(TR::Int64);
   this->push(result);
   AbsValue *result2 = this->getTopDataType(TR::NoType);
@@ -1887,7 +1887,7 @@ AbsEnvStaticBase::lconst0() {
 }
 
 void
-AbsEnvStaticBase::lconst1() {
+AbsEnvStatic::lconst1() {
   AbsValue *result = this->getTopDataType(TR::Int64);
   this->push(result);
   AbsValue *result2 = this->getTopDataType(TR::NoType);
@@ -1895,7 +1895,7 @@ AbsEnvStaticBase::lconst1() {
 }
 
 void
-AbsEnvStaticBase::lcmp() {
+AbsEnvStatic::lcmp() {
   this->pop();
   this->pop();
   this->pop();
@@ -1905,38 +1905,38 @@ AbsEnvStaticBase::lcmp() {
 }
 
 void
-AbsEnvStaticBase::pop2() {
+AbsEnvStatic::pop2() {
   this->pop();
   this->pop();
 }
 
 void
-AbsEnvStaticBase::fload(int n) {
+AbsEnvStatic::fload(int n) {
   aload(n);
 }
 
 void
-AbsEnvStaticBase::fload0() {
+AbsEnvStatic::fload0() {
   this->fload(0);
 }
 
 void
-AbsEnvStaticBase::fload1() {
+AbsEnvStatic::fload1() {
   this->fload(1);
 }
 
 void
-AbsEnvStaticBase::fload2() {
+AbsEnvStatic::fload2() {
   this->fload(2);
 }
 
 void
-AbsEnvStaticBase::fload3() {
+AbsEnvStatic::fload3() {
   this->fload(3);
 }
 
 void
-AbsEnvStaticBase::swap() {
+AbsEnvStatic::swap() {
   AbsValue *value1 = this->pop();
   AbsValue *value2 = this->pop();
   this->push(value1);
@@ -1944,44 +1944,44 @@ AbsEnvStaticBase::swap() {
 }
 
 void
-AbsEnvStaticBase::fstore(int n) {
+AbsEnvStatic::fstore(int n) {
   this->at(n, this->pop());
 }
 
 
 void
-AbsEnvStaticBase::fstore0() {
+AbsEnvStatic::fstore0() {
   this->fstore(0);
 }
 
 void
-AbsEnvStaticBase::fstore1() {
+AbsEnvStatic::fstore1() {
   this->fstore(1);
 }
 
 void
-AbsEnvStaticBase::fstore2() {
+AbsEnvStatic::fstore2() {
   this->fstore(2);
 }
 
 void
-AbsEnvStaticBase::fstore3() {
+AbsEnvStatic::fstore3() {
   this->fstore(3);
 }
 
 void
-AbsEnvStaticBase::fmul() {
+AbsEnvStatic::fmul() {
   AbsValue *value1 = this->pop();
 }
 
 void
-AbsEnvStaticBase::dmul() {
+AbsEnvStatic::dmul() {
   AbsValue *value1 = this->pop();
   AbsValue* value2 = this->pop();
 }
 
 void
-AbsEnvStaticBase::dcmpl() {
+AbsEnvStatic::dcmpl() {
   AbsValue *value1 = this->pop();
   AbsValue* value2 = this->pop();
   AbsValue *value3 = this->pop();
@@ -1992,7 +1992,7 @@ AbsEnvStaticBase::dcmpl() {
 
 
 void
-AbsEnvStaticBase::fcmpl() {
+AbsEnvStatic::fcmpl() {
   AbsValue *value1 = this->pop();
   AbsValue* value2 = this->pop();
   AbsValue *result = this->getTopDataType(TR::Int32);
@@ -2000,36 +2000,36 @@ AbsEnvStaticBase::fcmpl() {
 }
 
 void
-AbsEnvStaticBase::ddiv() {
+AbsEnvStatic::ddiv() {
   AbsValue *value1 = this->pop();
   AbsValue* value2 = this->pop();
 }
 
 void
-AbsEnvStaticBase::fdiv() {
+AbsEnvStatic::fdiv() {
   AbsValue *value1 = this->pop();
 }
 
 void
-AbsEnvStaticBase::drem() {
+AbsEnvStatic::drem() {
   AbsValue *value1 = this->pop();
   AbsValue* value2 = this->pop();
 }
 
 void
-AbsEnvStaticBase::frem() {
+AbsEnvStatic::frem() {
   AbsValue *value = this->pop();
 }
 
 void
-AbsEnvStaticBase::sipush(int16_t _short) {
+AbsEnvStatic::sipush(int16_t _short) {
   TR::VPShortConst *data = TR::VPShortConst::create(this->_vp, _short);
   AbsValue *result = new (_region) AbsValue(data, TR::Int16);
   this->push(result);
 }
 
 void
-AbsEnvStaticBase::iinc(int index, int incval) {
+AbsEnvStatic::iinc(int index, int incval) {
   AbsValue *value1 = this->at(index);
   TR::VPIntConstraint *value = value1->_vp ? value1->_vp->asIntConstraint() : nullptr;
   if (!value)
@@ -2044,7 +2044,7 @@ AbsEnvStaticBase::iinc(int index, int incval) {
 }
 
 void
-AbsEnvStaticBase::putfield() {
+AbsEnvStatic::putfield() {
   // WONTFIX we do not model the heap
   AbsValue *value1 = this->pop();
   AbsValue *value2 = this->pop();
@@ -2054,7 +2054,7 @@ AbsEnvStaticBase::putfield() {
 }
 
 void
-AbsEnvStaticBase::putstatic() {
+AbsEnvStatic::putstatic() {
   // WONTFIX we do not model the heap
   AbsValue *value1 = this->pop();
   if (!value1->_dt == TR::NoType) { // category type 2
@@ -2063,7 +2063,7 @@ AbsEnvStaticBase::putstatic() {
 }
 
 void
-AbsEnvStaticBase::ldcInt32(int cpIndex, TR_J9ByteCodeIterator &bci) {
+AbsEnvStatic::ldcInt32(int cpIndex, TR_J9ByteCodeIterator &bci) {
   int32_t value =  bci.method()->intConstant(cpIndex); 
   TR::VPIntConst *constraint = TR::VPIntConst::create(this->_vp, value);
   AbsValue *result = new (_region) AbsValue(constraint, TR::Int32);
@@ -2071,7 +2071,7 @@ AbsEnvStaticBase::ldcInt32(int cpIndex, TR_J9ByteCodeIterator &bci) {
 }
 
 void
-AbsEnvStaticBase::ldcInt64(int cpIndex, TR_J9ByteCodeIterator &bci) {
+AbsEnvStatic::ldcInt64(int cpIndex, TR_J9ByteCodeIterator &bci) {
    auto value =  bci.method()->longConstant(cpIndex); 
    TR::VPLongConst *constraint = TR::VPLongConst::create(this->_vp, value);
    AbsValue *result = new (_region) AbsValue(constraint, TR::Int64);
@@ -2081,13 +2081,13 @@ AbsEnvStaticBase::ldcInt64(int cpIndex, TR_J9ByteCodeIterator &bci) {
 }
 
 void
-AbsEnvStaticBase::ldcFloat() {
+AbsEnvStatic::ldcFloat() {
    AbsValue *result = this->getTopDataType(TR::Float);
    this->push(result);
 }
 
 void
-AbsEnvStaticBase::ldcDouble() {
+AbsEnvStatic::ldcDouble() {
    AbsValue *result = this->getTopDataType(TR::Double);
    AbsValue *result2 = this->getTopDataType(TR::NoType);
    this->push(result);
@@ -2095,7 +2095,7 @@ AbsEnvStaticBase::ldcDouble() {
 }
 
 void
-AbsEnvStaticBase::ldcAddress(int cpIndex, TR_J9ByteCodeIterator &bci) {
+AbsEnvStatic::ldcAddress(int cpIndex, TR_J9ByteCodeIterator &bci) {
   bool isString = bci.method()->isStringConstant(cpIndex);
   if (isString) { ldcString(cpIndex); return; }
   //TODO: non string case
@@ -2104,7 +2104,7 @@ AbsEnvStaticBase::ldcAddress(int cpIndex, TR_J9ByteCodeIterator &bci) {
 }
 
 void
-AbsEnvStaticBase::ldcString(int cpIndex) {
+AbsEnvStatic::ldcString(int cpIndex) {
    // TODO: we might need the resolved method symbol here
    // TODO: avoid _rms    
    TR::SymbolReference *symRef = TR::comp()->getSymRefTab()->findOrCreateStringSymbol(_rms, cpIndex);
@@ -2120,7 +2120,7 @@ AbsEnvStaticBase::ldcString(int cpIndex) {
 }
 
 void
-AbsEnvStaticBase::ldc(int cpIndex, TR_J9ByteCodeIterator &bci) {
+AbsEnvStatic::ldc(int cpIndex, TR_J9ByteCodeIterator &bci) {
    TR::DataType datatype = bci.method()->getLDCType(cpIndex);
    switch(datatype) {
      case TR::Int32: this->ldcInt32(cpIndex, bci); break;
@@ -2138,19 +2138,19 @@ AbsEnvStaticBase::ldc(int cpIndex, TR_J9ByteCodeIterator &bci) {
 }
 
 void
-AbsEnvStaticBase::monitorenter() {
+AbsEnvStatic::monitorenter() {
   // TODO: possible optimization
   this->pop();
 }
 
 void
-AbsEnvStaticBase::monitorexit() {
+AbsEnvStatic::monitorexit() {
   // TODO: possible optimization
   this->pop();
 }
 
 void
-AbsEnvStaticBase::anewarray(int cpIndex) {
+AbsEnvStatic::anewarray(int cpIndex) {
   //TODO: actually make an array
   AbsValue *count = this->pop();
   AbsValue *result = this->getTopDataType(TR::Address);
@@ -2158,7 +2158,7 @@ AbsEnvStaticBase::anewarray(int cpIndex) {
 }
 
 void
-AbsEnvStaticBase::arraylength() {
+AbsEnvStatic::arraylength() {
   //TODO: actually make use of the value
   this->pop();
   AbsValue *result = this->getTopDataType(TR::Int32);
@@ -2166,14 +2166,14 @@ AbsEnvStaticBase::arraylength() {
 }
 
 void
-AbsEnvStaticBase::_new(int cpIndex) {
+AbsEnvStatic::_new(int cpIndex) {
   //TODO: actually look at the semantics
   AbsValue *result = this->getTopDataType(TR::Address);
   this->push(result);
 }
 
 void
-AbsEnvStaticBase::newarray(int atype) {
+AbsEnvStatic::newarray(int atype) {
   //TODO: actually impement the sematncis
   this->pop();
   AbsValue *result = this->getTopDataType(TR::Address);
@@ -2181,32 +2181,32 @@ AbsEnvStaticBase::newarray(int atype) {
 }
 
 void
-AbsEnvStaticBase::invokevirtual(int bcIndex, int cpIndex, TR_J9ByteCodeIterator &bci) {
+AbsEnvStatic::invokevirtual(int bcIndex, int cpIndex, TR_J9ByteCodeIterator &bci) {
   invoke(bcIndex, cpIndex, bci, TR::MethodSymbol::Kinds::Virtual);
 }
 
 void
-AbsEnvStaticBase::invokestatic(int bcIndex, int cpIndex, TR_J9ByteCodeIterator &bci) {
+AbsEnvStatic::invokestatic(int bcIndex, int cpIndex, TR_J9ByteCodeIterator &bci) {
   invoke(bcIndex, cpIndex, bci, TR::MethodSymbol::Kinds::Static);
 }
 
 void
-AbsEnvStaticBase::invokespecial(int bcIndex, int cpIndex, TR_J9ByteCodeIterator &bci) {
+AbsEnvStatic::invokespecial(int bcIndex, int cpIndex, TR_J9ByteCodeIterator &bci) {
   invoke(bcIndex, cpIndex, bci, TR::MethodSymbol::Kinds::Special);
 }
 
 void
-AbsEnvStaticBase::invokedynamic(int bcIndex, int cpIndex, TR_J9ByteCodeIterator &bci) {
+AbsEnvStatic::invokedynamic(int bcIndex, int cpIndex, TR_J9ByteCodeIterator &bci) {
   invoke(bcIndex, cpIndex, bci, TR::MethodSymbol::Kinds::ComputedVirtual);
 }
 
 void
-AbsEnvStaticBase::invokeinterface(int bcIndex, int cpIndex, TR_J9ByteCodeIterator &bci) {
+AbsEnvStatic::invokeinterface(int bcIndex, int cpIndex, TR_J9ByteCodeIterator &bci) {
   invoke(bcIndex, cpIndex, bci, TR::MethodSymbol::Kinds::Interface);
 }
 
 void
-AbsEnvStaticBase::invoke(int bcIndex, int cpIndex, TR_J9ByteCodeIterator &bci, TR::MethodSymbol::Kinds kind) {
+AbsEnvStatic::invoke(int bcIndex, int cpIndex, TR_J9ByteCodeIterator &bci, TR::MethodSymbol::Kinds kind) {
   auto callerResolvedMethodSymbol = this->_rms;
   auto callerResolvedMethod = callerResolvedMethodSymbol->getResolvedMethod();
   TR::Compilation *comp = TR::comp();
@@ -2281,7 +2281,7 @@ AbsEnvStaticBase::invoke(int bcIndex, int cpIndex, TR_J9ByteCodeIterator &bci, T
 }
 
 void
-AbsEnvStaticBase::interpretBlock(OMR::Block * block)
+AbsEnvStatic::interpretBlock(OMR::Block * block)
 {
   //TODO: avoid TR::comp();
   TR::Compilation *comp = TR::comp();
@@ -2312,10 +2312,10 @@ AbsEnvStaticBase::interpretBlock(OMR::Block * block)
 }
 
 /*
-AbsEnvStaticBase *
-AbsEnvStaticBase::mergeAllPredecessors(TR::Region &region, OMR::Block *block) {
+AbsEnvStatic *
+AbsEnvStatic::mergeAllPredecessors(TR::Region &region, OMR::Block *block) {
   TR::CFGEdgeList &predecessors = block->getPredecessors();
-  AbsEnvStaticBase *absEnv = nullptr;
+  AbsEnvStatic *absEnv = nullptr;
   bool first = true;
   for (auto i = predecessors.begin(), e = predecessors.end(); i != e; ++i)
   {
@@ -2330,7 +2330,7 @@ AbsEnvStaticBase::mergeAllPredecessors(TR::Region &region, OMR::Block *block) {
      if (first) {
         first = false;
         // copy the first one
-        absEnv = new (_region) AbsEnvStaticBase(*aBlock->_absEnv);
+        absEnv = new (_region) AbsEnvStatic(*aBlock->_absEnv);
         continue;
      }
      // merge with the rest;
@@ -2341,13 +2341,13 @@ AbsEnvStaticBase::mergeAllPredecessors(TR::Region &region, OMR::Block *block) {
 */
 
 // TODO
-AbsEnvStaticBase::CompareResult AbsEnvStaticBase::compareWith(AbsEnvStaticBase *other)
+AbsEnvStatic::CompareResult AbsEnvStatic::compareWith(AbsEnvStatic *other)
   {
   return CompareResult::Narrower;
   }
 
 bool
-AbsEnvStaticBase::isNarrowerThan(AbsEnvStaticBase *other)
+AbsEnvStatic::isNarrowerThan(AbsEnvStatic *other)
   {
   return compareWith(other) == CompareResult::Narrower;
   }

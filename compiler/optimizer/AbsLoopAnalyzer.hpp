@@ -112,4 +112,11 @@ private:
     protected:
       bool interpret();
     };
+  class ExitNode : public Node
+    {
+    public: 
+      using Node::Node;
+    protected:
+      bool interpret();
+    };
 };

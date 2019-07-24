@@ -8,6 +8,26 @@
 // - Find another way to do initial pass and construct flow paths
 // - Don't bother analyzing methods with non nat loops
 
+// TODO erick do this in construction of CFG
+// Removes outgoing edges from node 3
+void cleanCFG(OMR::CFG *cfg)
+  {
+    TR::Block *startBlock = cfg->getStartForReverseSnapshot()->asBlock();
+    for (TR::ReversePostorderSnapshotBlockIterator blockIt ((TR::Block *)startBlock, TR::comp()); blockIt.currentBlock(); ++blockIt)
+      {
+      OMR::Block *block = (OMR::Block *)blockIt.currentBlock();
+      if (block->getNumber() == 3)
+        {
+        TR::CFGEdgeList &edges = block->getSuccessors();
+        for (TR::CFGEdge *edge : edges)
+          {
+          block->removeSuccessor(edge);
+          }
+        return;
+        }
+      }
+  }
+
 AbsLoopAnalyzer::AbsLoopAnalyzer(TR::Region& region, IDT::Node *method, TR::ValuePropagation* vp, TR::CFG *cfg, TR::Compilation *comp):
   _region(region),
   _method(method),
@@ -16,6 +36,7 @@ AbsLoopAnalyzer::AbsLoopAnalyzer(TR::Region& region, IDT::Node *method, TR::Valu
   _comp(comp),
   _blockToAbsHead(AbsLoopAnalyzer::NodeMapComparator(), AbsLoopAnalyzer::NodeMapAllocator(_region))
   {
+    cleanCFG(_cfg);
     // Add all blocks in RPO order to determine their types
     OMR::Block *startBlock = (OMR::Block *)cfg->getStartForReverseSnapshot()->asBlock();
     for (TR::ReversePostorderSnapshotBlockIterator blockIt ((TR::Block *)startBlock, _comp); blockIt.currentBlock(); ++blockIt)
@@ -101,12 +122,10 @@ AbsLoopAnalyzer::Node::mergeIncomingStateFromPredecessors()
   TR_ASSERT(predecessorsHaveBeenInterpreted(), "Cannot merge from predecessors unless they've already been interpreted");
   AbsEnvStatic *mergedEnv = nullptr;
   TR::CFGEdgeList &edges = _block->getPredecessors();
-  if (edges.size() > 1) {
-    const int i = 42;
-  }
   for (TR::CFGEdge *edge : edges)
     {
       OMR::Block *block = (OMR::Block *)edge->getFrom()->asBlock();
+      TR_ASSERT(edge->getTo() == _block, "Weird CFG");
       TR_ASSERT(_graph->seenBlock(block), "Predecessor not visited");
       Node *node = _graph->blockToAbsNode(block);
       TR_ASSERT(node->hasBeenInterpretedAtLeastOnce(), "Node not interpreted");
@@ -117,6 +136,7 @@ AbsLoopAnalyzer::Node::mergeIncomingStateFromPredecessors()
         }
       else
         {
+        traceMsg(TR::comp(), "TODO spencer MERGE BB: %d into BB: %d \n", block->getNumber(), _block->getNumber());
         mergedEnv->merge(*currAbsEnv);
         }      
     }
@@ -171,7 +191,11 @@ void AbsLoopAnalyzer::addBlock(OMR::Block *block)
   TR_ASSERT(!seenBlock(block), "Block already added");
   Node *node;
   TR::CFGEdgeList &preds = block->getPredecessors();
-  if (block == _cfg->getStartForReverseSnapshot())
+  if (block->getNumber() == 3)
+    {
+    node = new (_region) ExitNode(this, block);
+    }
+  else if (block == _cfg->getStartForReverseSnapshot())
     {
     node = new (_region) NoPredecessor(this, block);
     _root = node;
@@ -346,7 +370,8 @@ AbsLoopAnalyzer::FlowPath *AbsLoopAnalyzer::LoopHeader::getPathsToBackEdges()
   return _pathsToBackEdges;
   }
 
-bool AbsLoopAnalyzer::LoopHeader::interpret()
+bool
+AbsLoopAnalyzer::LoopHeader::interpret()
   {
   setOldPostState(_postState);
   AbsEnvStatic *firstPassState = getSizedStartState();
@@ -357,4 +382,10 @@ bool AbsLoopAnalyzer::LoopHeader::interpret()
   loopInvariant->interpretBlock(_block);
   setPostState(loopInvariant);
   return _postState->isNarrowerThan(_oldPostState);
+  }
+
+bool
+AbsLoopAnalyzer::ExitNode::interpret()
+  {
+  return false;
   }
