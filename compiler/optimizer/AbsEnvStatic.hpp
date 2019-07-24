@@ -13,15 +13,16 @@ public:
   AbsEnvStatic(TR::Region &region, IDT::Node *node);
   AbsEnvStatic(AbsEnvStatic&);
   void trace(const char* methodName = NULL);
-  void interpret();
-
+  void interpretBlock(OMR::Block *block);
+  AbsEnvStatic *getWidened();
+  typedef AbsValue::CompareResult CompareResult;
+  CompareResult compareWith(AbsEnvStatic *other);
+  bool isNarrowerThan(AbsEnvStatic *other);
+  void merge(AbsEnvStatic&);
 
 private:
-  void merge(AbsEnvStatic&);
-  AbsEnvStatic *mergeAllPredecessors(OMR::Block *);
-  void interpret(TR_J9ByteCode, TR_J9ByteCodeIterator &);
+  void interpretByteCode(TR_J9ByteCode, TR_J9ByteCodeIterator &);
   void enterMethod(TR::ResolvedMethodSymbol *);
-  void interpret(OMR::Block *, TR_J9ByteCodeIterator &);
   IDT::Node *_node;
   TR::ValuePropagation *_vp;
   TR::ResolvedMethodSymbol *_rms;
@@ -29,16 +30,15 @@ private:
   AbsVarArrayStatic _array;
   AbsOpStackStatic _stack;
 
-
-  // stack manipulation
+  // Stack manipulation
   void push(AbsValue *);
   AbsValue* pop();
 
-  // array manipulation
+  // Array manipulation
   void at(unsigned int, AbsValue*);
   AbsValue *at(unsigned int);
 
-  // abstract interpreter
+  // Abstract interpreter
   void aload0getfield(int, TR_J9ByteCodeIterator &);
   void aaload();
   void daload();
@@ -204,7 +204,7 @@ private:
   void invokedynamic(int, int, TR_J9ByteCodeIterator &);
   void invokeinterface(int, int, TR_J9ByteCodeIterator &);
 
-  // abstract interpreter helper
+  // Abstract interpreter helpers
   void invoke(int, int, TR_J9ByteCodeIterator &, TR::MethodSymbol::Kinds);
   void aloadn(int);
   void pushConstInt(int);

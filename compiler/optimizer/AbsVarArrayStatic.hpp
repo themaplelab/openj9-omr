@@ -16,7 +16,9 @@ public:
   AbsVarArrayStatic(const AbsVarArrayStatic&, TR::Region &);
   AbsVarArrayStatic(const AbsVarArrayStatic&) = delete; // we need TR::Region
 
-
+  AbsVarArrayStatic *getWidened(TR::Region &region);
+  typedef AbsValue::CompareResult CompareResult;
+  CompareResult compareWith(AbsVarArrayStatic *other);
   void merge(const AbsVarArrayStatic &, TR::Region &, OMR::ValuePropagation *);
   void trace(OMR::ValuePropagation *vp);
   void at(unsigned int, AbsValue*);
@@ -25,4 +27,5 @@ public:
 private:
   typedef TR::deque<AbsValue*, TR::Region&> ConstraintArray;
   ConstraintArray _array;
+  unsigned int _maxSize;
 };

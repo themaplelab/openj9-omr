@@ -2,14 +2,41 @@
 #include "compiler/infra/ReferenceWrapper.hpp"
 
 AbsVarArrayStatic::AbsVarArrayStatic(TR::Region &region, unsigned int maxSize) :
-  _array(0, nullptr, region)
+  _array(maxSize, nullptr, region),
+  _maxSize(maxSize)
   {
   }
 
 AbsVarArrayStatic::AbsVarArrayStatic(const AbsVarArrayStatic &other, TR::Region &region) :
-  _array(other._array)
+  _array(other._array),
+  _maxSize(other._maxSize)
   {
-  //_array = other._array;
+  }
+
+
+// TODO
+AbsVarArrayStatic::CompareResult AbsVarArrayStatic::compareWith(AbsVarArrayStatic *other)
+  {
+    if (other == nullptr)
+      {
+      return CompareResult::Narrower;
+      }
+    return CompareResult::Narrower;
+  }
+
+AbsVarArrayStatic *AbsVarArrayStatic::getWidened(TR::Region &region)
+  {
+    AbsVarArrayStatic *top = new (region) AbsVarArrayStatic(region, _maxSize);
+    for (int i = 0; i < size(); i++)
+      {
+      AbsValue *v = at(i);
+      if (v != nullptr)
+        {
+        v = v->getWidened(region);
+        }
+      top->at(i, v);
+      }
+    return top;
   }
 
 void
@@ -42,21 +69,8 @@ AbsVarArrayStatic::merge(const AbsVarArrayStatic &array, TR::Region &regionAbsEn
 void
 AbsVarArrayStatic::at(unsigned int index, AbsValue *constraint)
   {
-  if (this->size() > index)
-     {
-     _array.at(index) = constraint;
-     return;
-     }
-  if (index == this->size())
-     {
-     _array.push_back(constraint);
-     return;
-     }
-  while (this->size() < index)
-     {
-     _array.push_back(nullptr);
-     }
-     _array.push_back(constraint);
+  // Passing size to the deque constructor will make it the correct size
+  _array.at(index) = constraint;
   }
 
 AbsValue*

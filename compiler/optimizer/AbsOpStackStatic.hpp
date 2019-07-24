@@ -25,13 +25,15 @@ public:
   bool empty() const;
   size_t size() const;
   AbsValue* top();
+  AbsOpStackStatic *getWidened(TR::Region &region);
 
 private:
   //typedef TR::deque<AbsValue*, TR::Region&> ConstraintStack;
   typedef TR::deque<AbsValue*, TR::Region&> StackContainer;
   typedef std::stack<AbsValue*, StackContainer> ConstraintStack;
   
-  ConstraintStack _stack; 
+  ConstraintStack _stack;
+  int _maxSize;
 
 };
 

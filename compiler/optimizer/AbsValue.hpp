@@ -7,6 +7,13 @@
 class AbsValue
 {
 public:
+  enum CompareResult
+    {
+     Narrower = 0,
+     Equal,
+     Wider,
+     Disjoint,
+    };
   AbsValue(TR::VPConstraint *vp, TR::DataType dt) : _vp(vp), _dt(dt) {};
   AbsValue *merge(AbsValue *other, TR::Region &region, OMR::ValuePropagation *vp)
     {
@@ -16,6 +23,36 @@ public:
     if (!other->_vp) return other;
     TR::VPConstraint *constraint = this->_vp->merge(other->_vp, vp);
     return new (region) AbsValue(constraint, this->_dt);
+    }
+  // TODO implement
+  CompareResult compareWith(AbsValue *other)
+    {
+    return CompareResult::Narrower;
+    }
+  CompareResult mergeComparison(CompareResult a, CompareResult b)
+    {
+    if (a == b)
+      {
+      return a;
+      }
+    if (a == Disjoint || b == Disjoint)
+      {
+      return Disjoint;
+      }
+    if (a == Equal)
+      {
+      return b;
+      }
+    if (b == Equal)
+      {
+      return a;
+      }
+    return Disjoint;
+    }
+  AbsValue *getWidened(TR::Region &region)
+    {
+      // TODO use this instead of AbsEnvStatic::getTopDataType
+      return new (region) AbsValue(nullptr, _dt);
     }
   void print(OMR::ValuePropagation *vp)
   {
