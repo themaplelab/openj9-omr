@@ -87,7 +87,7 @@ class BenefitInliner: public BenefitInlinerBase
                                     TR::TreeTop *callNodeTreeTop,
                                     TR::Node *parent,
                                     TR::Node *callNode,
-                                    TR_Method * interfaceMethod,
+                                    TR::Method * interfaceMethod,
                                     TR_OpaqueClassBlock *receiverClass,
                                     int32_t vftSlot,
                                     int32_t cpIndex,

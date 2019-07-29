@@ -2217,7 +2217,7 @@ AbsEnvStatic::invoke(int bcIndex, int cpIndex, TR_J9ByteCodeIterator &bci, TR::M
       symRef = comp->getSymRefTab()->findOrCreateSpecialMethodSymbol(callerResolvedMethodSymbol, cpIndex);
     break;
   }
-  TR_Method *method = comp->fej9()->createMethod(comp->trMemory(), callerResolvedMethod->containingClass(), cpIndex);
+  TR::Method *method = comp->fej9()->createMethod(comp->trMemory(), callerResolvedMethod->containingClass(), cpIndex);
   // how many pops?
   uint32_t params = method->numberOfExplicitParameters();
   int isStatic = kind == TR::MethodSymbol::Kinds::Static;
