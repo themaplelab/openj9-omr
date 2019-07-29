@@ -866,14 +866,10 @@ public:
       return TR::BadILOp;
       }
 
+//TODO (#2657): remove this function as unsigned shfit opcodes have been deprecated
    static TR::ILOpCodes unsignedShiftLeftOpCode(TR::DataType type)
       {
-      switch(type)
-         {
-         case TR::Int32:  return TR::iushl;
-         case TR::Int64:  return TR::lushl;
-         default: TR_ASSERT(false, "no ushl opcode for datatype %s",type.toString());
-         }
+      TR_ASSERT(false, "no ushl opcode for datatype %s",type.toString());
       return TR::BadILOp;
       }
 
@@ -1213,9 +1209,7 @@ public:
       switch (ind)
          {
          case TR::icalli:    return TR::icall;
-         case TR::iucalli:   return TR::iucall;
          case TR::lcalli:    return TR::lcall;
-         case TR::lucalli:   return TR::lucall;
          case TR::fcalli:    return TR::fcall;
          case TR::dcalli:    return TR::dcall;
          case TR::acalli:    return TR::acall;

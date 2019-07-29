@@ -2576,7 +2576,6 @@ void OMR::Power::CodeGenerator::addRealRegisterInterference(TR::Register    *reg
 
 #if defined(AIXPPC)
 #include <unistd.h>
-class  TR_Method;
 static TR::Instruction    *nextIntervalInstructionPtr;
 static uint8_t           *nextIntervalBufferPtr;
 static bool               segmentInBlock;
@@ -2675,8 +2674,7 @@ bool OMR::Power::CodeGenerator::isRotateAndMask(TR::Node * node)
           contiguousBits(secondChild->getInt()) &&
           firstChild->getReferenceCount() == 1 &&
           firstChild->getRegister() == NULL &&
-          (((firstOp == TR::imul ||
-             firstOp == TR::iumul) &&
+          ((firstOp == TR::imul &&
              firstChild->getSecondChild()->getOpCodeValue() == TR::iconst &&
             firstChild->getSecondChild()->getInt() > 0 &&
             isNonNegativePowerOf2(firstChild->getSecondChild()->getInt())) ||
@@ -3576,7 +3574,7 @@ void mulConstant(TR::Node * node, TR::Register *trgReg, TR::Register *sourceReg,
       }
    }
 
-   
+
 TR::Register *addConstantToLong(TR::Node *node, TR::Register *srcReg,
                                 int64_t value, TR::Register *trgReg, TR::CodeGenerator *cg)
    {

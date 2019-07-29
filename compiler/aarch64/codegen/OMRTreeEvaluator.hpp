@@ -612,7 +612,6 @@ public:
 	static TR::Register *cstoreiEvaluator(TR::Node *node, TR::CodeGenerator *cg);
 	static TR::Register *monentEvaluator(TR::Node *node, TR::CodeGenerator *cg);
 	static TR::Register *monexitEvaluator(TR::Node *node, TR::CodeGenerator *cg);
-	static TR::Register *monexitfenceEvaluator(TR::Node *node, TR::CodeGenerator *cg);
 	static TR::Register *tstartEvaluator(TR::Node *node, TR::CodeGenerator *cg);
 	static TR::Register *tfinishEvaluator(TR::Node *node, TR::CodeGenerator *cg);
 	static TR::Register *tabortEvaluator(TR::Node *node, TR::CodeGenerator *cg);
@@ -636,6 +635,7 @@ public:
 	static TR::Register *dcalliEvaluator(TR::Node *node, TR::CodeGenerator *cg);
 	static TR::Register *acalliEvaluator(TR::Node *node, TR::CodeGenerator *cg);
 	static TR::Register *calliEvaluator(TR::Node *node, TR::CodeGenerator *cg);
+	static TR::Register *indirectCallEvaluator(TR::Node *node, TR::CodeGenerator *cg);
 	static TR::Register *fenceEvaluator(TR::Node *node, TR::CodeGenerator *cg);
 	static TR::Register *luaddhEvaluator(TR::Node *node, TR::CodeGenerator *cg);
 	static TR::Register *caddEvaluator(TR::Node *node, TR::CodeGenerator *cg);

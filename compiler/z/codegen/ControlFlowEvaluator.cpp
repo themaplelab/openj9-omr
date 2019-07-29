@@ -124,26 +124,12 @@ static bool
 virtualGuardHelper(TR::Node * node, TR::CodeGenerator * cg)
    {
 #ifdef J9_PROJECT_SPECIFIC
+   if (!cg->willGenerateNOPForVirtualGuard(node))
+      {
+      return false;
+      }
    TR::Compilation *comp = cg->comp();
-   if ((!node->isNopableInlineGuard() && !node->isHCRGuard() && !node->isOSRGuard()) ||
-      !cg->getSupportsVirtualGuardNOPing())
-      {
-      return false;
-      }
-
    TR_VirtualGuard * virtualGuard = comp->findVirtualGuardInfo(node);
-   if (!node->isHCRGuard() && !node->isOSRGuard() && !(comp->performVirtualGuardNOPing() &&
-         comp->isVirtualGuardNOPingRequired(virtualGuard)) &&
-         virtualGuard->canBeRemoved())
-      {
-      return false;
-      }
-
-   if (node->getOpCodeValue() != TR::ificmpne && node->getOpCodeValue() != TR::iflcmpne && node->getOpCodeValue() != TR::ifacmpne)
-      {
-      //TR_ASSERT( 0, "virtualGuardHelper: not expecting reversed comparison");
-      return false;
-      }
 
    TR_VirtualGuardSite * site = NULL;
    if (comp->compileRelocatableCode())
@@ -648,7 +634,7 @@ OMR::Z::TreeEvaluator::igotoEvaluator(TR::Node * node, TR::CodeGenerator * cg)
 
 /**
  * Handles all types of return opcodes
- * (return, areturn, ireturn, lreturn, freturn, dreturn, iureturn, lureturn, oreturn)
+ * (return, areturn, ireturn, lreturn, freturn, dreturn, oreturn)
  */
 TR::Register *
 OMR::Z::TreeEvaluator::returnEvaluator(TR::Node * node, TR::CodeGenerator * cg)
@@ -701,14 +687,7 @@ OMR::Z::TreeEvaluator::returnEvaluator(TR::Node * node, TR::CodeGenerator * cg)
          if (linkage->isNeedsWidening())
             new (cg->trHeapMemory()) TR::S390RRInstruction(TR::InstOpCode::LGFR, node, returnValRegister, returnValRegister, cg);
          break;
-      case TR::iureturn:
-         comp->setReturnInfo(TR_IntReturn);
-         dependencies->addPostCondition(returnValRegister, linkage->getIntegerReturnRegister());
-         if (linkage->isNeedsWidening())
-            new (cg->trHeapMemory()) TR::S390RRInstruction(TR::InstOpCode::LLGFR, node, returnValRegister, returnValRegister, cg);
-         break;
       case TR::lreturn:
-      case TR::lureturn:
          comp->setReturnInfo(TR_LongReturn);
 
          if (TR::Compiler->target.is64Bit())
@@ -2289,7 +2268,8 @@ TR::Register *OMR::Z::TreeEvaluator::evaluateNULLCHKWithPossibleResolve(TR::Node
                reference->setIsNonNull(true);
                n = reference->getFirstChild();
                TR::ILOpCodes loadOp = comp->il.opCodeForIndirectLoad(TR::Int32);
-               while (n->getOpCodeValue() != loadOp)
+               TR::ILOpCodes rdbarOp = comp->il.opCodeForIndirectReadBarrier(TR::Int32);
+               while (n->getOpCodeValue() != loadOp && n->getOpCodeValue() != rdbarOp)
                   {
                   n->setIsNonZero(true);
                   n = n->getFirstChild();

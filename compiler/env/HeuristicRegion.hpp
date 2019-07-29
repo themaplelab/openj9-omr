@@ -19,23 +19,35 @@
  * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
  *******************************************************************************/
 
-#ifndef TR_METHOD_INCL
-#define TR_METHOD_INCL
+#ifndef OMR_HEURISTIC_REGION_HPP
+#define OMR_HEURISTIC_REGION_HPP
 
-#include "compile/OMRMethod.hpp"
-#include "infra/Annotations.hpp"
+#pragma once
 
-namespace TR
+#include "compile/Compilation.hpp"
+
+namespace TR 
 {
 
-class Method : public OMR::MethodConnector
+class HeuristicRegion
    {
 public:
+   HeuristicRegion(TR::Compilation *comp) :
+      _comp(comp)
+      {
+      _comp->enterHeuristicRegion();
+      }
 
-   Method(Type t = J9) : OMR::MethodConnector(t) {}
+   ~HeuristicRegion()
+      {
+      _comp->exitHeuristicRegion();
+      }
 
+private:
+   TR::Compilation *_comp;
    };
 
 }
 
-#endif
+#endif // OMR_HEURISTIC_REGION_HPP
+

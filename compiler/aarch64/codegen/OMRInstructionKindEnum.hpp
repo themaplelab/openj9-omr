@@ -38,6 +38,7 @@
       IsTrg1Src1,
          IsTrg1Src1Imm,
          IsTrg1Src2,
+            IsCondTrg1Src2,
             IsTrg1Src2Shifted,
             IsTrg1Src2Extended,
             IsTrg1Src3,
@@ -46,3 +47,4 @@
       IsMemSrc1,
    IsSrc1,
       IsSrc2,
+   IsSynchronization,
