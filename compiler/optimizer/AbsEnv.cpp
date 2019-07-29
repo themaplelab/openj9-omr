@@ -2144,7 +2144,7 @@ AbsEnv::isLengthInternal(int cpIndex) {
   return false;
   TR::ResolvedMethodSymbol *callerResolvedMethodSymbol = this->getMethodSymbol();
   TR_ResolvedMethod *callerResolvedMethod = callerResolvedMethodSymbol->getResolvedMethod();
-  TR_Method *calleeMethod = this->_comp->fej9()->createMethod(this->_comp->trMemory(), callerResolvedMethod->containingClass(), cpIndex);
+  TR::Method *calleeMethod = this->_comp->fej9()->createMethod(this->_comp->trMemory(), callerResolvedMethod->containingClass(), cpIndex);
   const char* methodName = calleeMethod->signature(this->_comp->trMemory());
   const char* lengthInternal = "java/lang/String.lengthInternal()I";
   const size_t strlen_lengthInternal = strlen(lengthInternal);
@@ -2157,7 +2157,7 @@ AbsEnv::isGetClass(int cpIndex) {
   return false;
   TR::ResolvedMethodSymbol *callerResolvedMethodSymbol = this->getMethodSymbol();
   TR_ResolvedMethod *callerResolvedMethod = callerResolvedMethodSymbol->getResolvedMethod();
-  TR_Method *calleeMethod = this->_comp->fej9()->createMethod(this->_comp->trMemory(), callerResolvedMethod->containingClass(), cpIndex);
+  TR::Method *calleeMethod = this->_comp->fej9()->createMethod(this->_comp->trMemory(), callerResolvedMethod->containingClass(), cpIndex);
   const char* methodName = calleeMethod->signature(this->_comp->trMemory());
   const char* lengthInternal = "java/lang/Object.getClass()Ljava/lang/Class;";
   const size_t strlen_lengthInternal = strlen(lengthInternal);
@@ -2406,7 +2406,7 @@ AbsEnv::handleInvokeWithoutHunk(int bcIndex, int cpIndex, TR::MethodSymbol::Kind
       symRef = this->_comp->getSymRefTab()->findOrCreateSpecialMethodSymbol(callerResolvedMethodSymbol, cpIndex);
     break;
   }
-  TR_Method *calleeMethod = this->_comp->fej9()->createMethod(this->_comp->trMemory(), callerResolvedMethod->containingClass(), cpIndex);
+  TR::Method *calleeMethod = this->_comp->fej9()->createMethod(this->_comp->trMemory(), callerResolvedMethod->containingClass(), cpIndex);
   const char* signature = calleeMethod->signature(this->_comp->trMemory());
   TRACE((this->_comp->trace(OMR::inlining)), "unknown invoke : signature %s\n", signature);
   

@@ -248,7 +248,7 @@ OMR::BenefitInliner::findCallSiteTarget(TR::ResolvedMethodSymbol *callerSymbol, 
       
       TR::ResolvedMethodSymbol *calleeSymbol = !isInterface ? sym->castToResolvedMethodSymbol() : NULL;
       TR_ResolvedMethod *callee = !isInterface ? calleeSymbol->getResolvedMethod() : NULL;
-      TR_Method *calleeMethod = !isInterface ? calleeSymbol->getMethod() : this->comp()->fej9()->createMethod(this->comp()->trMemory(), caller->containingClass(), cpIndex);
+      TR::Method *calleeMethod = !isInterface ? calleeSymbol->getMethod() : this->comp()->fej9()->createMethod(this->comp()->trMemory(), caller->containingClass(), cpIndex);
 
       info.setByteCodeIndex(bcIndex);
       info.setDoNotProfile(false);
@@ -303,7 +303,7 @@ OMR::BenefitInliner::printTargets(TR::ResolvedMethodSymbol *callerSymbol, int bc
       
       TR::ResolvedMethodSymbol *calleeSymbol = !isInterface ? sym->castToResolvedMethodSymbol() : NULL;
       TR_ResolvedMethod *callee = !isInterface ? calleeSymbol->getResolvedMethod() : NULL;
-      TR_Method *calleeMethod = !isInterface ? calleeSymbol->getMethod() : this->comp()->fej9()->createMethod(this->comp()->trMemory(), caller->containingClass(), cpIndex);
+      TR::Method *calleeMethod = !isInterface ? calleeSymbol->getMethod() : this->comp()->fej9()->createMethod(this->comp()->trMemory(), caller->containingClass(), cpIndex);
 
       TR_ByteCodeInfo info;
       info.setByteCodeIndex(bcIndex);
@@ -353,7 +353,7 @@ OMR::BenefitInliner::getCallSite(TR::MethodSymbol::Kinds kind,
                                     TR::TreeTop *callNodeTreeTop,
                                     TR::Node *parent,
                                     TR::Node *callNode,
-                                    TR_Method * interfaceMethod,
+                                    TR::Method * interfaceMethod,
                                     TR_OpaqueClassBlock *receiverClass,
                                     int32_t vftSlot,
                                     int32_t cpIndex,
@@ -392,7 +392,7 @@ OMR::BenefitInliner::printVirtualTargets(TR::ResolvedMethodSymbol *callerSymbol,
 
       TR::ResolvedMethodSymbol *calleeSymbol = sym->castToResolvedMethodSymbol();
       TR_ResolvedMethod *callee = calleeSymbol->getResolvedMethod();
-      TR_Method *calleeMethod = calleeSymbol->getMethod();
+      TR::Method *calleeMethod = calleeSymbol->getMethod();
 
       TR_ByteCodeInfo info;
       info.setByteCodeIndex(bcIndex);
@@ -443,7 +443,7 @@ OMR::BenefitInliner::printInterfaceTargets(TR::ResolvedMethodSymbol *callerSymbo
       TR::Symbol *sym = symRef->getSymbol();
       TR::ResolvedMethodSymbol *calleeSymbol = NULL;
       TR_ResolvedMethod *callee = NULL;
-      TR_Method *calleeMethod = this->comp()->fej9()->createMethod(this->comp()->trMemory(), callerSymbol->getResolvedMethod()->containingClass(), cpIndex);
+      TR::Method *calleeMethod = this->comp()->fej9()->createMethod(this->comp()->trMemory(), callerSymbol->getResolvedMethod()->containingClass(), cpIndex);
 
 
       TR_ByteCodeInfo info;
