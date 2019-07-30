@@ -162,18 +162,33 @@ OMR::BenefitInliner::obtainIDT(TR::ResolvedMethodSymbol *resolvedMethodSymbol, i
             }
          }
 
+   TR::deque<TR::ResolvedMethodSymbol*, TR::Region&> Deque(1, resolvedMethodSymbol, this->_callSitesRegion);
+   this->_inliningCallStack = new (this->_callStacksRegion) TR_CallStack(this->comp(), resolvedMethodSymbol, resolvedMethod, prevCallStack, budget);
+   this->obtainIDT(Deque, budget);
+   this->_inliningCallStack = prevCallStack;
+   }
 
-      this->_inliningCallStack = new (this->_callStacksRegion) TR_CallStack(this->comp(), resolvedMethodSymbol, resolvedMethod, prevCallStack, budget);
+void
+OMR::BenefitInliner::obtainIDT(TR::deque<TR::ResolvedMethodSymbol*, TR::Region&> &Deque, int32_t budget)
+   {
+
+   while (Deque.size() != 0)
+      {
+      TR::ResolvedMethodSymbol *resolvedMethodSymbol = Deque.front();
+      Deque.pop_front();
+      TR_ResolvedMethod *resolvedMethod = resolvedMethodSymbol->getResolvedMethod();
       TR_ResolvedJ9Method *resolvedJ9Method = static_cast<TR_ResolvedJ9Method*>(resolvedMethod);
       TR_J9VMBase *vm = static_cast<TR_J9VMBase*>(this->comp()->fe());
       TR_J9ByteCodeIterator bci(resolvedMethodSymbol, resolvedJ9Method, vm, this->comp());
-      for (TR::ReversePostorderSnapshotBlockIterator blockIt (cfg->getStartForReverseSnapshot()->asBlock(), comp()); blockIt.currentBlock(); ++blockIt)
+      TR::CFG *cfg = resolvedMethodSymbol->getFlowGraph();
+      TR::Block *startBlock = cfg->getStartForReverseSnapshot()->asBlock();
+      for (TR::ReversePostorderSnapshotBlockIterator blockIt (startBlock, comp()); blockIt.currentBlock(); ++blockIt)
          {
-            TR::Block *block = blockIt.currentBlock();
-            this->obtainIDT(bci, block, budget);
+         TR::Block *block = blockIt.currentBlock();
+         this->obtainIDT(bci, block, budget);
          }
+      }
       
-       this->_inliningCallStack = prevCallStack;
    }
 
 void
