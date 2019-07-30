@@ -161,14 +161,15 @@ OMR::BenefitInliner::obtainIDT(IDT::Node *node, int32_t budget)
             }
          }
 
-   // maybe current stack region
-   IDT::Indices Deque(0, nullptr, this->_callSitesRegion);
-   this->_inliningCallStack = new (this->_callStacksRegion) TR_CallStack(this->comp(), resolvedMethodSymbol, resolvedMethod, prevCallStack, budget);
-   // so after this call, we have a queue with nodes...
+   IDT::Indices Deque(0, nullptr, this->comp()->trMemory()->currentStackRegion());
+   this->_inliningCallStack = new (this->comp()->trMemory()->currentStackRegion()) TR_CallStack(this->comp(), resolvedMethodSymbol, resolvedMethod, prevCallStack, budget);
+   // modifies Deque
    this->obtainIDT(Deque, node, budget);
+
    if (comp()->trace(OMR::benefitInliner)) {
       traceMsg(this->comp(), "Finish processing node %d %s budget = %d\n", node->getCalleeIndex(), node->getName(), budget);
    }
+
    while (!Deque.empty())
       {
       IDT::Node *node = Deque.front();
@@ -180,15 +181,28 @@ OMR::BenefitInliner::obtainIDT(IDT::Node *node, int32_t budget)
       this->_callerIndex--;
       comp()->decInlineDepth(true);
       }
+
    this->_inliningCallStack = prevCallStack;
    }
 
 void
 OMR::BenefitInliner::obtainIDT(IDT::Indices &Deque, IDT::Node *node, int32_t budget)
    {
-
+      // Here is where I should make a method summary and edit it in the next obtainIDT...
       TR::ResolvedMethodSymbol *resolvedMethodSymbol = node->getResolvedMethodSymbol();
       TR_ResolvedMethod *resolvedMethod = resolvedMethodSymbol->getResolvedMethod();
+      TR_OpaqueMethodBlock *persistentIdentifier = resolvedMethod->getPersistentIdentifier();
+      // if it is found, keep it as a nullptr, as we don't want to write new data?
+      BranchFolding *ms = this->_methodSummaryMap.find(persistentIdentifier) == this->_methodSummaryMap.end() ? new (this->_mapRegion) BranchFolding(-1, nullptr) : nullptr;
+      if (comp()->trace(OMR::benefitInliner))
+         {
+         traceMsg(this->comp(), "method summary found = %s\n", ms == nullptr ? "true" : "false");
+         }
+      if (ms != nullptr)
+         {
+         this->_methodSummaryMap.insert(std::pair<TR_OpaqueMethodBlock *, BranchFolding*>(persistentIdentifier,ms));
+         }
+      
       TR_ResolvedJ9Method *resolvedJ9Method = static_cast<TR_ResolvedJ9Method*>(resolvedMethod);
       TR_J9VMBase *vm = static_cast<TR_J9VMBase*>(this->comp()->fe());
       TR_J9ByteCodeIterator bci(resolvedMethodSymbol, resolvedJ9Method, vm, this->comp());
@@ -867,8 +881,10 @@ OMR::BenefitInliner::BenefitInliner(TR::Optimizer *optimizer, TR::Optimization *
          _callSitesRegion(optimizer->comp()->region()),
          _callStacksRegion(optimizer->comp()->region()),
          _holdingProposalRegion(optimizer->comp()->region()),
+         _mapRegion(optimizer->comp()->region()),
          _inliningCallStack(NULL),
          _rootRms(NULL),
-         _budget(budget)
+         _budget(budget),
+         _methodSummaryMap(MethodSummaryMapComparator(), MethodSummaryMapAllocator(_mapRegion))
          {
          }

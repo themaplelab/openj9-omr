@@ -8,6 +8,7 @@
 #include "optimizer/Optimization.hpp"
 #include "optimizer/OptimizationManager.hpp"
 #include "IDT.hpp"
+#include "optimizer/MethodSummary.hpp"
 
 
 
@@ -68,10 +69,16 @@ class BenefitInliner: public BenefitInlinerBase
       void traceIDT();
       TR::Region _holdingProposalRegion;
    private:
+      typedef TR::typed_allocator<std::pair<TR_OpaqueMethodBlock*, BranchFolding*>, TR::Region&> MethodSummaryMapAllocator;
+      typedef std::less<TR_OpaqueMethodBlock*> MethodSummaryMapComparator;
+      typedef std::map<TR_OpaqueMethodBlock *, BranchFolding*, MethodSummaryMapComparator, MethodSummaryMapAllocator> MethodSummaryMap;
+
       TR::CFG *_rootRms;
       TR::Region _absEnvRegion;
       TR::Region _callSitesRegion;
       TR::Region _callStacksRegion;
+      TR::Region _mapRegion;
+      MethodSummaryMap _methodSummaryMap;
       TR_CallStack *_inliningCallStack;
       IDT *_idt;
       const uint32_t _budget;
