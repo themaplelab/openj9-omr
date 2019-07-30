@@ -52,18 +52,19 @@ class BenefitInlinerBase: public TR_InlinerBase
 class BenefitInliner: public BenefitInlinerBase 
    {
    public:
+   friend class BenefitInlinerWrapper;
       BenefitInliner(TR::Optimizer *, TR::Optimization *, uint32_t);
       virtual bool inlineCallTargets(TR::ResolvedMethodSymbol *, TR_CallStack *, TR_InnerPreexistenceInfo *)
          {
          return false;
          }
-      void initIDT(TR::ResolvedMethodSymbol *root);
+      void initIDT(TR::ResolvedMethodSymbol *root, int);
       void analyzeIDT();
       void abstractInterpreter();
-      void obtainIDT(TR::ResolvedMethodSymbol *resolvedMethodSymbol, int32_t budget);
-      void obtainIDT(TR::deque<TR::ResolvedMethodSymbol*, TR::Region&> &Deque, int32_t budget);
-      void obtainIDT(TR_J9ByteCodeIterator&, TR::Block *, int32_t);
-      void obtainIDT(TR_CallSite*, int32_t budget, TR_ByteCodeInfo &info, int cpIndex);
+      void obtainIDT(IDT::Node *node, int32_t budget);
+      void obtainIDT(IDT::Indices&, IDT::Node*, int32_t budget);
+      void obtainIDT(IDT::Indices&, IDT::Node*, TR_J9ByteCodeIterator&, TR::Block *, int32_t);
+      void obtainIDT(IDT::Indices&, IDT::Node *, TR_CallSite*, int32_t budget, int cpIndex);
       void traceIDT();
       TR::Region _holdingProposalRegion;
    private:
@@ -73,10 +74,10 @@ class BenefitInliner: public BenefitInlinerBase
       TR::Region _callStacksRegion;
       TR_CallStack *_inliningCallStack;
       IDT *_idt;
-      
       const uint32_t _budget;
+
       inline const uint32_t budget() const;
-      TR_CallSite *findCallSiteTarget(TR::ResolvedMethodSymbol *resolvedMethodSymbol, int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind, TR_ByteCodeInfo &info, TR::Block *block);
+      TR_CallSite *findCallSiteTarget(TR::ResolvedMethodSymbol *resolvedMethodSymbol, int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind, TR::Block *block);
       void printTargets(TR::ResolvedMethodSymbol *resolvedMethodSymbol, int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind);
       void printInterfaceTargets(TR::ResolvedMethodSymbol *resolvedMethodSymbol, int bcIndex, int cpIndex);
       void printVirtualTargets(TR::ResolvedMethodSymbol *resolvedMethodSymbol, int bcIndex, int cpIndex);

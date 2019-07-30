@@ -23,7 +23,6 @@
  * 
  * The inlining dependency tree maintains a tree of methods and can be used by an inlining optimization
  * The tree is designed to be built in a DFS-manner and maintains a current child which is updated when 
- * New children are added via addToCurrentChild. popCurrent will rever to the previous child.
  */
 
 class IDT
@@ -44,10 +43,9 @@ class IDT
   class Node
     {
     public:
-    Node(IDT* idt, int idx, int32_t callsite_bci, TR::ResolvedMethodSymbol* rms, Node *parent);
-    Node(IDT* idt, int idx, int32_t callsite_bci, TR::ResolvedMethodSymbol* rms, Node *parent, unsigned int benefit);
+    Node(IDT* idt, int idx, int32_t callsite_bci, TR::ResolvedMethodSymbol* rms, Node *parent, unsigned int benefit, int budget, TR_CallSite*);
     unsigned int howManyDescendantsIncludingMe() const;
-    Node* addChildIfNotExists(IDT* idt, int32_t callsite_bci, TR::ResolvedMethodSymbol* rms, int benefit);
+    Node* addChildIfNotExists(IDT* idt, int32_t callsite_bci, TR::ResolvedMethodSymbol* rms, int benefit, TR_CallSite*);
     const char* getName(const IDT* idt) const;
     const char* getName() const;
     void printNodeThenChildren(const IDT* idt, int callerIndex) const;
@@ -71,8 +69,8 @@ class IDT
     UDATA maxStack() const;
     IDATA maxLocals() const;
     TR::ValuePropagation *getValuePropagation();
-    //AbsEnvStatic* enterMethod();
-    //void getMethodSummary();
+    int budget() const;
+    TR_CallSite *_callSite;
     private:
 
     typedef TR::deque<Node, TR::Region&> Children;
@@ -84,18 +82,14 @@ class IDT
     Children* _children;
     unsigned int _benefit;
     TR::ResolvedMethodSymbol* _rms;
+    int _budget;
+    
 
     bool nodeSimilar(int32_t callsite_bci, TR::ResolvedMethodSymbol* rms) const;
     uint32_t getBcSz() const;
     // Returns NULL if 0 or > 1 children
     Node* getOnlyChild() const;
     void setOnlyChild(Node* child);
-    //TR::Region &getAbsOpStackMemoryRegion() const;
-    //TR::Region &getAbsVarArrayMemoryRegion() const;
-    //TR::Region &getAbsEnvMemoryRegion() const;
-    //AbsEnvStatic* createAbsEnv();
-    //AbsEnvStatic* analyzeBasicBlock(OMR::Block *, AbsEnvStatic*, TR_J9ByteCodeIterator &);
-    //AbsEnvStatic* analyzeBasicBlock(OMR::Block*, AbsEnvStatic*, unsigned int, unsigned int);
     TR::Compilation* comp() const;
     };
   
@@ -114,10 +108,9 @@ private:
 
 public:
   TR::Region &getMemoryRegion() const;
-  IDT(TR_InlinerBase* inliner, TR::Region& mem, TR::ResolvedMethodSymbol* rms);
+  IDT(TR_InlinerBase* inliner, TR::Region& mem, TR::ResolvedMethodSymbol* rms, int budget);
   Node* getRoot() const;
   TR::Compilation* comp() const;
-  bool addToCurrentChild(int32_t callsite_bci, TR::ResolvedMethodSymbol* rms, float callRatio);
   void popCurrent();
   unsigned int howManyNodes() const;
   void printTrace() const;
