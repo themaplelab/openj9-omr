@@ -13,41 +13,41 @@
 #define SINGLE_CHILD_BIT 1
 
 
-IDT::Node::Node(IDT* idt, int idx, int32_t callsite_bci, TR::ResolvedMethodSymbol* rms, IDT::Node *parent):
-  _idx(idx),
-  _benefit(1), // must be positive
-  _callsite_bci(callsite_bci),
-  _children(nullptr),
-  _rms(rms),
-  _parent(parent),
-  _head(idt)
-  {}
 
-IDT::Node::Node(IDT* idt, int idx, int32_t callsite_bci, TR::ResolvedMethodSymbol* rms, IDT::Node *parent, unsigned int benefit):
+IDT::Node::Node(IDT* idt, int idx, int32_t callsite_bci, TR::ResolvedMethodSymbol* rms, IDT::Node *parent, unsigned int benefit, int budget, TR_CallSite *callsite):
   _idx(idx),
   _benefit(benefit),
   _callsite_bci(callsite_bci),
   _children(nullptr),
   _rms(rms),
   _parent(parent),
-  _head(idt)
+  _head(idt),
+  _budget(budget),
+  _callSite(callsite)
   {}
 
-IDT::IDT(TR_InlinerBase* inliner, TR::Region &mem, TR::ResolvedMethodSymbol* rms):
+IDT::IDT(TR_InlinerBase* inliner, TR::Region &mem, TR::ResolvedMethodSymbol* rms, int budget):
   _mem(mem),
   _vp(nullptr),
   _inliner(inliner),
   _max_idx(-1),
-  _root(new (_mem) IDT::Node(this, nextIdx(), -1, rms, nullptr, 1)),
+  _root(new (_mem) IDT::Node(this, nextIdx(), -1, rms, nullptr, 1, budget, nullptr)),
   _current(_root)
   {
+  }
+
+
+int
+IDT::Node::budget() const
+  {
+  return this->_budget;
   }
 
 void
 IDT::printTrace() const
   {
   // TODO: fix this flag. We need to print to Verbose when Verbose is set not Trace.
-  if (false && comp()->trace(OMR::benefitInliner)) {
+  if (comp()->trace(OMR::benefitInliner)) {
     const int candidates = howManyNodes() - 1;
     TR_VerboseLog::writeLineLocked(TR_Vlog_SIP, "#IDT: %d candidate methods to inline into %s",
       candidates,
@@ -178,12 +178,12 @@ IDT::Node*
 IDT::Node::addChildIfNotExists(IDT* idt,
                          int32_t callsite_bci,
                          TR::ResolvedMethodSymbol* rms,
-                         int benefit)
+                         int benefit, TR_CallSite *callsite)
   {
   // 0 Children
   if (_children == nullptr)
     {
-    IDT::Node* created = new (idt->_mem) IDT::Node(idt, idt->nextIdx(), callsite_bci, rms, this, benefit);
+    IDT::Node* created = new (idt->_mem) IDT::Node(idt, idt->nextIdx(), callsite_bci, rms, this, benefit, this->budget() - rms->getResolvedMethod()->maxBytecodeIndex(), callsite);
     setOnlyChild(created);
     return created;
     }
@@ -211,7 +211,7 @@ IDT::Node::addChildIfNotExists(IDT* idt,
       }
     }
 
-  _children->push_back(IDT::Node(idt, idt->nextIdx(), callsite_bci, rms, this, benefit));
+  _children->push_back(IDT::Node(idt, idt->nextIdx(), callsite_bci, rms, this, benefit, this->budget() - rms->getResolvedMethod()->maxBytecodeIndex(), callsite));
   return &_children->back();
   }
 
@@ -293,17 +293,6 @@ IDT::Node *
 IDT::Node::getParent() const
   {
     return _parent;
-  }
-
-bool IDT::addToCurrentChild(int32_t callsite_bci, TR::ResolvedMethodSymbol* rms, float callRatio)
-  {
-    IDT::Node *node = _current->addChildIfNotExists(this, callsite_bci, rms, (int)(100 * callRatio));
-    if (node == nullptr) {
-      return false;
-    }
-    _current = node;
-    _indices = nullptr;
-    return true;
   }
 
 void IDT::popCurrent()

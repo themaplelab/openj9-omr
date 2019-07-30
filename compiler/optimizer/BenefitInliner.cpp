@@ -23,8 +23,13 @@ int32_t OMR::BenefitInlinerWrapper::perform()
    if (budget < 0) return -1;
 
    OMR::BenefitInliner inliner(optimizer(), this, budget);
-   inliner.initIDT(sym);
-   inliner.obtainIDT(sym, budget);
+   inliner.initIDT(sym, budget);
+   inliner.obtainIDT(inliner._idt->getRoot(), budget);
+   if (inliner._idt->howManyNodes() == 1) 
+      {
+      inliner._idt->getRoot()->getResolvedMethodSymbol()->setFlowGraph(inliner._rootRms);
+      return 1; // No Need to analyze, since there is nothing to inline.
+      }
    inliner.abstractInterpreter();
    inliner.analyzeIDT();
    inliner.traceIDT();
@@ -82,10 +87,10 @@ OMR::BenefitInlinerWrapper::getBudget(TR::ResolvedMethodSymbol *resolvedMethodSy
       return 25;
    }
 
-void OMR::BenefitInliner::initIDT(TR::ResolvedMethodSymbol *root)
+void OMR::BenefitInliner::initIDT(TR::ResolvedMethodSymbol *root, int budget)
    {
    //TODO: can we do this in the initialization list?
-   _idt = new (comp()->trMemory()->currentStackRegion()) IDT(this, comp()->trMemory()->currentStackRegion(), root);
+   _idt = new (comp()->trMemory()->currentStackRegion()) IDT(this, comp()->trMemory()->currentStackRegion(), root, budget);
    }
 
 void OMR::BenefitInliner::traceIDT()
@@ -94,42 +99,36 @@ void OMR::BenefitInliner::traceIDT()
    }
 
 void
-OMR::BenefitInliner::obtainIDT(TR_CallSite *callsite, int32_t budget, TR_ByteCodeInfo &info, int cpIndex)
+OMR::BenefitInliner::obtainIDT(IDT::Indices &Deque, IDT::Node *currentNode, TR_CallSite *callsite, int32_t budget, int cpIndex)
    {
-      if (!callsite) return;
-      this->_callerIndex++;
-      for (int i = 0; i < callsite->numTargets(); i++)
-         {
-         TR_CallTarget *callTarget = callsite->getTarget(i);
-         TR::ResolvedMethodSymbol *resolvedMethodSymbol = callTarget->_calleeSymbol ? callTarget->_calleeSymbol : callTarget->_calleeMethod->findOrCreateJittedMethodSymbol(this->comp());
-         int oldBudget = budget;
-         budget = budget - resolvedMethodSymbol->getResolvedMethod()->maxBytecodeIndex();
-         // Ensures that there is a decrease in the budget
-         if (oldBudget == budget) {
-            budget--;
-         }
-         callTarget->_calleeSymbol = resolvedMethodSymbol;
-         callTarget->_myCallSite = callsite;
-         if (!comp()->incInlineDepth(resolvedMethodSymbol, callsite->_bcInfo, callsite->_cpIndex, NULL, !callTarget->_myCallSite->isIndirectCall(), 0)) continue;
+   if (!callsite) return;
+   for (int i = 0; i < callsite->numTargets(); i++)
+      {
+      TR_CallTarget *callTarget = callsite->getTarget(i);
+      TR::ResolvedMethodSymbol *resolvedMethodSymbol = callTarget->_calleeSymbol ? callTarget->_calleeSymbol : callTarget->_calleeMethod->findOrCreateJittedMethodSymbol(this->comp());
+      int oldBudget = currentNode->budget();
+      budget = budget - resolvedMethodSymbol->getResolvedMethod()->maxBytecodeIndex();
+      budget = oldBudget == budget ? budget - 1: budget;
+      //TODO: can I set up the callerIndex, stack, and resolvedMethodSymbol here? maybe also budget?
+      if (budget < 0)
+          return;
 
-         bool added = _idt->addToCurrentChild(callsite->_byteCodeIndex, resolvedMethodSymbol, callTarget->_callRatio);
-         if (added) 
-            {
-            this->obtainIDT(resolvedMethodSymbol, budget);
-            _idt->popCurrent();
-            }
-            comp()->decInlineDepth(true);
-            budget = oldBudget;
-         }
-      this->_callerIndex--;
+      IDT::Node *node = currentNode->addChildIfNotExists(this->_idt, callsite->_byteCodeIndex, resolvedMethodSymbol, callTarget->_callRatio, callsite);
+      if (node) Deque.push_back(node);
+      }
+
    }
 
 void
-OMR::BenefitInliner::obtainIDT(TR::ResolvedMethodSymbol *resolvedMethodSymbol, int32_t budget)
+OMR::BenefitInliner::obtainIDT(IDT::Node *node, int32_t budget)
    {
       if (budget < 0) return;
 
+      if (comp()->trace(OMR::benefitInliner)) {
+         traceMsg(this->comp(), "Starting processing node %d %s budget = %d\n", node->getCalleeIndex(), node->getName(), budget);
+      }
 
+      TR::ResolvedMethodSymbol *resolvedMethodSymbol = node->getResolvedMethodSymbol();
       TR_ResolvedMethod *resolvedMethod = resolvedMethodSymbol->getResolvedMethod();
       TR_CallStack *prevCallStack = this->_inliningCallStack;
       TR::CFG *cfg = NULL;
@@ -162,20 +161,33 @@ OMR::BenefitInliner::obtainIDT(TR::ResolvedMethodSymbol *resolvedMethodSymbol, i
             }
          }
 
-   TR::deque<TR::ResolvedMethodSymbol*, TR::Region&> Deque(1, resolvedMethodSymbol, this->_callSitesRegion);
+   // maybe current stack region
+   IDT::Indices Deque(0, nullptr, this->_callSitesRegion);
    this->_inliningCallStack = new (this->_callStacksRegion) TR_CallStack(this->comp(), resolvedMethodSymbol, resolvedMethod, prevCallStack, budget);
-   this->obtainIDT(Deque, budget);
+   // so after this call, we have a queue with nodes...
+   this->obtainIDT(Deque, node, budget);
+   if (comp()->trace(OMR::benefitInliner)) {
+      traceMsg(this->comp(), "Finish processing node %d %s budget = %d\n", node->getCalleeIndex(), node->getName(), budget);
+   }
+   while (!Deque.empty())
+      {
+      IDT::Node *node = Deque.front();
+      Deque.pop_front();
+      TR_ASSERT(node->_callSite, "call site is null");
+      if (!comp()->incInlineDepth(node->getResolvedMethodSymbol(), node->_callSite->_bcInfo, node->_callSite->_cpIndex, NULL, !node->_callSite->isIndirectCall(), 0)) continue;
+      this->_callerIndex++;
+      this->obtainIDT(node, node->budget());
+      this->_callerIndex--;
+      comp()->decInlineDepth(true);
+      }
    this->_inliningCallStack = prevCallStack;
    }
 
 void
-OMR::BenefitInliner::obtainIDT(TR::deque<TR::ResolvedMethodSymbol*, TR::Region&> &Deque, int32_t budget)
+OMR::BenefitInliner::obtainIDT(IDT::Indices &Deque, IDT::Node *node, int32_t budget)
    {
 
-   while (Deque.size() != 0)
-      {
-      TR::ResolvedMethodSymbol *resolvedMethodSymbol = Deque.front();
-      Deque.pop_front();
+      TR::ResolvedMethodSymbol *resolvedMethodSymbol = node->getResolvedMethodSymbol();
       TR_ResolvedMethod *resolvedMethod = resolvedMethodSymbol->getResolvedMethod();
       TR_ResolvedJ9Method *resolvedJ9Method = static_cast<TR_ResolvedJ9Method*>(resolvedMethod);
       TR_J9VMBase *vm = static_cast<TR_J9VMBase*>(this->comp()->fe());
@@ -185,16 +197,14 @@ OMR::BenefitInliner::obtainIDT(TR::deque<TR::ResolvedMethodSymbol*, TR::Region&>
       for (TR::ReversePostorderSnapshotBlockIterator blockIt (startBlock, comp()); blockIt.currentBlock(); ++blockIt)
          {
          TR::Block *block = blockIt.currentBlock();
-         this->obtainIDT(bci, block, budget);
+         this->obtainIDT(Deque, node, bci, block, budget);
          }
-      }
       
    }
 
 void
-OMR::BenefitInliner::obtainIDT(TR_J9ByteCodeIterator &bci, TR::Block *block, int budget)
+OMR::BenefitInliner::obtainIDT(IDT::Indices &Deque, IDT::Node *node, TR_J9ByteCodeIterator &bci, TR::Block *block, int budget)
    {
-
       int start = block->getBlockBCIndex();
       int end = block->getBlockBCIndex() + block->getBlockSize();
       bci.setIndex(start);
@@ -221,10 +231,8 @@ OMR::BenefitInliner::obtainIDT(TR_J9ByteCodeIterator &bci, TR::Block *block, int
 
          if (kind != TR::MethodSymbol::Kinds::Helper)
             {
-            TR_ByteCodeInfo bcInfo;
-            bool isInterface = kind == TR::MethodSymbol::Kinds::Interface;
-            TR_CallSite *callsite = this->findCallSiteTarget(bci.methodSymbol(), bci.currentByteCodeIndex(), bci.next2Bytes(), kind, bcInfo, block);
-            this->obtainIDT(callsite, budget, bcInfo, bci.next2Bytes());
+            TR_CallSite *callsite = this->findCallSiteTarget(bci.methodSymbol(), bci.currentByteCodeIndex(), bci.next2Bytes(), kind, block);
+            this->obtainIDT(Deque, node, callsite, budget, bci.next2Bytes());
             }
          }
    }
@@ -251,8 +259,9 @@ OMR::BenefitInliner::getSymbolReference(TR::ResolvedMethodSymbol *callerSymbol, 
    }
 
 TR_CallSite*
-OMR::BenefitInliner::findCallSiteTarget(TR::ResolvedMethodSymbol *callerSymbol, int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind, TR_ByteCodeInfo &info, TR::Block *block)
+OMR::BenefitInliner::findCallSiteTarget(TR::ResolvedMethodSymbol *callerSymbol, int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind, TR::Block *block)
    {
+      TR_ByteCodeInfo info;
       TR_ResolvedMethod *caller = callerSymbol->getResolvedMethod();
       uint32_t methodSize = TR::Compiler->mtd.bytecodeSize(caller->getPersistentIdentifier());
       TR::SymbolReference *symRef = this->getSymbolReference(callerSymbol, cpIndex, kind);
