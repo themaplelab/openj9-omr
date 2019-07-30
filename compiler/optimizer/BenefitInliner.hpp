@@ -61,8 +61,9 @@ class BenefitInliner: public BenefitInlinerBase
       void analyzeIDT();
       void abstractInterpreter();
       void obtainIDT(TR::ResolvedMethodSymbol *resolvedMethodSymbol, int32_t budget);
-      void obtainIDT(TR_CallSite*, int32_t budget, TR_ByteCodeInfo &info, int cpIndex);
+      void obtainIDT(TR::deque<TR::ResolvedMethodSymbol*, TR::Region&> &Deque, int32_t budget);
       void obtainIDT(TR_J9ByteCodeIterator&, TR::Block *, int32_t);
+      void obtainIDT(TR_CallSite*, int32_t budget, TR_ByteCodeInfo &info, int cpIndex);
       void traceIDT();
       TR::Region _holdingProposalRegion;
    private:

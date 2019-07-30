@@ -46,7 +46,8 @@ IDT::IDT(TR_InlinerBase* inliner, TR::Region &mem, TR::ResolvedMethodSymbol* rms
 void
 IDT::printTrace() const
   {
-  if (comp()->trace(OMR::benefitInliner)) {
+  // TODO: fix this flag. We need to print to Verbose when Verbose is set not Trace.
+  if (false && comp()->trace(OMR::benefitInliner)) {
     const int candidates = howManyNodes() - 1;
     TR_VerboseLog::writeLineLocked(TR_Vlog_SIP, "#IDT: %d candidate methods to inline into %s",
       candidates,
