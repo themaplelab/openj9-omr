@@ -5,12 +5,13 @@
 #include "optimizer/GlobalValuePropagation.hpp"
 #include "optimizer/LocalValuePropagation.hpp"
 
+const char * CheckCastFolding::name = "check cast folding";
+
 #ifndef TRACEEND
 //#define TRACEEND(COND, M, ...) 
 #define TRACEEND(COND, M, ...) \
 if ((COND)) { traceMsg(this->_comp, M, ##__VA_ARGS__ ); }
 #endif
-
 
 MethodSummaryRow::MethodSummaryRow(TR::Compilation *comp, TR::Region &region)
   : _caller_idx(-1)

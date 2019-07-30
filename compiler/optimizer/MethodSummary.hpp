@@ -6,6 +6,56 @@
 #include "compiler/optimizer/VPConstraint.hpp"
 #include "optimizer/GlobalValuePropagation.hpp"
 #include "optimizer/LocalValuePropagation.hpp"
+#include "compiler/optimizer/AbsValue.hpp"
+
+class PotentialOptimization
+   {
+   public:
+   PotentialOptimization(int bytecode_idx, AbsValue *constraint) :
+      _bytecode_idx(bytecode_idx),
+      _constraint(constraint)
+   {};
+   protected:
+   int _bytecode_idx;
+   AbsValue *_constraint;
+   };
+
+class BranchFolding : PotentialOptimization
+   {
+   public:
+   BranchFolding(int bytecode_idx, AbsValue *constraint) :
+      PotentialOptimization(bytecode_idx, constraint)
+   {};
+   };
+
+class NullCheckFolding : PotentialOptimization
+   {
+   public:
+   NullCheckFolding(int bytecode_idx, AbsValue *constraint) :
+      PotentialOptimization(bytecode_idx, constraint)
+   {};
+   };
+
+class InstanceOfFolding : PotentialOptimization
+   {
+   public:
+   InstanceOfFolding(int bytecode_idx, AbsValue *constraint):
+      PotentialOptimization(bytecode_idx, constraint)
+   {};
+   };
+
+class CheckCastFolding : PotentialOptimization
+   {
+   public:
+   CheckCastFolding(int bytecode_idx, AbsValue *constraint):
+      PotentialOptimization(bytecode_idx, constraint)
+   {};
+   static const char *name;
+   };
+
+
+
+
 
 class MethodSummaryRow {
 public:
@@ -15,8 +65,8 @@ public:
   void benefit(int n) { this->_benefit = n;}
   int benefit() { return this->_benefit;}
   enum PotentialTransform {UNK = 0, IFLT, IFLE, IFEQ, IFNE, IFGE, IFGT, INOF, IFNU, IFNN, NLCK, SIZE, STR_LEN, CHECK_CAST };
-  void transform(MethodSummaryRow::PotentialTransform pt);// { this->_pt = pt; }
-  MethodSummaryRow::PotentialTransform transform();// { return this->_pt; }
+  void transform(MethodSummaryRow::PotentialTransform pt);
+  MethodSummaryRow::PotentialTransform transform();
 private:
   int _benefit;
   AbsVarArray *_row;

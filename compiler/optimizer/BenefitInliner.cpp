@@ -164,23 +164,22 @@ OMR::BenefitInliner::obtainIDT(TR::ResolvedMethodSymbol *resolvedMethodSymbol, i
 
 
       this->_inliningCallStack = new (this->_callStacksRegion) TR_CallStack(this->comp(), resolvedMethodSymbol, resolvedMethod, prevCallStack, budget);
+      TR_ResolvedJ9Method *resolvedJ9Method = static_cast<TR_ResolvedJ9Method*>(resolvedMethod);
+      TR_J9VMBase *vm = static_cast<TR_J9VMBase*>(this->comp()->fe());
+      TR_J9ByteCodeIterator bci(resolvedMethodSymbol, resolvedJ9Method, vm, this->comp());
       for (TR::ReversePostorderSnapshotBlockIterator blockIt (cfg->getStartForReverseSnapshot()->asBlock(), comp()); blockIt.currentBlock(); ++blockIt)
          {
             TR::Block *block = blockIt.currentBlock();
-            this->obtainIDT(resolvedMethodSymbol, block, budget);
+            this->obtainIDT(bci, block, budget);
          }
       
        this->_inliningCallStack = prevCallStack;
    }
 
 void
-OMR::BenefitInliner::obtainIDT(TR::ResolvedMethodSymbol *resolvedMethodSymbol, TR::Block *block, int budget)
+OMR::BenefitInliner::obtainIDT(TR_J9ByteCodeIterator &bci, TR::Block *block, int budget)
    {
 
-      TR_ResolvedMethod *resolvedMethod = resolvedMethodSymbol->getResolvedMethod();
-      TR_ResolvedJ9Method *resolvedJ9Method = static_cast<TR_ResolvedJ9Method*>(resolvedMethod);
-      TR_J9VMBase *vm = static_cast<TR_J9VMBase*>(this->comp()->fe());
-      TR_J9ByteCodeIterator bci(resolvedMethodSymbol, resolvedJ9Method, vm, this->comp());
       int start = block->getBlockBCIndex();
       int end = block->getBlockBCIndex() + block->getBlockSize();
       bci.setIndex(start);
@@ -209,7 +208,7 @@ OMR::BenefitInliner::obtainIDT(TR::ResolvedMethodSymbol *resolvedMethodSymbol, T
             {
             TR_ByteCodeInfo bcInfo;
             bool isInterface = kind == TR::MethodSymbol::Kinds::Interface;
-            TR_CallSite *callsite = this->findCallSiteTarget(resolvedMethodSymbol, bci.currentByteCodeIndex(), bci.next2Bytes(), kind, bcInfo, block);
+            TR_CallSite *callsite = this->findCallSiteTarget(bci.methodSymbol(), bci.currentByteCodeIndex(), bci.next2Bytes(), kind, bcInfo, block);
             this->obtainIDT(callsite, budget, bcInfo, bci.next2Bytes());
             }
          }
