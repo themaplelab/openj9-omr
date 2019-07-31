@@ -106,15 +106,12 @@ OMR::BenefitInliner::obtainIDT(IDT::Indices &Deque, IDT::Node *currentNode, TR_C
       {
       TR_CallTarget *callTarget = callsite->getTarget(i);
       TR::ResolvedMethodSymbol *resolvedMethodSymbol = callTarget->_calleeSymbol ? callTarget->_calleeSymbol : callTarget->_calleeMethod->findOrCreateJittedMethodSymbol(this->comp());
-      int oldBudget = currentNode->budget();
-      budget = budget - resolvedMethodSymbol->getResolvedMethod()->maxBytecodeIndex();
-      budget = oldBudget == budget ? budget - 1: budget;
-      //TODO: can I set up the callerIndex, stack, and resolvedMethodSymbol here? maybe also budget?
-      if (budget < 0)
-          return;
 
       IDT::Node *node = currentNode->addChildIfNotExists(this->_idt, callsite->_byteCodeIndex, resolvedMethodSymbol, callTarget->_callRatio, callsite);
+      if(node) traceMsg(this->comp(), "Added node %d %s budget = %d parent = %s\n", node->getCalleeIndex(), node->getName(), budget, node->getParent()->getName());
       if (node) Deque.push_back(node);
+      if (node) traceMsg(this->comp(), "Parent knows about child? %s \n", node->getParent()->findChildWithBytecodeIndex(callsite->_byteCodeIndex) != nullptr ? "true" : "false");
+      this->traceIDT();
       }
 
    }
@@ -172,12 +169,12 @@ OMR::BenefitInliner::obtainIDT(IDT::Node *node, int32_t budget)
 
    while (!Deque.empty())
       {
-      IDT::Node *node = Deque.front();
+      IDT::Node *node2 = Deque.front();
       Deque.pop_front();
-      TR_ASSERT(node->_callSite, "call site is null");
-      if (!comp()->incInlineDepth(node->getResolvedMethodSymbol(), node->_callSite->_bcInfo, node->_callSite->_cpIndex, NULL, !node->_callSite->isIndirectCall(), 0)) continue;
+      TR_ASSERT(node2 && node2->_callSite, "call site is null");
+      if (!comp()->incInlineDepth(node2->getResolvedMethodSymbol(), node2->_callSite->_bcInfo, node2->_callSite->_cpIndex, NULL, !node2->_callSite->isIndirectCall(), 0)) continue;
       this->_callerIndex++;
-      this->obtainIDT(node, node->budget());
+      this->obtainIDT(node2, node2->budget());
       this->_callerIndex--;
       comp()->decInlineDepth(true);
       }
@@ -193,15 +190,27 @@ OMR::BenefitInliner::obtainIDT(IDT::Indices &Deque, IDT::Node *node, int32_t bud
       TR_ResolvedMethod *resolvedMethod = resolvedMethodSymbol->getResolvedMethod();
       TR_OpaqueMethodBlock *persistentIdentifier = resolvedMethod->getPersistentIdentifier();
       // if it is found, keep it as a nullptr, as we don't want to write new data?
-      BranchFolding *ms = this->_methodSummaryMap.find(persistentIdentifier) == this->_methodSummaryMap.end() ? new (this->_mapRegion) BranchFolding(-1, nullptr) : nullptr;
+      auto iter = this->_methodSummaryMap.find(persistentIdentifier);
+      IDT::Node *ms = iter == this->_methodSummaryMap.end() ? nullptr : iter->second;
       if (comp()->trace(OMR::benefitInliner))
          {
-         traceMsg(this->comp(), "method summary found = %s\n", ms == nullptr ? "true" : "false");
+         traceMsg(this->comp(), "method summary found = %s\n", ms == nullptr? "false" : "true");
+         traceMsg(this->comp(), "ms == node = %s\n", ms == node ? "false" : "true");
          }
+
       if (ms != nullptr)
          {
-         this->_methodSummaryMap.insert(std::pair<TR_OpaqueMethodBlock *, BranchFolding*>(persistentIdentifier,ms));
+         // At this moment, the method visited by node has already been visited by the method in ms.
+         // So, ideally we would like to create avoid all the iteration and just create nodes.
+         // We add the children from ms to Deque and Children in Node.
+         //node->copyChildrenFrom(ms, Deque);
+         return;
          }
+      if (ms == nullptr)
+         {
+         this->_methodSummaryMap.insert(std::pair<TR_OpaqueMethodBlock *, IDT::Node *>(persistentIdentifier,node));
+         }
+
       
       TR_ResolvedJ9Method *resolvedJ9Method = static_cast<TR_ResolvedJ9Method*>(resolvedMethod);
       TR_J9VMBase *vm = static_cast<TR_J9VMBase*>(this->comp()->fe());
@@ -211,6 +220,7 @@ OMR::BenefitInliner::obtainIDT(IDT::Indices &Deque, IDT::Node *node, int32_t bud
       for (TR::ReversePostorderSnapshotBlockIterator blockIt (startBlock, comp()); blockIt.currentBlock(); ++blockIt)
          {
          TR::Block *block = blockIt.currentBlock();
+         // Modifies Deque
          this->obtainIDT(Deque, node, bci, block, budget);
          }
       

@@ -69,9 +69,9 @@ class BenefitInliner: public BenefitInlinerBase
       void traceIDT();
       TR::Region _holdingProposalRegion;
    private:
-      typedef TR::typed_allocator<std::pair<TR_OpaqueMethodBlock*, BranchFolding*>, TR::Region&> MethodSummaryMapAllocator;
+      typedef TR::typed_allocator<std::pair<TR_OpaqueMethodBlock*, IDT::Node*>, TR::Region&> MethodSummaryMapAllocator;
       typedef std::less<TR_OpaqueMethodBlock*> MethodSummaryMapComparator;
-      typedef std::map<TR_OpaqueMethodBlock *, BranchFolding*, MethodSummaryMapComparator, MethodSummaryMapAllocator> MethodSummaryMap;
+      typedef std::map<TR_OpaqueMethodBlock *, IDT::Node*, MethodSummaryMapComparator, MethodSummaryMapAllocator> MethodSummaryMap;
 
       TR::CFG *_rootRms;
       TR::Region _absEnvRegion;

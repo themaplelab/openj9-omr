@@ -40,10 +40,12 @@ class IDT
         }
       };
   typedef std::priority_queue<Node*, NodePtrVector, IDT::NodePtrOrder> NodePtrPriorityQueue;
+  //TODO: can we add an iterator?
   class Node
     {
     public:
     Node(IDT* idt, int idx, int32_t callsite_bci, TR::ResolvedMethodSymbol* rms, Node *parent, unsigned int benefit, int budget, TR_CallSite*);
+    Node(const Node&);
     unsigned int howManyDescendantsIncludingMe() const;
     Node* addChildIfNotExists(IDT* idt, int32_t callsite_bci, TR::ResolvedMethodSymbol* rms, int benefit, TR_CallSite*);
     const char* getName(const IDT* idt) const;
@@ -57,6 +59,7 @@ class IDT
     void buildIndices(IDT::Indices &indices);
     void enqueue_subordinates(IDT::NodePtrPriorityQueue *q) const;
     unsigned int getNumChildren() const;
+    void copyChildrenFrom(const IDT::Node*, Indices&);
     bool isRoot() const;
     IDT::Node* findChildWithBytecodeIndex(int bcIndex);
     bool isSameMethod(IDT::Node* aNode) const;
@@ -73,7 +76,7 @@ class IDT
     TR_CallSite *_callSite;
     private:
 
-    typedef TR::deque<Node, TR::Region&> Children;
+    typedef TR::deque<Node*, TR::Region&> Children;
     Node *_parent;
     IDT* _head;
     int _idx;
@@ -111,7 +114,6 @@ public:
   IDT(TR_InlinerBase* inliner, TR::Region& mem, TR::ResolvedMethodSymbol* rms, int budget);
   Node* getRoot() const;
   TR::Compilation* comp() const;
-  void popCurrent();
   unsigned int howManyNodes() const;
   void printTrace() const;
   IDT::Node *getNodeByCalleeIndex(int calleeIndex);
