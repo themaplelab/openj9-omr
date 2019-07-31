@@ -1,9 +1,6 @@
 #include "IDT.hpp"
 
 #include "compiler/env/j9method.h"
-//#include "compiler/optimizer/AbsOpStack.hpp"
-//#include "compiler/optimizer/AbsVarArrayStatic.hpp"
-//#include "compiler/optimizer/AbsEnvStatic.hpp"
 #include "compiler/infra/ILWalk.hpp"
 #include "compiler/infra/OMRCfg.hpp"
 #include "compiler/il/OMRBlock.hpp"
@@ -15,16 +12,29 @@
 
 
 IDT::Node::Node(IDT* idt, int idx, int32_t callsite_bci, TR::ResolvedMethodSymbol* rms, IDT::Node *parent, unsigned int benefit, int budget, TR_CallSite *callsite):
+  _head(idt),
   _idx(idx),
   _benefit(benefit),
   _callsite_bci(callsite_bci),
   _children(nullptr),
   _rms(rms),
   _parent(parent),
-  _head(idt),
   _budget(budget),
   _callSite(callsite)
   {}
+
+IDT::Node::Node(const Node& node) :
+  _head(node._head),
+  _idx(node._idx),
+  _benefit(node.getBenefit()),
+  _callsite_bci(node._callsite_bci),
+  _children(node._children),
+  _rms(node._rms),
+  _parent(node._parent),
+  _budget(node._budget),
+  _callSite(node._callSite) // this is bad...
+  {}
+  
 
 IDT::IDT(TR_InlinerBase* inliner, TR::Region &mem, TR::ResolvedMethodSymbol* rms, int budget):
   _mem(mem),
@@ -54,7 +64,7 @@ IDT::printTrace() const
       getRoot()->getName(this)
     );
     if (candidates <= 0) {
-      return;
+       return;
     }
     getRoot()->printNodeThenChildren(this, -2);
   }
@@ -90,7 +100,7 @@ IDT::Node::printNodeThenChildren(const IDT* idt, int callerIndex) const
     {
     for (auto curr = _children->begin(); curr != _children->end(); ++curr)
       {
-      curr->printNodeThenChildren(idt, _idx);
+      (*curr)->printNodeThenChildren(idt, _idx);
       }
     }
   }
@@ -139,7 +149,7 @@ IDT::Node::buildIndices(IDT::Indices &indices)
     indices[getCalleeIndex()] = this;
     for (auto curr = _children->begin(); curr != _children->end(); ++curr)
       {
-      curr->buildIndices(indices);
+      (*curr)->buildIndices(indices);
       }
   }
 
@@ -185,10 +195,13 @@ IDT::Node::addChildIfNotExists(IDT* idt,
     {
     IDT::Node* created = new (idt->_mem) IDT::Node(idt, idt->nextIdx(), callsite_bci, rms, this, benefit, this->budget() - rms->getResolvedMethod()->maxBytecodeIndex(), callsite);
     setOnlyChild(created);
+    this->_head->_indices = nullptr;
+    traceMsg(TR::comp(), "created name %s\n", created->getName());
     return created;
     }
   // 1 Child
   IDT::Node* onlyChild = getOnlyChild();
+  traceMsg(TR::comp(), "first child name %s\n", onlyChild->getName());
 
   if (onlyChild && onlyChild->nodeSimilar(callsite_bci, rms)) return nullptr;
 
@@ -196,7 +209,7 @@ IDT::Node::addChildIfNotExists(IDT* idt,
     {
     _children = new (idt->_mem) IDT::Node::Children(idt->_mem);
     TR_ASSERT_FATAL(!((uintptr_t)_children & SINGLE_CHILD_BIT), "Maligned memory address.\n");
-    _children->push_back(*onlyChild);
+    _children->push_back(onlyChild);
     // Fall through to two child case.
     }
 
@@ -205,14 +218,17 @@ IDT::Node::addChildIfNotExists(IDT* idt,
 
   for (auto curr = _children->begin(); curr != _children->end(); ++curr)
     {
-    if (curr->nodeSimilar(callsite_bci, rms))
+    traceMsg(TR::comp(), "children names %s\n", (*curr)->getName());
+    if ((*curr)->nodeSimilar(callsite_bci, rms))
       {
       return nullptr;
       }
     }
 
-  _children->push_back(IDT::Node(idt, idt->nextIdx(), callsite_bci, rms, this, benefit, this->budget() - rms->getResolvedMethod()->maxBytecodeIndex(), callsite));
-  return &_children->back();
+  _children->push_back(new (this->_head->getMemoryRegion()) IDT::Node(idt, idt->nextIdx(), callsite_bci, rms, this, benefit, this->budget() - rms->getResolvedMethod()->maxBytecodeIndex(), callsite));
+  traceMsg(TR::comp(), "created name %s\n", _children->back()->getName());
+  this->_head->_indices = nullptr;
+  return _children->back();
   }
 
 bool
@@ -221,7 +237,9 @@ IDT::Node::nodeSimilar(int32_t callsite_bci, TR::ResolvedMethodSymbol* rms) cons
   auto a = _rms->getResolvedMethod()->maxBytecodeIndex();
   auto b = rms->getResolvedMethod()->maxBytecodeIndex();
 
-  return a == b && _callsite_bci == callsite_bci;
+  bool retval = a == b && _callsite_bci == callsite_bci;
+  traceMsg(TR::comp(), "similar retval = %s\n", retval ? "true" : "false");
+  return retval;
   }
 
 TR::Compilation*
@@ -263,7 +281,7 @@ IDT::Node::howManyDescendantsIncludingMe() const
     }
     int sum = 1;
     for (auto child = _children->begin(); child != _children->end(); ++child) {
-      sum += child->howManyDescendantsIncludingMe();
+      sum += (*child)->howManyDescendantsIncludingMe();
     }
     return sum;
   }
@@ -278,7 +296,7 @@ IDT::Node::howManyDescendants() const
   int sum = 0;
   for (auto child = _children->begin(); child != _children->end(); ++child)
      {
-     sum += 1 + child->howManyDescendants();
+     sum += 1 + (*child)->howManyDescendants();
      }
   return sum;
   }
@@ -295,17 +313,44 @@ IDT::Node::getParent() const
     return _parent;
   }
 
-void IDT::popCurrent()
-  {
-    _current = _current->getParent();
-    TR_ASSERT_FATAL(_current != nullptr, "Invalid IDT pop");
-  }
-
 IDT::Node *IDT::getNodeByCalleeIndex(int calleeIndex)
   {
     if (!_indices) return NULL;
     return (*_indices)[calleeIndex];
   }
+
+void
+IDT::Node::copyChildrenFrom(const IDT::Node * other, Indices& someIndex)
+   {
+   TR_ASSERT(other->getResolvedMethodSymbol()->getResolvedMethod()->getPersistentIdentifier() == this->getResolvedMethodSymbol()->getResolvedMethod()->getPersistentIdentifier(), "copying different nodes not allowed");
+   //FIXME: fix the callsites (they have a call stack that needs some modification, but other than that, the call site index should be the same)
+   int count = other->getNumChildren();
+   if (count == 0) return;
+   if (count == 1)
+      {
+      const IDT::Node *childCopy = other->getOnlyChild();
+      this->addChildIfNotExists(this->_head,
+                         childCopy->_callsite_bci,
+                         childCopy->_rms,
+                         childCopy->_benefit, childCopy->_callSite);
+      return;
+      }
+
+   this->_children = new (this->_head->getMemoryRegion()) IDT::Node::Children(this->_head->getMemoryRegion());
+   TR_ASSERT_FATAL(!((uintptr_t)_children & SINGLE_CHILD_BIT), "Maligned memory address.\n");
+  /*
+   for (int i = 0; i < count; i++)
+      {
+      IDT::Node child(other->_children->at(i));
+      child._parent = this;
+      child._budget = this->budget() - child.getBcSz();
+      child._idx = this->_head->nextIdx();
+      this->_children->push_back(child);
+      someIndex.push_back(&this->_children->back());
+      return;
+      }
+ */
+   }
 
 void
 IDT::Node::enqueue_subordinates(IDT::NodePtrPriorityQueue *q) const
@@ -318,7 +363,7 @@ IDT::Node::enqueue_subordinates(IDT::NodePtrPriorityQueue *q) const
       }
       for (int i = 0; i < count; i++)
          {
-            IDT::Node *child = &(_children->at(i));
+            IDT::Node *child = _children->at(i);
             q->push(child);
          }
    }
@@ -370,8 +415,8 @@ IDT::Node::findChildWithBytecodeIndex(int bcIndex)
     if (size == 0) return nullptr;
     if (size == 1) return this->getOnlyChild();
     for (int i = 0; i < size; i++) {
-       if (_children->at(i)._callsite_bci == bcIndex)
-          return (&(_children->at(i)));
+       if (_children->at(i)->_callsite_bci == bcIndex)
+          return ((_children->at(i)));
     }
   TR_ASSERT_FATAL(false, "why shouldn't be here");
   return nullptr;
@@ -399,26 +444,6 @@ IDT::Node::maxLocals() const
   J9ROMMethod *romMethod = method->romMethod();
   return J9_ARG_COUNT_FROM_ROM_METHOD(romMethod) + J9_TEMP_COUNT_FROM_ROM_METHOD(romMethod);
   }
-
-/*
-TR::Region&
-IDT::Node::getAbsOpStackMemoryRegion() const
-  {
-  return this->_head->getMemoryRegion();
-  }
-
-TR::Region&
-IDT::Node::getAbsVarArrayMemoryRegion() const
-  {
-  return this->_head->getMemoryRegion();
-  }
-
-TR::Region&
-IDT::Node::getAbsEnvMemoryRegion() const
-  {
-  return this->_head->getMemoryRegion();
-  }
-*/
 
 TR::ValuePropagation*
 IDT::Node::getValuePropagation()
