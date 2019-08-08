@@ -586,8 +586,7 @@ AbsEnvStatic::astore3() {
 
 void
 AbsEnvStatic::bipush(int byte) {
-  TR::VPShortConst *data = TR::VPShortConst::create(this->_vp, byte);
-  //TODO: should I use TR::Int32 or something else?
+  TR::VPIntConst *data = TR::VPIntConst::create(this->_vp, byte);
   AbsValue *absValue = new (_region) AbsValue(data, TR::Int32);
   this->push(absValue);
 }
@@ -2023,8 +2022,8 @@ AbsEnvStatic::frem() {
 
 void
 AbsEnvStatic::sipush(int16_t _short) {
-  TR::VPShortConst *data = TR::VPShortConst::create(this->_vp, _short);
-  AbsValue *result = new (_region) AbsValue(data, TR::Int16);
+  TR::VPIntConst *data = TR::VPIntConst::create(this->_vp, _short);
+  AbsValue *result = new (_region) AbsValue(data, TR::Int32);
   this->push(result);
 }
 

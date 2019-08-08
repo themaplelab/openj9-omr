@@ -10,6 +10,8 @@
 
 class AbsEnvStatic {
 public:
+  // TODO remove 
+  friend class AbstractInterpretation;
   AbsEnvStatic(TR::Region &region, IDT::Node *node);
   AbsEnvStatic(AbsEnvStatic&);
   void trace(const char* methodName = NULL);
@@ -36,8 +38,9 @@ private:
 
   // Array manipulation
   void at(unsigned int, AbsValue*);
+  public:
   AbsValue *at(unsigned int);
-
+  private:
   // Abstract interpreter
   void aload0getfield(int, TR_J9ByteCodeIterator &);
   void aaload();

@@ -149,6 +149,17 @@ IDT::nextIdx()
   }
 
 
+TR_Structure *IDT::Node::getStructuredCFG()
+  {
+  if (_structuredCFG == nullptr)
+    {
+    // TODO swap RMS inside comp so region analysis analyzes correct CFG
+    TR_Structure *region = TR_RegionAnalysis::getRegions(comp());
+    _structuredCFG = region;
+    }
+  return _structuredCFG;
+  }
+
 int
 IDT::Node::getCalleeIndex() const
   {
