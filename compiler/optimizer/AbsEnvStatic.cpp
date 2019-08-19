@@ -2903,3 +2903,14 @@ AbstractState::getRegion()
 {
   return _region;
 }
+
+AbsEnvStatic *
+AbsEnvStatic::mergeIdenticalValuesBottom(AbsEnvStatic *a, AbsEnvStatic *b)
+  {
+  AbsEnvStatic *merged = new (a->getRegion()) AbsEnvStatic(*a);
+/* TODO: FIXME:
+  merged->_array = *AbsVarArrayStatic::mergeIdenticalValuesBottom(a->getArray(), b->getArray(), a->getRegion(), a->getVP());
+  merged->_stack = *AbsOpStackStatic::mergeIdenticalValuesBottom(a->getStack, b->getStack(), a->getRegion(), a->getVP());
+*/
+  return merged;
+  }

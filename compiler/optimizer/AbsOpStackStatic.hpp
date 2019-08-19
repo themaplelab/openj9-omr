@@ -26,6 +26,8 @@ public:
   size_t size() const;
   AbsValue* top();
   AbsOpStackStatic *getWidened(TR::Region &region);
+  AbsOpStackStatic *getOptimistic(TR::Region &region);
+  static AbsOpStackStatic *mergeIdenticalValuesBottom(AbsOpStackStatic &, AbsOpStackStatic &, TR::Region &, OMR::ValuePropagation *);
 
 private:
   //typedef TR::deque<AbsValue*, TR::Region&> ConstraintStack;

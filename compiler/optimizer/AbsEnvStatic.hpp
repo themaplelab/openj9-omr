@@ -636,6 +636,17 @@ public:
   virtual AbstractState& tableswitch(AbstractState&) = 0;
   //virtual AbstractState& wide(AbstractState&) = 0;
 };
+/*
+  AbsEnvStatic(TR::Region &region, IDT::Node *node);
+  AbsEnvStatic(AbsEnvStatic&);
+  void trace(const char* methodName = NULL);
+  void interpretBlock(OMR::Block *block);
+  AbsEnvStatic *getWidened();
+  typedef AbsValue::CompareResult CompareResult;
+  CompareResult compareWith(AbsEnvStatic *other);
+  bool isNarrowerThan(AbsEnvStatic *other);
+  void merge(AbsEnvStatic&);
+*/
 
 //TODO: template over AbsValue
 class AbstractState
@@ -674,6 +685,7 @@ public:
   OMR::Block *_block;
   bool isNarrowerThan(AbsEnvStatic *other);
   AbsEnvStatic *getWidened();
+  static AbsEnvStatic *mergeIdenticalValuesBottom(AbsEnvStatic *a, AbsEnvStatic *b);
 protected:
   AbsFrame* _absFrame;
   AbstractState _absState;

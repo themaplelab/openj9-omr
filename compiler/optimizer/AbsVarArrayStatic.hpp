@@ -20,6 +20,7 @@ public:
   typedef AbsValue::CompareResult CompareResult;
   CompareResult compareWith(AbsVarArrayStatic *other);
   void merge(const AbsVarArrayStatic &, TR::Region &, OMR::ValuePropagation *);
+  static AbsVarArrayStatic *mergeIdenticalValuesBottom(AbsVarArrayStatic &, AbsVarArrayStatic &, TR::Region &, OMR::ValuePropagation *);
   void trace(OMR::ValuePropagation *vp);
   void at(unsigned int, AbsValue*);
   size_t size() const;

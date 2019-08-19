@@ -15,11 +15,12 @@
 #include "optimizer/InlinerPacking.hpp"
 #include "optimizer/AbsEnvStatic.hpp"
 #include "optimizer/IDTConstructor.hpp"
-#include "AbsLoopAnalyzer.hpp"
+#include "AbstractInterpretation.hpp"
 
 
 int32_t OMR::BenefitInlinerWrapper::perform()
    {
+
    TR::ResolvedMethodSymbol * sym = comp()->getMethodSymbol();
    int32_t budget = this->getBudget(sym);
    if (budget < 0) return -1;
@@ -50,13 +51,22 @@ int32_t OMR::BenefitInlinerWrapper::perform()
 void
 OMR::BenefitInliner::abstractInterpreter()
    {
+
+   TR::ResolvedMethodSymbol *rms = this->_idt->getRoot()->getResolvedMethodSymbol();
+
+   TR_RegionStructure *structure = TR_RegionAnalysis::getRegions(comp(), rms)->asRegion();
+   if (structure == nullptr)
+      {
+      return;
+      }
    IDT::Node *method = this->_idt->getRoot();
-   TR::CFG *cfg = this->_idt->getRoot()->getResolvedMethodSymbol()->getFlowGraph();
-   AbsLoopAnalyzer analyzer(_absEnvRegion, method, method->getValuePropagation(), cfg, comp());
-   analyzer.interpretGraph();
-      // TODO spencer put impl here
-   //AbsEnvStatic absEnv(_absEnvRegion, this->_idt->getRoot());
-   //absEnv.interpret();
+   TR_AbstractInterpretation analyzer(_absEnvRegion, method, method->getValuePropagation(), structure, comp(), /* trace */ true);
+   analyzer.perform();
+   traceMsg(TR::comp(), "Final state\n");
+   analyzer.getExitState()->trace("");
+
+
+   // Repair flow graph
    this->_idt->getRoot()->getResolvedMethodSymbol()->setFlowGraph(this->_rootRms);
    }
 

@@ -103,3 +103,26 @@ AbsVarArrayStatic::trace(OMR::ValuePropagation *vp)
     }
   traceMsg(comp, "\n");
   }
+
+AbsVarArrayStatic *
+AbsVarArrayStatic::mergeIdenticalValuesBottom(AbsVarArrayStatic &a, AbsVarArrayStatic &b, TR::Region &region, OMR::ValuePropagation *vp)
+  {
+    TR_ASSERT(a._maxSize == b._maxSize, "Arrays are different");
+    AbsVarArrayStatic *merged = new (region) AbsVarArrayStatic(region, a._maxSize);
+    for (int i = 0; i < a.size(); i++)
+      {
+      AbsValue *v1 = a.at(i);
+      AbsValue *v2 = b.at(i);
+      AbsValue *v;
+      if (v1 != nullptr && v2 != nullptr && v1 == v2)
+        {
+        v = AbsValue::getBottom();
+        }
+      else
+        {
+        v = v1->merge(v2, region, vp);
+        }
+      merged->at(i, v);
+      }
+    return merged;
+  }

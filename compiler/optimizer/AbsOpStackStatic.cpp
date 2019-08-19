@@ -35,23 +35,11 @@ AbsOpStackStatic* AbsOpStackStatic::getWidened(TR::Region &region)
   return top;
   }
 
-//AbsOpStackStatic::AbsOpStackStatic(AbsOpStackStatic &other, TR::Region &region) :
 AbsOpStackStatic::AbsOpStackStatic(const AbsOpStackStatic &other, TR::Region &region) :
-  //_stack(0, nullptr, region)
-  //_stack(StackContainer(0, nullptr, region))
   _stack(other._stack),
   _maxSize(other._maxSize)
   {
-/*
-  int size = other.size();
-  for (int i = 0; i < size; i++)
-    {
-    AbsValue *value = other._stack.back();
-    other._stack.pop_back(); 
-    this->_stack.push_front(value);
-    other._stack.push_front(value);
-    }
-*/
+
   }
 
 void
@@ -149,4 +137,38 @@ AbsOpStackStatic::trace(OMR::ValuePropagation *vp, TR::Region &region)
   }
   traceMsg(comp, "<bottom>\n");
   traceMsg(comp, "\n");
+  }
+
+AbsOpStackStatic *
+AbsOpStackStatic::mergeIdenticalValuesBottom(AbsOpStackStatic &a, AbsOpStackStatic &b, TR::Region &region, OMR::ValuePropagation *vp)
+  {
+  TR_ASSERT(a._maxSize == b._maxSize && a.size() == b.size(), "Cannot merge different sized stacks");
+  AbsOpStackStatic copyA(a, region);
+  AbsOpStackStatic copyB(b, region);
+  ConstraintStack temp(StackContainer(0, nullptr, region));
+  while (!copyA.empty())
+    {
+      AbsValue *v1 = copyA.top();
+      copyA.pop();
+      AbsValue *v2 = copyB.top();
+      copyB.pop();
+      AbsValue *m;
+      if (v1 == v2)
+        {
+        m = AbsValue::getBottom();
+        }
+      else
+        {
+        m = v1->merge(v2, region, vp);
+        }
+      temp.push(m);
+    }
+  AbsOpStackStatic *merged = new (region) AbsOpStackStatic(region, a._maxSize);
+  while (!temp.empty())
+    {
+      AbsValue *v = temp.top();
+      temp.pop();
+      merged->push(v);
+    }
+  return merged;
   }

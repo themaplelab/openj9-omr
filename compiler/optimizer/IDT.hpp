@@ -16,6 +16,8 @@
 #include "compiler/il/OMRBlock.hpp"
 #include "compiler/ilgen/J9ByteCodeIterator.hpp"
 #include "compiler/infra/Cfg.hpp"
+#include "compiler/optimizer/StructuralAnalysis.hpp"
+#include "compiler/optimizer/Structure.hpp"
 
 /**
  * Class IDT 
@@ -75,6 +77,7 @@ class IDT
     TR::ValuePropagation *getValuePropagation();
     int budget() const;
     TR_CallSite *_callSite;
+    TR_Structure *getStructuredCFG();
     private:
 
     typedef TR::deque<Node*, TR::Region&> Children;
@@ -82,6 +85,7 @@ class IDT
     IDT* _head;
     int _idx;
     int _callsite_bci;
+    TR_Structure *_structuredCFG = nullptr;
     // NULL if 0, (Node* & 1) if 1, otherwise a deque*
     Children* _children;
     unsigned int _benefit;
