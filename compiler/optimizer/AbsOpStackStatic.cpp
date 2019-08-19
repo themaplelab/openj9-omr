@@ -5,16 +5,42 @@
 
 //TODO: can we use maxSize somehow to make memory allocation more efficient?
 AbsOpStackStatic::AbsOpStackStatic(TR::Region &region, unsigned int maxSize) :
-  _stack(StackContainer(0, nullptr, region))
+  _stack(StackContainer(0, nullptr, region)),
+  _maxSize(maxSize)
   //_stack(0, nullptr, region)
   {
+  }
+
+// TODO there are no doubt better ways of doing this
+// Copy the contents of the stack and widen every item
+// The result is a stack with the same types and depth
+// But every element is top
+AbsOpStackStatic* AbsOpStackStatic::getWidened(TR::Region &region)
+  {
+  AbsOpStackStatic copy(*this, region);
+  ConstraintStack temp(StackContainer(0, nullptr, region));
+  while (!copy.empty())
+    {
+      AbsValue *v = copy.top();
+      copy.pop();
+      temp.push(v->getWidened(region));
+    }
+  AbsOpStackStatic *top = new (region) AbsOpStackStatic(region, _maxSize);
+  while (!temp.empty())
+    {
+      AbsValue *v = temp.top();
+      temp.pop();
+      top->push(v);
+    }
+  return top;
   }
 
 //AbsOpStackStatic::AbsOpStackStatic(AbsOpStackStatic &other, TR::Region &region) :
 AbsOpStackStatic::AbsOpStackStatic(const AbsOpStackStatic &other, TR::Region &region) :
   //_stack(0, nullptr, region)
   //_stack(StackContainer(0, nullptr, region))
-  _stack(other._stack)
+  _stack(other._stack),
+  _maxSize(other._maxSize)
   {
 /*
   int size = other.size();

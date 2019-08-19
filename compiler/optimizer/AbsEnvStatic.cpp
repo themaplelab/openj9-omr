@@ -44,6 +44,14 @@ AbstractState::getStackSize() const
   return this->_stack.size();
 }
 
+AbsEnvStatic *AbsEnvStatic::getWidened()
+  {
+  AbsEnvStatic *top = new (this->getRegion()) AbsEnvStatic(*this);
+  top->getArray().getWidened(this->getRegion());
+  top->getStack().getWidened(this->getRegion());
+  return top;
+  }
+
 
 TR::Region&
 AbsEnvStatic::getRegion() const
@@ -96,8 +104,8 @@ AbstractState::merge(AbstractState &other, TR::ValuePropagation *vp)
 {
    TR::Region &region = TR::comp()->trMemory()->currentStackRegion();
    AbstractState copyOfOther(other);
-   this->_array.merge(copyOfOther._array, this->_region, vp);
-   this->_stack.merge(copyOfOther._stack, this->_region, vp);
+   this->_array.merge(copyOfOther._array, this->getRegion(), vp);
+   this->_stack.merge(copyOfOther._stack, this->getRegion(), vp);
    this->trace(vp);
 }
 
@@ -2849,7 +2857,7 @@ AbsEnvStatic* AbsFrame::mergeAllPredecessors(OMR::Block *block) {
         continue;
      }
      //TODO: can aBlock->_absEnv be null?
-     TR_ASSERT(aBlock->_absEnv, "absEnv is null, i don't think this is possible");
+     TR_ASSERT(aBlock->_absEnv, "absEnv is null");
      if (first) {
         first = false;
         // copy the first one
@@ -2864,4 +2872,34 @@ AbsEnvStatic* AbsFrame::mergeAllPredecessors(OMR::Block *block) {
      absEnv->trace();
   }
   return absEnv;
+}
+
+// TODO
+AbsEnvStatic::CompareResult AbsEnvStatic::compareWith(AbsEnvStatic *other)
+  {
+  return CompareResult::Narrower;
+  }
+
+bool
+AbsEnvStatic::isNarrowerThan(AbsEnvStatic *other)
+  {
+  return compareWith(other) == CompareResult::Narrower;
+  }
+
+AbsOpStackStatic&
+AbsEnvStatic::getStack()
+{
+  return _absState._stack;
+}
+
+AbsVarArrayStatic&
+AbsEnvStatic::getArray()
+{
+  return _absState._array;
+}
+
+TR::Region&
+AbstractState::getRegion()
+{
+  return _region;
 }

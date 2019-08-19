@@ -15,6 +15,7 @@
 #include "optimizer/InlinerPacking.hpp"
 #include "optimizer/AbsEnvStatic.hpp"
 #include "optimizer/IDTConstructor.hpp"
+#include "AbsLoopAnalyzer.hpp"
 
 
 int32_t OMR::BenefitInlinerWrapper::perform()
@@ -49,9 +50,13 @@ int32_t OMR::BenefitInlinerWrapper::perform()
 void
 OMR::BenefitInliner::abstractInterpreter()
    {
-   AbsFrame absFrame(_absEnvRegion, this->_idt->getRoot());
-   AbsEnvStatic absEnvStatic(_absEnvRegion, this->_idt->getRoot(), &absFrame);
-   absFrame.interpret();
+   IDT::Node *method = this->_idt->getRoot();
+   TR::CFG *cfg = this->_idt->getRoot()->getResolvedMethodSymbol()->getFlowGraph();
+   AbsLoopAnalyzer analyzer(_absEnvRegion, method, method->getValuePropagation(), cfg, comp());
+   analyzer.interpretGraph();
+      // TODO spencer put impl here
+   //AbsEnvStatic absEnv(_absEnvRegion, this->_idt->getRoot());
+   //absEnv.interpret();
    this->_idt->getRoot()->getResolvedMethodSymbol()->setFlowGraph(this->_rootRms);
    }
 

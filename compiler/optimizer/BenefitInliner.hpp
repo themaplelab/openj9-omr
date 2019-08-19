@@ -10,8 +10,6 @@
 #include "IDT.hpp"
 #include "optimizer/MethodSummary.hpp"
 
-
-
 namespace OMR {
 
    class BenefitInlinerWrapper : public TR::Optimization

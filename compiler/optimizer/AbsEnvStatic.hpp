@@ -650,10 +650,12 @@ public:
   void merge(AbstractState &, TR::ValuePropagation*);
   size_t getStackSize() const;
   void trace(TR::ValuePropagation*);
-private:
-  TR::Region &_region;
-  AbsVarArrayStatic _array;
+  TR::Region &getRegion();
   AbsOpStackStatic _stack;
+  AbsVarArrayStatic _array;
+private:
+  void enterMethod(TR::ResolvedMethodSymbol *);
+  TR::Region &_region;
 };
 
 class AbsFrame;
@@ -670,9 +672,13 @@ public:
   static AbsEnvStatic *enterMethod(TR::Region&region, IDT::Node* node, AbsFrame* absFrame, TR::ResolvedMethodSymbol*);
   OMR::Block *getBlock() { return this->_block; }
   OMR::Block *_block;
+  bool isNarrowerThan(AbsEnvStatic *other);
+  AbsEnvStatic *getWidened();
 protected:
   AbsFrame* _absFrame;
   AbstractState _absState;
+  AbsOpStackStatic & getStack();
+  AbsVarArrayStatic & getArray();
   TR::Region &getRegion() const;
   TR::ResolvedMethodSymbol *getResolvedMethodSymbol() const;
   TR::ValuePropagation *getVP() const;
@@ -889,6 +895,9 @@ private:
   void invoke(int, int, TR::MethodSymbol::Kinds);
   void aloadn(AbstractState&, int);
   void pushConstInt(AbstractState&, int);
+  void interpretBlock(OMR::Block *block);
+  typedef AbsValue::CompareResult CompareResult;
+  CompareResult compareWith(AbsEnvStatic *other);
   void pushNull();
   void iconst(AbstractState&, int);
   void ldcString(int);
@@ -913,10 +922,10 @@ public:
   IDT::Node *_node;
   TR::ValuePropagation *_vp;
   TR_J9ByteCodeIterator _bci;
+  void interpret(OMR::Block *); 
 protected:
   TR::Region &_region;
   TR::ResolvedMethodSymbol *_rms;
-  void interpret(OMR::Block *); 
   virtual void factFlow(OMR::Block *);
   virtual AbsEnvStatic *mergeAllPredecessors(OMR::Block *);
 };
