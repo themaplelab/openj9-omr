@@ -2350,3 +2350,13 @@ AbsEnvStatic::isNarrowerThan(AbsEnvStatic *other)
   {
   return compareWith(other) == CompareResult::Narrower;
   }
+
+
+AbsEnvStatic *
+AbsEnvStatic::mergeIdenticalValuesBottom(AbsEnvStatic *a, AbsEnvStatic *b)
+  {
+  AbsEnvStatic *merged = new (a->_region) AbsEnvStatic(*a);
+  merged->_array = *AbsVarArrayStatic::mergeIdenticalValuesBottom(a->_array, b->_array, a->_region, a->_vp);
+  merged->_stack = *AbsOpStackStatic::mergeIdenticalValuesBottom(a->_stack, b->_stack, a->_region, a->_vp);
+  return merged;
+  }

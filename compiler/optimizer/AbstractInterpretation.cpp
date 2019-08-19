@@ -55,13 +55,16 @@ class AnalysisInfo
     private:
     const bool _isEntry;
     AbsEnvStatic *_state;
+    AbsEnvStatic *_preState;
     public:
     AnalysisInfo(bool isEntry):
         _isEntry(isEntry),
-        _state(nullptr) {}
+        _state(nullptr),
+        _preState(nullptr) {}
     AnalysisInfo(bool isEntry, AbsEnvStatic *state):
         _isEntry(isEntry),
-        _state(state) {}
+        _state(state),
+        _preState(nullptr) {}
     static AnalysisInfo *get(TR_Structure *structure)
         {
         return (AnalysisInfo *)structure->getAnalysisInfo();
@@ -82,7 +85,16 @@ class AnalysisInfo
         {
         return _state;
         }
+    AbsEnvStatic *getPreState()
+        {
+        return _preState;
+        }
+    void setPreState(AbsEnvStatic *v)
+        {
+        _preState = v;
+        }
     };
+
 
 TR_AbstractInterpretation::TR_AbstractInterpretation(TR::Region& region,
                          IDT::Node *method,
@@ -136,6 +148,7 @@ TR_AbstractInterpretation::analyzeRegionStructure(TR_RegionStructure *structure,
     {
     if (structure->isNaturalLoop())
         {
+        // TODO first pass doesn't need to walk entire graph
         for (RegionIterator ri(structure, _region); ri.getCurrent(); ri.getNext())
             {
             TR_StructureSubGraphNode *node = ri.getCurrent();
@@ -206,20 +219,13 @@ AbsEnvStatic *
 TR_AbstractInterpretation::getIncomingState(TR_Structure *structure)
     {
     AnalysisInfo *ainfo = AnalysisInfo::get(structure);
-    AbsEnvStatic *state = nullptr;
-    if (ainfo->isEntry())
+    if (ainfo->isEntry() && structureHasUnanalyzedPredecessorEdges(structure))
         {
-        if (structureHasUnanalyzedPredecessorEdges(structure))
-            {
-            return getSizedStartState(structure);
-            }
-        state = getIncomingState(structure->getParent());
-        // TODO remove
-        if (structure->getSubGraphNode() && structure->getSubGraphNode()->getPredecessors().size() > 0)
-            {
-            int _debug = 42;
-            }
+        AbsEnvStatic *top = getSizedStartState(structure);
+        ainfo->setPreState(top);
+        return top;
         }
+    AbsEnvStatic *state = nullptr;
     if (structure->getSubGraphNode() != nullptr)
         {
         TR::CFGEdgeList &predecessors = structure->getSubGraphNode()->getPredecessors();
@@ -229,11 +235,6 @@ TR_AbstractInterpretation::getIncomingState(TR_Structure *structure)
             TR_ASSERT(_edgeStates.count(predEdge) != 0, "Predecessor edge hasn't been analyzed yet");
             AbsEnvStatic *incomingState = _edgeStates[predEdge]->getState();
             TR_ASSERT(incomingState != nullptr, "Predecessor edge hasn't been analyzed yet");
-            // TODO remove
-            if (incomingState->at(0)) {
-            TR::VPConstraint *v = incomingState->at(0)->_vp;
-            int _debug = 42;
-            }
             if (state == nullptr)
                 {
                 state = new (_region) AbsEnvStatic(*incomingState);
@@ -243,6 +244,12 @@ TR_AbstractInterpretation::getIncomingState(TR_Structure *structure)
                 state->merge(*incomingState);
                 }
             }
+        }
+    if (ainfo->isEntry() && ainfo->getPreState() != nullptr)
+        {
+        AbsEnvStatic *parentState = getIncomingState(structure->getParent());
+        state = AbsEnvStatic::mergeIdenticalValuesBottom(ainfo->getPreState(), state);
+        state->merge(*parentState);
         }
     if (state == nullptr)
         {

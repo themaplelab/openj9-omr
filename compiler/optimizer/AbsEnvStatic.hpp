@@ -10,8 +10,6 @@
 
 class AbsEnvStatic {
 public:
-  // TODO remove 
-  friend class AbstractInterpretation;
   AbsEnvStatic(TR::Region &region, IDT::Node *node);
   AbsEnvStatic(AbsEnvStatic&);
   void trace(const char* methodName = NULL);
@@ -21,6 +19,7 @@ public:
   CompareResult compareWith(AbsEnvStatic *other);
   bool isNarrowerThan(AbsEnvStatic *other);
   void merge(AbsEnvStatic&);
+  static AbsEnvStatic *mergeIdenticalValuesBottom(AbsEnvStatic *a, AbsEnvStatic *b);
 
 private:
   void interpretByteCode(TR_J9ByteCode, TR_J9ByteCodeIterator &);

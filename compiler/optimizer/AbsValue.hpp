@@ -15,8 +15,26 @@ public:
      Disjoint,
     };
   AbsValue(TR::VPConstraint *vp, TR::DataType dt) : _vp(vp), _dt(dt) {};
+  static AbsValue *getBottom()
+    {
+    static AbsValue bottom(nullptr, TR::NoType);
+    return &bottom;
+    }
   AbsValue *merge(AbsValue *other, TR::Region &region, OMR::ValuePropagation *vp)
     {
+    // This is required for narrowing abs values form backedges
+    if (this == other)
+      {
+      return this;
+      }
+    if (this == getBottom())
+      {
+      return other;
+      }
+    if (other == getBottom())
+      {
+      return this;
+      }
     //TR_ASSERT(other->_dt == this->_dt, "different data types");
     // when merging array this isn't true
     if (!this->_vp) return this;
@@ -27,9 +45,13 @@ public:
   // TODO implement
   CompareResult compareWith(AbsValue *other)
     {
+    if (_dt != other->_dt)
+      {
+      return Disjoint;
+      }
     return CompareResult::Narrower;
     }
-  CompareResult mergeComparison(CompareResult a, CompareResult b)
+  static CompareResult mergeComparison(CompareResult a, CompareResult b)
     {
     if (a == b)
       {
@@ -51,8 +73,8 @@ public:
     }
   AbsValue *getWidened(TR::Region &region)
     {
-      // TODO use this instead of AbsEnvStatic::getTopDataType
-      return new (region) AbsValue(nullptr, _dt);
+      // TODO only create these values once
+      return new (region) AbsValue(NULL, _dt);
     }
   void print(OMR::ValuePropagation *vp)
   {
@@ -64,7 +86,6 @@ public:
   bool isType2() {
     return this->_dt == TR::Double || this->_dt == TR::Int64;
   }
-
   TR::VPConstraint *_vp;
   TR::DataType _dt;
 };
