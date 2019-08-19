@@ -36,6 +36,7 @@ class IDT
       {
       bool operator()(IDT::Node *left, IDT::Node *right)
         {
+        TR_ASSERT(left && right, "comparing against null");
         return left->getCost() < right->getCost() || left->getBenefit() < right->getBenefit();
         }
       };
@@ -45,7 +46,7 @@ class IDT
     {
     public:
     Node(IDT* idt, int idx, int32_t callsite_bci, TR::ResolvedMethodSymbol* rms, Node *parent, unsigned int benefit, int budget, TR_CallSite*);
-    Node(const Node&);
+    Node(const Node&) = delete;
     unsigned int howManyDescendantsIncludingMe() const;
     Node* addChildIfNotExists(IDT* idt, int32_t callsite_bci, TR::ResolvedMethodSymbol* rms, int benefit, TR_CallSite*);
     const char* getName(const IDT* idt) const;

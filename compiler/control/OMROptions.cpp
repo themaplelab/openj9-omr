@@ -1136,6 +1136,7 @@ TR::OptionTable OMR::Options::_jitOptions[] = {
    {"traceGRA",                         "L\ttrace tree based global register allocator",     TR::Options::traceOptimization, tacticalGlobalRegisterAllocator, 0, "P"},
 #ifdef J9_PROJECT_SPECIFIC
    {"traceIdiomRecognition",            "L\ttrace idiom recognition",                       TR::Options::traceOptimization, idiomRecognition, 0, "P"},
+   {"traceIDTConstruction",             "L\ttrace IDT construction",                        TR::Options::traceOptimization, idtConstruction, 0, "P"},
 #endif
    {"traceILDeadCode",                  "L\ttrace Instruction Level Dead Code (basic)",
         TR::Options::setBitsFromStringSet, offsetof(OMR::Options, _traceILDeadCode), TR_TraceILDeadCodeBasic, "F"},
