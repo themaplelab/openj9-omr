@@ -6,12 +6,63 @@
 #include "optimizer/LocalValuePropagation.hpp"
 
 const char * CheckCastFolding::name = "check cast folding";
+const char * InstanceOfFolding::name = "instance of folding";
+const char * NullCheckFolding::name = "null check folding";
+const char * BranchFolding::name = "branch folding";
+
 
 #ifndef TRACEEND
 //#define TRACEEND(COND, M, ...) 
 #define TRACEEND(COND, M, ...) \
 if ((COND)) { traceMsg(this->_comp, M, ##__VA_ARGS__ ); }
 #endif
+
+void
+MethodSummaryExtension::trace()
+{
+   traceMsg(TR::comp(), "Method Summary: \n");
+   ListIterator<PotentialOptimization> iter(&this->_potentialOpts);
+   PotentialOptimization *popt = iter.getFirst();
+   while (popt) {
+     popt->trace(this->_vp);
+     popt = iter.getNext();
+   }
+}
+
+void
+CheckCastFolding::trace(TR::ValuePropagation *vp)
+{
+   traceMsg(TR::comp(), "%s in bytecode %d for argument %d\n", CheckCastFolding::name, this->_bytecode_idx, this->_argPos);
+   PotentialOpt::trace();
+}
+
+void
+InstanceOfFolding::trace(TR::ValuePropagation *vp)
+{
+   traceMsg(TR::comp(), "%s in bytecode %d for argument %d\n", InstanceOfFolding::name, this->_bytecode_idx, this->_argPos);
+   PotentialOpt::trace();
+}
+
+void
+NullCheckFolding::trace(TR::ValuePropagation *vp)
+{
+   traceMsg(TR::comp(), "%s in bytecode %d for argument %d\n", NullCheckFolding::name, this->_bytecode_idx, this->_argPos);
+   PotentialOpt::trace();
+}
+
+void
+BranchFolding::trace(TR::ValuePropagation *vp)
+{
+   traceMsg(TR::comp(), "%s in bytecode %d for argument %d\n", BranchFolding::name, this->_bytecode_idx, this->_argPos);
+   PotentialOpt::trace();
+}
+
+void
+PotentialOptimization::trace(TR::ValuePropagation* vp)
+{
+   this->_constraint->print(vp);
+}
+
 
 MethodSummaryRow::MethodSummaryRow(TR::Compilation *comp, TR::Region &region)
   : _caller_idx(-1)
@@ -34,6 +85,53 @@ void
 MethodSummaryRow::at(int n, TR::VPConstraint *constraint) {
   this->_row->at(n, constraint);
 }
+
+MethodSummaryExtension::MethodSummaryExtension(TR::Region &region, TR::ValuePropagation *vp):
+   _region(region),
+   _potentialOpts(region),
+   _vp(vp)
+{
+}
+
+void
+MethodSummaryExtension::addNullCheckFolding(int bc_index, AbsValue *constraint, int argPos)
+   {
+   NullCheckFolding *opt = new (this->_region) NullCheckFolding(bc_index, constraint, argPos);
+   this->add(opt);
+   }
+
+void
+MethodSummaryExtension::addBranchFolding(int bc_index, AbsValue *constraint, int argPos)
+   {
+   BranchFolding *opt = new (this->_region) BranchFolding(bc_index, constraint, argPos);
+   this->add(opt);
+   }
+
+void
+MethodSummaryExtension::addIfeq(int bc_index, int argPos)
+   {
+   this->addBranchFolding(bc_index, new (_region) AbsValue(TR::VPIntConst::create(this->_vp, 0), TR::Int32), argPos);
+   }
+
+void
+MethodSummaryExtension::addInstanceOfFolding(int bc_index, AbsValue *constraint, int argPos)
+   {
+   InstanceOfFolding *opt = new (this->_region) InstanceOfFolding(bc_index, constraint, argPos);
+   this->add(opt);
+   }
+
+void
+MethodSummaryExtension::addCheckCastFolding(int bc_index, AbsValue *constraint, int argPos)
+   {
+   CheckCastFolding *opt = new (this->_region) CheckCastFolding(bc_index, constraint, argPos);
+   this->add(opt);
+   }
+
+void
+MethodSummaryExtension::add(PotentialOptimization *potentialOpt)
+   {
+   this->_potentialOpts.add(potentialOpt); 
+   }
 
 MethodSummary::MethodSummary(TR::Compilation *comp, TR::Region &region, TR::ValuePropagation *vp, IDT::Node* hunk):
   _methodSummaryNew(comp->trMemory())

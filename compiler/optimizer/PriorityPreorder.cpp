@@ -40,6 +40,7 @@ PriorityPreorder::get(size_t idx) {
   auto shortfall = required_len - size;
   for (size_t i = 0; i < shortfall; i++) {
     IDT::Node* new_entry = _queue.top();
+    TR_ASSERT(new_entry, "new entry can't be null");
     _queue.pop();
     this->_entries.push_back(new_entry);
     new_entry->enqueue_subordinates( &this->_queue );

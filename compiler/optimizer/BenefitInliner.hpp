@@ -63,11 +63,12 @@ class BenefitInliner: public BenefitInlinerBase
       void analyzeIDT();
       void abstractInterpreter();
       void obtainIDT(IDT::Node *node, int32_t budget);
-      void obtainIDT(IDT::Indices&, IDT::Node*, int32_t budget);
+      bool obtainIDT(IDT::Indices&, IDT::Node*, int32_t budget);
       void obtainIDT(IDT::Indices&, IDT::Node*, TR_J9ByteCodeIterator&, TR::Block *, int32_t);
-      void obtainIDT(IDT::Indices&, IDT::Node *, TR_CallSite*, int32_t budget, int cpIndex);
+      void obtainIDT(IDT::Indices*, IDT::Node *, TR_CallSite*, int32_t budget, int cpIndex);
       void traceIDT();
       TR::Region _holdingProposalRegion;
+      inline const uint32_t budget() const { return this->_budget; }
    private:
       typedef TR::typed_allocator<std::pair<TR_OpaqueMethodBlock*, IDT::Node*>, TR::Region&> MethodSummaryMapAllocator;
       typedef std::less<TR_OpaqueMethodBlock*> MethodSummaryMapComparator;
@@ -78,18 +79,19 @@ class BenefitInliner: public BenefitInlinerBase
       TR::Region _callSitesRegion;
       TR::Region _callStacksRegion;
       TR::Region _mapRegion;
+      TR::Region _IDTConstructorRegion;
       MethodSummaryMap _methodSummaryMap;
       TR_CallStack *_inliningCallStack;
       IDT *_idt;
       const uint32_t _budget;
 
-      inline const uint32_t budget() const;
       TR_CallSite *findCallSiteTarget(TR::ResolvedMethodSymbol *resolvedMethodSymbol, int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind, TR::Block *block);
       void printTargets(TR::ResolvedMethodSymbol *resolvedMethodSymbol, int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind);
       void printInterfaceTargets(TR::ResolvedMethodSymbol *resolvedMethodSymbol, int bcIndex, int cpIndex);
       void printVirtualTargets(TR::ResolvedMethodSymbol *resolvedMethodSymbol, int bcIndex, int cpIndex);
       void printStaticTargets(TR::ResolvedMethodSymbol *resolvedMethodSymbol, int bcIndex, int cpIndex);
       void printSpecialTargets(TR::ResolvedMethodSymbol *resolvedMethodSymbol, int bcIndex, int cpIndex);
+      // TODO: delete me
       TR::SymbolReference* getSymbolReference(TR::ResolvedMethodSymbol *callerSymbol, int cpIndex, TR::MethodSymbol::Kinds kind);
       TR_CallSite * getCallSite(TR::MethodSymbol::Kinds kind,
                                     TR_ResolvedMethod *callerResolvedMethod,

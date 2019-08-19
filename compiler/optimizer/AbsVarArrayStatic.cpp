@@ -81,7 +81,7 @@ AbsVarArrayStatic::trace(OMR::ValuePropagation *vp)
     {
     traceMsg(comp, "a[%d] = ", i);
     if (!this->at(i)) {
-       traceMsg(comp, "nullptr");
+       traceMsg(comp, "nullptr\n");
        continue;
     }
     this->at(i)->print(vp);

@@ -12,52 +12,103 @@
 #include "compiler/il/OMRBlock.hpp"
 #include "il/Block.hpp"
 
-AbsEnvStatic::AbsEnvStatic(TR::Region &region, IDT::Node *node) :
+AbstractState::AbstractState(TR::Region &region, IDT::Node *node) :
   _region(region),
   _array(region, node->maxLocals()),
-  _stack(region, node->maxStack()),
-  _node(node),
-  _vp(node->getValuePropagation()),
-  _rms(node->getResolvedMethodSymbol())
+  _stack(region, node->maxStack())
+{
+}
+
+AbsValue*
+AbstractState::at(unsigned int n)
+{
+  return this->_array.at(n);
+}
+
+void
+AbstractState::at(unsigned int n, AbsValue* absValue)
+{
+  this->_array.at(n, absValue);
+}
+
+AbstractState::AbstractState(const AbstractState& other) :
+  _region(other._region),
+  _array(other._array, other._region),
+  _stack(other._stack, other._region)
+{
+}
+
+size_t
+AbstractState::getStackSize() const
+{
+  return this->_stack.size();
+}
+
+
+TR::Region&
+AbsEnvStatic::getRegion() const
+{
+  return this->_absFrame->getRegion();
+}
+
+TR::ResolvedMethodSymbol*
+AbsEnvStatic::getResolvedMethodSymbol() const
+{
+  return this->_absFrame->getResolvedMethodSymbol();
+}
+
+TR::ResolvedMethodSymbol*
+AbsFrame::getResolvedMethodSymbol() const
+{
+  return this->_rms;
+}
+
+TR::ValuePropagation *
+AbsEnvStatic::getVP() const
+{
+  return this->_absFrame->_vp;
+}
+
+IDT::Node*
+AbsEnvStatic::getNode() const
+{
+   return this->_absFrame->_node;
+}
+
+AbsEnvStatic::AbsEnvStatic(TR::Region &region, IDT::Node *node, AbsFrame* absFrame) :
+  
+  _absState(region, node),
+  _absFrame(absFrame),
+  _block(nullptr)
 {
 }
 
 AbsEnvStatic::AbsEnvStatic(AbsEnvStatic &other) :
-  _region(other._region),
-  _array(other._array, other._region),
-  _stack(other._stack, other._region),
-  _node(other._node),
-  _vp(other._vp),
-  _rms(other._rms)
+  _absState(other._absState),
+  _absFrame(other._absFrame),
+  _block(other._block)
 {
+}
+
+
+void
+AbstractState::merge(AbstractState &other, TR::ValuePropagation *vp)
+{
+   TR::Region &region = TR::comp()->trMemory()->currentStackRegion();
+   AbstractState copyOfOther(other);
+   this->_array.merge(copyOfOther._array, this->_region, vp);
+   this->_stack.merge(copyOfOther._stack, this->_region, vp);
+   this->trace(vp);
 }
 
 void
 AbsEnvStatic::merge(AbsEnvStatic &other)
 {
-   traceMsg(TR::comp(), "Merging abstract environment A");
-   this->trace();
-
-   
-   TR::Region &region = TR::comp()->trMemory()->currentStackRegion();
-   // TODO: can I do without copying, maybe if I forgot about const &
-   AbsEnvStatic copyOfOther(other);
-   traceMsg(TR::comp(), "Merging abstract environment B");
-   copyOfOther.trace();
-
-   this->_array.merge(copyOfOther._array, this->_region, this->_vp);
-   this->_stack.merge(copyOfOther._stack, this->_region, this->_vp);
-   this->trace();
-   
+   getState().merge(other._absState, this->getVP());
 }
 
-//TODO: get rid of _vp
-//TODO: get rid of _rms
-//TODO? get rid of _region
-//TODO? get rid of _node
-
 AbsValue*
-AbsEnvStatic::pop()
+AbstractState::pop()
   {
   AbsValue *absValue = this->_stack.top();
   this->_stack.pop();
@@ -65,7 +116,7 @@ AbsEnvStatic::pop()
   }
 
 void
-AbsEnvStatic::push(AbsValue *absValue)
+AbstractState::push(AbsValue *absValue)
   {
   this->_stack.push(absValue);
   }
@@ -73,129 +124,28 @@ AbsEnvStatic::push(AbsValue *absValue)
 void
 AbsEnvStatic::pushNull()
   {
-  this->_stack.push(new (_region) AbsValue(NULL, TR::Address));
+  this->getState().push(new (this->getRegion()) AbsValue(NULL, TR::Address));
   }
 
 void
-AbsEnvStatic::pushConstInt(int n)
+AbsEnvStatic::pushConstInt(AbstractState& absState, int n)
   {
-  TR::VPIntConst *intConst = TR::VPIntConst::create(this->_vp, n);
-  this->_stack.push(new (_region) AbsValue(intConst, TR::Int32));
-  }
-
-void
-AbsEnvStatic::enterMethod(TR::ResolvedMethodSymbol *rms)
-  {
-  TR_ResolvedMethod *resolvedMethod = rms->getResolvedMethod();
-  const auto numberOfParameters = resolvedMethod->numberOfParameters();
-  const auto numberOfExplicitParameters = resolvedMethod->numberOfExplicitParameters();
-  const auto numberOfImplicitParameters = numberOfParameters - numberOfExplicitParameters;
-  const auto hasImplicitParameter = numberOfImplicitParameters > 0;
-
-  if (hasImplicitParameter)
-     {
-     TR_OpaqueClassBlock *implicitParameterClass = resolvedMethod->containingClass();
-     AbsValue* value = this->getClassConstraint(implicitParameterClass);
-     this->at(0, value);
-     }
-
-  TR_MethodParameterIterator *parameterIterator = resolvedMethod->getParameterIterator(*TR::comp());
-  TR::ParameterSymbol *p = nullptr;
-  for (int i = numberOfImplicitParameters; !parameterIterator->atEnd(); parameterIterator->advanceCursor(), i++)
-     {
-     auto parameter = parameterIterator;
-     TR::DataType dataType = parameter->getDataType();
-     switch (dataType) {
-        case TR::Int8:
-          this->at(i, new (_region) AbsValue(NULL, TR::Int8));
-          continue;
-        break;
-
-        case TR::Int16:
-          this->at(i, new (_region) AbsValue(NULL, TR::Int16));
-          continue;
-        break;
-
-        case TR::Int32:
-          this->at(i, new (_region) AbsValue(NULL, TR::Int32));
-          continue;
-        break;
-
-        case TR::Int64:
-          this->at(i, new (_region) AbsValue(NULL, TR::Int64));
-          i = i+1;
-          this->at(i, new (_region) AbsValue(NULL, TR::NoType));
-          continue;
-        break;
-
-        case TR::Float:
-          this->at(i, new (_region) AbsValue(NULL, TR::Float));
-          continue;
-        break;
-
-        case TR::Double:
-          this->at(i, new (_region) AbsValue(NULL, TR::Double));
-          i = i+1;
-          this->at(i, new (_region) AbsValue(NULL, TR::NoType));
-        continue;
-        break;
-
-        default:
-        //TODO: what about vectors and aggregates?
-        break;
-     }
-     const bool isClass = parameter->isClass();
-     if (!isClass)
-       {
-       this->at(i, new (_region) AbsValue(NULL, TR::Address));
-       continue;
-       }
-
-     TR_OpaqueClassBlock *parameterClass = parameter->getOpaqueClass();
-     if (!parameterClass)
-       {
-       this->at(i, new (_region) AbsValue(NULL, TR::Address));
-       continue;
-       }
-
-      AbsValue *value = this->getClassConstraint(parameterClass);
-      this->at(i, value);
-     }
+  TR::VPIntConst *intConst = TR::VPIntConst::create(this->getVP(), n);
+  absState.push(new (this->getRegion()) AbsValue(intConst, TR::Int32));
   }
 
 AbsValue*
 AbsEnvStatic::getTopDataType(TR::DataType dt)
   {
   // TODO: Don't allocate new memory and always return the same set of values
-  return new (_region) AbsValue(NULL, dt);
+  return new (getRegion()) AbsValue(NULL, dt);
   }
 
-AbsValue*
-AbsEnvStatic::getClassConstraint(TR_OpaqueClassBlock *opaqueClass)
-  {
-  if (!opaqueClass) return NULL;
 
-  TR::VPClassType *fixedClass = TR::VPFixedClass::create(this->_vp, opaqueClass);
-  TR::VPConstraint *classConstraint = TR::VPClass::create(this->_vp, fixedClass, NULL, NULL, NULL, NULL);
-  return new (_region) AbsValue (classConstraint, TR::Address);
-  }
-
-void
-AbsEnvStatic::at(unsigned int index, AbsValue *constraint)
-  {
-  this->_array.at(index, constraint);
-  }
-
-AbsValue*
-AbsEnvStatic::at(unsigned int index)
-  {
-  return this->_array.at(index);
-  }
-
-void
-AbsEnvStatic::aload0getfield(int i, TR_J9ByteCodeIterator &bci) {
-  this->aload0();
-  //this->getfield(i, bci);
+AbstractState&
+AbsEnvStatic::aload0getfield(AbstractState &absState, int i) {
+  this->aload0(absState);
+  return absState;
 }
 
 void
@@ -210,215 +160,219 @@ AbsEnvStatic::interpret(TR_J9ByteCode bc, TR_J9ByteCodeIterator &bci)
   switch(bc)
      {
      //alphabetical order
-     case 215: this->aload0getfield(0, bci); break; //aload0getfield
-     case J9BCaaload: this->aaload(); break;
-     case J9BCaastore: this->aastore(); break;
-     case J9BCaconstnull: this->aconstnull(); break;
-     case J9BCaload: this->aload(bci.nextByte()); break;
-     case J9BCaload0: this->aload0(); break;
-     case J9BCaload1: this->aload1(); break;
-     case J9BCaload2: this->aload2(); break;
-     case J9BCaload3: this->aload3(); break;
-     case J9BCanewarray: this->anewarray(bci.next2Bytes()); break;
-     //case J9BCareturn: this->pop(); break; // FIXME: own function? other semantics for return;
-     case J9BCarraylength: this->arraylength(); break;
-     case J9BCastore: this->astore(bci.nextByte()); break;
-     case J9BCastorew: this->astore(bci.next2Bytes()); break; // WARN: internal bytecode
-     case J9BCastore0: this->astore0(); break;
-     case J9BCastore1: this->astore1(); break;
-     case J9BCastore2: this->astore2(); break;
-     case J9BCastore3: this->astore3(); break;
-     //TODO: case J9BCathrow: this->athrow(); break;
-     case J9BCbaload: this->baload(); break;
-     case J9BCbastore: this->bastore(); break;
-     case J9BCbipush: this->bipush(bci.nextByte()); break;
-     case J9BCcaload : this->aaload(); break; //TODO: own function
-     case J9BCcastore: this->aastore(); break; //TODO: own function
-     case J9BCcheckcast: this->checkcast(bci.next2Bytes(), bci.currentByteCodeIndex()); break;
-     case J9BCd2f: this->d2f(); break;
-     case J9BCd2i: this->d2i(); break;
-     case J9BCd2l: this->d2l(); break;
-     case J9BCdadd: this->dadd(); break;
-     case J9BCdaload: this->daload(); break;
-     case J9BCdastore: this->aastore(); break; //TODO own function
-     case J9BCdcmpl: case J9BCdcmpg: this->dcmpl(); break; //TODO: own functions?
-     case J9BCdconst0: case J9BCdconst1: this->dconst0(); break; //TODO: own functions?
-     case J9BCddiv: this->ddiv(); break;
-     case J9BCdload: this->dload(bci.nextByte()); break;
-     case J9BCdload0: this->dload0(); break;
-     case J9BCdload1: this->dload1(); break;
-     case J9BCdload2: this->dload2(); break;
-     case J9BCdload3: this->dload3(); break;
-     case J9BCdmul: this->dmul(); break;
-     case J9BCdneg: /* yeah nothing */ break;
-     case J9BCdrem: this->drem(); break;
-     //case J9BCdreturn: this->pop(); this->pop(); break; //FIXME: return semantics
-     case J9BCdstore: this->dstore(bci.nextByte()); break;
-     case J9BCdstorew: this->dstore(bci.next2Bytes()); break; // WARN: internal bytecode
-     case J9BCdstore0: this->dstore0(); break;
-     case J9BCdstore1: this->dstore1(); break;
-     case J9BCdstore2: this->dstore2(); break;
-     case J9BCdstore3: this->dstore3(); break;
-     case J9BCdsub: this->dsub(); break;
-     case J9BCdup: this->dup(); break;
-     case J9BCdupx1: this->dupx1(); break;
-     case J9BCdupx2: this->dupx2(); break;
-     case J9BCdup2: this->dup2(); break;
-     case J9BCdup2x1: this->dup2x1(); break;
-     case J9BCdup2x2: this->dup2x2(); break;
-     case J9BCf2d: this->f2d(); break;
-     case J9BCf2i: this->f2i(); break;
-     case J9BCf2l: this->f2l(); break;
-     case J9BCfadd: this->fadd(); break;
-     case J9BCfaload: this->aaload(); break; //TODO: own function
-     case J9BCfastore: this->aastore(); break; //TODO own function
-     case J9BCfcmpl: case J9BCfcmpg: this->fcmpl(); break; //TODO: own functions?
-     case J9BCfconst0: case J9BCfconst1: this->fconst0(); break; //TODO: own functions?
-     case J9BCfdiv: this->fdiv(); break;
-     case J9BCfload: this->fload(bci.nextByte()); break;
-     case J9BCfload0: this->fload0(); break;
-     case J9BCfload1: this->fload1(); break;
-     case J9BCfload2: this->fload2(); break;
-     case J9BCfload3: this->fload3(); break;
-     case J9BCfmul: this->fmul(); break;
-     case J9BCfneg: /* yeah nothing */ break;
-     case J9BCfrem: this->frem(); break;
-     //case J9BCfreturn: this->pop(); break; //FIXME: return semantics
-     case J9BCfstore: this->fstore(bci.nextByte()); break;
-     case J9BCfstorew: this->fstore(bci.next2Bytes()); break; // WARN: internal bytecode
-     case J9BCfstore0: this->fstore0(); break;
-     case J9BCfstore1: this->fstore1(); break;
-     case J9BCfstore2: this->fstore2(); break;
-     case J9BCfstore3: this->fstore3(); break;
-     case J9BCfsub: this->fsub(); break;
-     case J9BCgetfield: this->getfield(bci.next2Bytes(), bci); break;
-     case J9BCgetstatic: this->getstatic(bci.next2Bytes(), bci); break;
-     case J9BCgoto: bci.next2BytesSigned(); break;
-     case J9BCgotow: bci.next4BytesSigned(); break;
-     case J9BCi2b: this->i2b(); break;
-     case J9BCi2c: this->i2c(); break;
-     case J9BCi2d: this->i2d(); break;
-     case J9BCi2f: this->i2f(); break;
-     case J9BCi2l: this->i2l(); break;
-     case J9BCi2s: this->i2s(); break;
-     case J9BCiadd: this->iadd(); break;
-     case J9BCiaload: this->aaload(); break; //TODO own function
-     case J9BCiand: this->iand(); break;
-     case J9BCiastore: this->aastore(); break; //TODO own function
-     case J9BCiconstm1: this->iconstm1(); break;
-     case J9BCiconst0: this->iconst0(); break;
-     case J9BCiconst1: this->iconst1(); break;
-     case J9BCiconst2: this->iconst2(); break;
-     case J9BCiconst3: this->iconst3(); break;
-     case J9BCiconst4: this->iconst4(); break;
-     case J9BCiconst5: this->iconst5(); break;
-     case J9BCidiv: this->idiv(); break;
-     case J9BCifacmpeq: this->ificmpeq(bci.next2Bytes(), bci.currentByteCodeIndex(), bci); break; //TODO own function
-     case J9BCifacmpne: this->ificmpne(bci.next2Bytes(), bci.currentByteCodeIndex(), bci); break; //TODO own function
-     case J9BCificmpeq: this->ificmpeq(bci.next2Bytes(), bci.currentByteCodeIndex(), bci); break;
-     case J9BCificmpge: this->ificmpge(bci.next2Bytes(), bci.currentByteCodeIndex(), bci); break;
-     case J9BCificmpgt: this->ificmpgt(bci.next2Bytes(), bci.currentByteCodeIndex(), bci); break;
-     case J9BCificmple: this->ificmple(bci.next2Bytes(), bci.currentByteCodeIndex(), bci); break;
-     case J9BCificmplt: this->ificmplt(bci.next2Bytes(), bci.currentByteCodeIndex(), bci); break;
-     case J9BCificmpne: this->ificmpne(bci.next2Bytes(), bci.currentByteCodeIndex(), bci); break;
-     case J9BCifeq: this->ifeq(bci.next2Bytes(), bci.currentByteCodeIndex(), bci); break;
-     case J9BCifge: this->ifge(bci.next2Bytes(), bci.currentByteCodeIndex(), bci); break;
-     case J9BCifgt: this->ifgt(bci.next2Bytes(), bci.currentByteCodeIndex(), bci); break;
-     case J9BCifle: this->ifle(bci.next2Bytes(), bci.currentByteCodeIndex(), bci); break;
-     case J9BCiflt: this->iflt(bci.next2Bytes(), bci.currentByteCodeIndex(), bci); break;
-     case J9BCifne: this->ifne(bci.next2Bytes(), bci.currentByteCodeIndex(), bci); break;
-     case J9BCifnonnull: this->ifnonnull(bci.next2Bytes(), bci.currentByteCodeIndex(), bci); break;
-     case J9BCifnull: this->ifnull(bci.next2Bytes(), bci.currentByteCodeIndex(), bci); break;
-     case J9BCiinc: this->iinc(bci.nextByte(), bci.nextByteSigned(2)); break;
-     case J9BCiload: this->iload(bci.nextByte()); break;
-     case J9BCiload0: this->iload0(); break;
-     case J9BCiload1: this->iload1(); break;
-     case J9BCiload2: this->iload2(); break;
-     case J9BCiload3: this->iload3(); break;
-     case J9BCimul: this->imul(); break;
-     case J9BCineg: this->ineg(); break;
-     case J9BCinstanceof: this->instanceof(bci.next2Bytes(), bci.currentByteCodeIndex(), bci); break;
+     case J9BCaaload: this->aaload(this->_absState); break;
+     case J9BCaastore: this->aastore(this->_absState); break;
+     case J9BCaconstnull: this->aconstnull(this->_absState); break;
+     case J9BCaload: this->aload(this->_absState, bci.nextByte()); break;
+     case J9BCaload0: this->aload0(this->_absState); break;
+     case /* aload0getfield */ 215: this->aload0getfield(this->_absState, 0); break;
+     case J9BCaload1: this->aload1(this->_absState); break;
+     case J9BCaload2: this->aload2(this->_absState); break;
+     case J9BCaload3: this->aload3(this->_absState); break;
+     case J9BCanewarray: this->anewarray(this->_absState, bci.next2Bytes()); break;
+     //case J9BCareturn: 
+     case J9BCarraylength: this->arraylength(this->_absState); break;
+     case J9BCastore: this->astore(this->_absState, bci.nextByte()); break;
+     case J9BCastore0: this->astore0(this->_absState); break;
+     case J9BCastore1: this->astore1(this->_absState); break;
+     case J9BCastore2: this->astore2(this->_absState); break;
+     case J9BCastore3: this->astore3(this->_absState); break;
+     case J9BCastorew: this->astore(this->_absState, bci.next2Bytes()); break; // WARN: internal bytecode
+     case J9BCathrow: this->athrow(this->_absState); break;
+     case J9BCbaload: this->baload(this->_absState); break;
+     case J9BCbastore: this->bastore(this->_absState); break;
+     case J9BCbipush: this->bipush(this->_absState, bci.nextByte()); break;
+     case J9BCcaload : this->caload(this->_absState); break;
+     case J9BCcastore: this->castore(this->_absState); break;
+     case J9BCcheckcast: this->checkcast(this->_absState, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
+     case J9BCd2f: this->d2f(this->_absState); break;
+     case J9BCd2i: this->d2i(this->_absState); break;
+     case J9BCd2l: this->d2l(this->_absState); break;
+     case J9BCdadd: this->dadd(this->_absState); break;
+     case J9BCdaload: this->daload(this->_absState); break;
+     case J9BCdastore: this->dastore(this->_absState); break;
+     case J9BCdcmpl: this->dcmpl(this->_absState); break;
+     case J9BCdcmpg: this->dcmpg(this->_absState); break;
+     case J9BCdconst0: this->dconst0(this->_absState); break;
+     case J9BCdconst1: this->dconst1(this->_absState); break;
+     case J9BCddiv: this->ddiv(this->_absState); break;
+     case J9BCdload: this->dload(this->_absState, bci.nextByte()); break;
+     case J9BCdload0: this->dload0(this->_absState); break;
+     case J9BCdload1: this->dload1(this->_absState); break;
+     case J9BCdload2: this->dload2(this->_absState); break;
+     case J9BCdload3: this->dload3(this->_absState); break;
+     case J9BCdmul: this->dmul(this->_absState); break;
+     case J9BCdneg: this->dneg(this->_absState); break;
+     case J9BCdrem: this->drem(this->_absState); break;
+     //case J9BCdreturn
+     case J9BCdstore: this->dstore(this->_absState, bci.nextByte()); break;
+     case J9BCdstorew: this->dstore(this->_absState, bci.next2Bytes()); break; // WARN: internal bytecode
+     case J9BCdstore0: this->dstore0(this->_absState); break;
+     case J9BCdstore1: this->dstore1(this->_absState); break;
+     case J9BCdstore2: this->dstore2(this->_absState); break;
+     case J9BCdstore3: this->dstore3(this->_absState); break;
+     case J9BCdsub: this->dsub(this->_absState); break;
+     case J9BCdup: this->dup(this->_absState); break;
+     case J9BCdupx1: this->dupx1(this->_absState); break;
+     case J9BCdupx2: this->dupx2(this->_absState); break;
+     case J9BCdup2: this->dup2(this->_absState); break;
+     case J9BCdup2x1: this->dup2x1(this->_absState); break;
+     case J9BCdup2x2: this->dup2x2(this->_absState); break;
+     case J9BCf2d: this->f2d(this->_absState); break;
+     case J9BCf2i: this->f2i(this->_absState); break;
+     case J9BCf2l: this->f2l(this->_absState); break;
+     case J9BCfadd: this->fadd(this->_absState); break;
+     case J9BCfaload: this->faload(this->_absState); break;
+     case J9BCfastore: this->fastore(this->_absState); break;
+     case J9BCfcmpl: this->fcmpl(this->_absState); break;
+     case J9BCfcmpg: this->fcmpg(this->_absState); break;
+     case J9BCfconst0: this->fconst0(this->_absState); break;
+     case J9BCfconst1: this->fconst1(this->_absState); break;
+     case J9BCfdiv: this->fdiv(this->_absState); break;
+     case J9BCfload: this->fload(this->_absState, bci.nextByte()); break;
+     case J9BCfload0: this->fload0(this->_absState); break;
+     case J9BCfload1: this->fload1(this->_absState); break;
+     case J9BCfload2: this->fload2(this->_absState); break;
+     case J9BCfload3: this->fload3(this->_absState); break;
+     case J9BCfmul: this->fmul(this->_absState); break;
+     case J9BCfneg: this->fneg(this->_absState); break;
+     case J9BCfrem: this->frem(this->_absState); break;
+     //case J9BCfreturn: 
+     case J9BCfstore: this->fstore(this->_absState, bci.nextByte()); break;
+     case J9BCfstorew: this->fstore(this->_absState, bci.next2Bytes()); break; // WARN: internal bytecode
+     case J9BCfstore0: this->fstore0(this->_absState); break;
+     case J9BCfstore1: this->fstore1(this->_absState); break;
+     case J9BCfstore2: this->fstore2(this->_absState); break;
+     case J9BCfstore3: this->fstore3(this->_absState); break;
+     case J9BCfsub: this->fsub(this->_absState); break;
+     case J9BCgenericReturn: this->getState().getStackSize() != 0 ? this->_absState.pop() : 0; break; 
+     case J9BCgetfield: this->getfield(this->_absState, bci.next2Bytes()); break;
+     case J9BCgetstatic: this->getstatic(this->_absState, bci.next2Bytes()); break;
+     case J9BCgoto: this->_goto(this->_absState, bci.next2BytesSigned()); break;
+     case J9BCgotow: this->_gotow(this->_absState, bci.next4BytesSigned()); break;
+     case J9BCi2b: this->i2b(this->_absState); break;
+     case J9BCi2c: this->i2c(this->_absState); break;
+     case J9BCi2d: this->i2d(this->_absState); break;
+     case J9BCi2f: this->i2f(this->_absState); break;
+     case J9BCi2l: this->i2l(this->_absState); break;
+     case J9BCi2s: this->i2s(this->_absState); break;
+     case J9BCiadd: this->iadd(this->_absState); break;
+     case J9BCiaload: this->iaload(this->_absState); break;
+     case J9BCiand: this->iand(this->_absState); break;
+     case J9BCiastore: this->iastore(this->_absState); break;
+     case J9BCiconstm1: this->iconstm1(this->_absState); break;
+     case J9BCiconst0: this->iconst0(this->_absState); break;
+     case J9BCiconst1: this->iconst1(this->_absState); break;
+     case J9BCiconst2: this->iconst2(this->_absState); break;
+     case J9BCiconst3: this->iconst3(this->_absState); break;
+     case J9BCiconst4: this->iconst4(this->_absState); break;
+     case J9BCiconst5: this->iconst5(this->_absState); break;
+     case J9BCidiv: this->idiv(this->_absState); break;
+     case J9BCifacmpeq: this->ificmpeq(this->_absState, bci.next2Bytes(), bci.currentByteCodeIndex()); break; //TODO own function
+     case J9BCifacmpne: this->ificmpne(this->_absState, bci.next2Bytes(), bci.currentByteCodeIndex()); break; //TODO own function
+     case J9BCificmpeq: this->ificmpeq(this->_absState, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
+     case J9BCificmpge: this->ificmpge(this->_absState, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
+     case J9BCificmpgt: this->ificmpgt(this->_absState, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
+     case J9BCificmple: this->ificmple(this->_absState, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
+     case J9BCificmplt: this->ificmplt(this->_absState, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
+     case J9BCificmpne: this->ificmpne(this->_absState, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
+     case J9BCifeq: this->ifeq(this->_absState, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
+     case J9BCifge: this->ifge(this->_absState, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
+     case J9BCifgt: this->ifgt(this->_absState, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
+     case J9BCifle: this->ifle(this->_absState, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
+     case J9BCiflt: this->iflt(this->_absState, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
+     case J9BCifne: this->ifne(this->_absState, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
+     case J9BCifnonnull: this->ifnonnull(this->_absState, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
+     case J9BCifnull: this->ifnull(this->_absState, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
+     case J9BCiinc: this->iinc(this->_absState, bci.nextByte(), bci.nextByteSigned(2)); break;
+     case J9BCiload: this->iload(this->_absState, bci.nextByte()); break;
+     case J9BCiload0: this->iload0(this->_absState); break;
+     case J9BCiload1: this->iload1(this->_absState); break;
+     case J9BCiload2: this->iload2(this->_absState); break;
+     case J9BCiload3: this->iload3(this->_absState); break;
+     case J9BCimul: this->imul(this->_absState); break;
+     case J9BCineg: this->ineg(this->_absState); break;
+     case J9BCinstanceof: this->instanceof(this->_absState, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
      // invokes...
-     case J9BCinvokevirtual: this->invokevirtual(bci.currentByteCodeIndex(), bci.next2Bytes(), bci); break;
-     case J9BCinvokespecial: this->invokespecial(bci.currentByteCodeIndex(), bci.next2Bytes(), bci); break;
-     case J9BCinvokestatic: this->invokestatic(bci.currentByteCodeIndex(), bci.next2Bytes(), bci); break;
-     case J9BCinvokeinterface: this->invokeinterface(bci.currentByteCodeIndex(), bci.next2Bytes(), bci); break;
-     //case J9BCinvokespecial: this->invokeinterface(bci.currentByteCodeIndex(), bci.next2Bytes()); break;
-     case J9BCior: this->ior(); break;
-     case J9BCirem: this->irem(); break;
-     //case J9BCireturn: this->pop; break; //
-     case J9BCgenericReturn: this->_stack.size() != 0 ? this->pop() : 0; break; //FIXME return semantics
-     case J9BCishl: this->ishl(); break;
-     case J9BCishr: this->ishr(); break;
-     case J9BCistore: this->istore(bci.nextByte()); break;
-     case J9BCistorew: this->istore(bci.next2Bytes()); break; //WARN: internal bytecode
-     case J9BCistore0: this->istore0(); break;
-     case J9BCistore1: this->istore1(); break;
-     case J9BCistore2: this->istore2(); break;
-     case J9BCistore3: this->istore3(); break;
-     case J9BCisub: this->isub(); break;
-     case J9BCiushr: this->iushr(); break;
-     case J9BCixor: this->ixor(); break;
+     //case J9BCinvokedynamic: this->invokedynamic(bci.currentByteCodeIndex(), bci.next2Bytes()); break;
+     case J9BCinvokeinterface: this->invokeinterface(this->_absState, bci.currentByteCodeIndex(), bci.next2Bytes()); break;
+     case J9BCinvokespecial: this->invokespecial(this->_absState, bci.currentByteCodeIndex(), bci.next2Bytes()); break;
+     case J9BCinvokestatic: this->invokestatic(this->_absState, bci.currentByteCodeIndex(), bci.next2Bytes()); break;
+     case J9BCinvokevirtual: this->invokevirtual(this->_absState, bci.currentByteCodeIndex(), bci.next2Bytes()); break;
+     case J9BCior: this->ior(this->_absState); break;
+     case J9BCirem: this->irem(this->_absState); break;
+     //case J9BCireturn:
+     case J9BCishl: this->ishl(this->_absState); break;
+     case J9BCishr: this->ishr(this->_absState); break;
+     case J9BCistore: this->istore(this->_absState, bci.nextByte()); break;
+     case J9BCistorew: this->istore(this->_absState, bci.next2Bytes()); break; //WARN: internal bytecode
+     case J9BCistore0: this->istore0(this->_absState); break;
+     case J9BCistore1: this->istore1(this->_absState); break;
+     case J9BCistore2: this->istore2(this->_absState); break;
+     case J9BCistore3: this->istore3(this->_absState); break;
+     case J9BCisub: this->isub(this->_absState); break;
+     case J9BCiushr: this->iushr(this->_absState); break;
+     case J9BCixor: this->ixor(this->_absState); break;
      // jsr
      // jsr_w
-     case J9BCl2d: this->l2d(); break;
-     case J9BCl2f: this->l2f(); break;
-     case J9BCl2i: this->l2i(); break;
-     case J9BCladd: this->ladd(); break;
-     case J9BClaload: this->laload(); break;
-     case J9BCland: this->land(); break;
-     case J9BClastore: this->aastore(); break; //TODO own function
-     case J9BClcmp: this->lcmp(); break;
-     case J9BClconst0: this->lconst0(); break;
-     case J9BClconst1: this->lconst1(); break;
-     case J9BCldc: this->ldc(bci.nextByte(), bci); break;
-     case J9BCldcw: this->ldc(bci.next2Bytes(), bci); break; //TODO own function?
-     case J9BCldc2lw: this->ldc(bci.next2Bytes(), bci); break; //WARN: internal bytecode equivalent to ldc2_w
-     case J9BCldc2dw: this->ldc(bci.next2Bytes(), bci); break; //WARN: internal bytecode equivalent to ldc2_w
-     case J9BCldiv: this->ldiv(); break;
-     case J9BClload: this->lload(bci.nextByte()); break;
-     case J9BClload0: this->lload0(); break;
-     case J9BClload1: this->lload1(); break;
-     case J9BClload2: this->lload2(); break;
-     case J9BClload3: this->lload3(); break;
-     case J9BClmul: this->lmul(); break;
-     case J9BClneg: this->lneg(); break;
-     case J9BClookupswitch : this->pop(); break; // TODO
-     case J9BClor: this->lor(); break;
-     case J9BClrem: this->lrem(); break;
-     //case J9BClreturn: this->pop(); this->pop(); break; //FIXME: return semantics
-     case J9BClshl: this->lshl(); break;
-     case J9BClshr: this->lshr(); break;
-     case J9BClstore: this->dstore(bci.nextByte()); break; // TODO: own functions?
-     case J9BClstorew: this->dstore(bci.next2Bytes()); break; // WARN: internal bytecode
-     case J9BClstore0: this->dstore0(); break;
-     case J9BClstore1: this->dstore1(); break;
-     case J9BClstore2: this->dstore2(); break;
-     case J9BClstore3: this->dstore3(); break;
-     case J9BClsub: this->lsub(); break;
-     case J9BClushr: this->lushr(); break;
-     case J9BClxor: this->lxor(); break;
-     case J9BCmonitorenter: this->monitorenter(); break;
-     case J9BCmonitorexit: this->monitorexit(); break;
-     case J9BCmultianewarray: this->multianewarray(bci.next2Bytes(), bci.nextByteSigned(3)); break;
-     case J9BCnew: this->_new(bci.next2Bytes()); break;
-     case J9BCnewarray: this->newarray(bci.nextByte()); break;
+     case J9BCl2d: this->l2d(this->_absState); break;
+     case J9BCl2f: this->l2f(this->_absState); break;
+     case J9BCl2i: this->l2i(this->_absState); break;
+     case J9BCladd: this->ladd(this->_absState); break;
+     case J9BClaload: this->laload(this->_absState); break;
+     case J9BCland: this->land(this->_absState); break;
+     case J9BClastore: this->lastore(this->_absState); break;
+     case J9BClcmp: this->lcmp(this->_absState); break;
+     case J9BClconst0: this->lconst0(this->_absState); break;
+     case J9BClconst1: this->lconst1(this->_absState); break;
+     case J9BCldc: this->ldc(this->_absState, bci.nextByte()); break;
+     case J9BCldcw: this->ldcw(this->_absState, bci.next2Bytes()); break;
+     case J9BCldc2lw: this->ldc(this->_absState, bci.next2Bytes()); break; //WARN: internal bytecode equivalent to ldc2_w
+     case J9BCldc2dw: this->ldc(this->_absState, bci.next2Bytes()); break; //WARN: internal bytecode equivalent to ldc2_w
+     case J9BCldiv: this->ldiv(this->_absState); break;
+     case J9BClload: this->lload(this->_absState, bci.nextByte()); break;
+     case J9BClload0: this->lload0(this->_absState); break;
+     case J9BClload1: this->lload1(this->_absState); break;
+     case J9BClload2: this->lload2(this->_absState); break;
+     case J9BClload3: this->lload3(this->_absState); break;
+     case J9BClmul: this->lmul(this->_absState); break;
+     case J9BClneg: this->lneg(this->_absState); break;
+     case J9BClookupswitch : this->lookupswitch(this->_absState); break;
+     case J9BClor: this->lor(this->_absState); break;
+     case J9BClrem: this->lrem(this->_absState); break;
+     //case J9BClreturn: 
+     case J9BClshl: this->lshl(this->_absState); break;
+     case J9BClshr: this->lshr(this->_absState); break;
+     case J9BClsub: this->lsub(this->_absState); break;
+     case J9BClushr: this->lushr(this->_absState); break;
+     case J9BClstore: this->lstore(this->_absState, bci.nextByte()); break;
+     case J9BClstorew: this->lstorew(this->_absState, bci.next2Bytes()); break; // WARN: internal bytecode
+     case J9BClstore0: this->lstore0(this->_absState); break;
+     case J9BClstore1: this->lstore1(this->_absState); break;
+     case J9BClstore2: this->lstore2(this->_absState); break;
+     case J9BClstore3: this->lstore3(this->_absState); break;
+     case J9BClxor: this->lxor(this->_absState); break;
+     case J9BCmonitorenter: this->monitorenter(this->_absState); break;
+     case J9BCmonitorexit: this->monitorexit(this->_absState); break;
+     case J9BCmultianewarray: this->multianewarray(this->_absState, bci.next2Bytes(), bci.nextByteSigned(3)); break;
+     case J9BCnew: this->_new(this->_absState, bci.next2Bytes()); break;
+     case J9BCnewarray: this->newarray(this->_absState, bci.nextByte()); break;
      case J9BCnop: /* yeah nothing */ break;
-     case J9BCpop: this->pop(); break;
-     case J9BCpop2: this->pop2(); break;
-     case J9BCputfield: this->putfield(); break;
-     case J9BCputstatic: this->putstatic(); break;
+     case J9BCpop: this->_absState.pop(); break;
+     case J9BCpop2: this->pop2(this->_absState); break;
+     case J9BCputfield: this->putfield(this->_absState); break;
+     case J9BCputstatic: this->putstatic(this->_absState); break;
      // ret
      // return
-     case J9BCsaload: this->aaload(); break;
-     case J9BCsastore: this->aastore(); break;
-     case J9BCsipush: this->sipush(bci.next2Bytes()); break;
-     case J9BCswap: this->swap(); break;
-     case J9BCReturnC: this->pop(); break;
-     case J9BCReturnS: this->pop(); break;
-     case J9BCReturnB: this->pop(); break;
+     case J9BCsaload: this->saload(this->_absState); break;
+     case J9BCsastore: this->sastore(this->_absState); break;
+     case J9BCsipush: this->sipush(this->_absState, bci.next2Bytes()); break;
+     case J9BCswap: this->swap(this->_absState); break;
+     case J9BCReturnC: this->_absState.pop(); break;
+     case J9BCReturnS: this->_absState.pop(); break;
+     case J9BCReturnB: this->_absState.pop(); break;
      case J9BCReturnZ: /*yeah nothing */ break;
-     case J9BCtableswitch: this->pop(); break;
+     case J9BCtableswitch: this->tableswitch(this->_absState); break;
      //TODO: clean me
      case J9BCwide:
        {
@@ -427,20 +381,19 @@ AbsEnvStatic::interpret(TR_J9ByteCode bc, TR_J9ByteCodeIterator &bci)
        TR_J9ByteCode bc2 = bci.current();
        switch (bc2)
           {
-          case J9BCiload: this->iload(bci.next2Bytes()); break;
-          case J9BClload: this->lload(bci.next2Bytes()); break;
-          case J9BCfload: this->fload(bci.next2Bytes()); break;
-          case J9BCdload: this->dload(bci.next2Bytes()); break;
-          case J9BCaload: this->aload(bci.next2Bytes()); break;
-          case J9BCistore: this->istore(bci.next2Bytes()); break; 
-          case J9BClstore: this->dstore(bci.next2Bytes()); break;  // TODO: own function?
-          case J9BCfstore: this->fstore(bci.next2Bytes()); break; 
-          case J9BCdstore: this->dstore(bci.next2Bytes()); break; 
-          case J9BCastore: this->astore(bci.next2Bytes()); break; 
+          case J9BCiload: this->iload(this->_absState, bci.next2Bytes()); break;
+          case J9BClload: this->lload(this->_absState, bci.next2Bytes()); break;
+          case J9BCfload: this->fload(this->_absState, bci.next2Bytes()); break;
+          case J9BCdload: this->dload(this->_absState, bci.next2Bytes()); break;
+          case J9BCaload: this->aload(this->_absState, bci.next2Bytes()); break;
+          case J9BCistore: this->istore(this->_absState, bci.next2Bytes()); break; 
+          case J9BClstore: this->dstore(this->_absState, bci.next2Bytes()); break;  // TODO: own function?
+          case J9BCfstore: this->fstore(this->_absState, bci.next2Bytes()); break; 
+          case J9BCdstore: this->dstore(this->_absState, bci.next2Bytes()); break; 
+          case J9BCastore: this->astore(this->_absState, bci.next2Bytes()); break; 
           }
        }
      break;
-     //case J9BCgenericReturn: /* yeah nothing */ break;
      default:
      break;
      }
@@ -451,241 +404,392 @@ AbsEnvStatic::interpret(TR_J9ByteCode bc, TR_J9ByteCodeIterator &bci)
      }
   }
 
-//TODO, no strings here...
-// We need to unnest IDT::Node
 void
 AbsEnvStatic::trace(const char* methodName)
   {
   if (methodName) traceMsg(TR::comp(), "method %s\n", methodName);
-  this->_array.trace(this->_vp);
-  this->_stack.trace(this->_vp, this->_region);
+  this->getState().trace(this->getVP());
   }
 
 void
-AbsEnvStatic::multianewarray(int cpIndex, int dimensions)
+AbstractState::trace(TR::ValuePropagation *vp)
+{
+   this->_array.trace(vp);
+   this->_stack.trace(vp, this->_region);
+}
+
+AbstractState&
+AbsEnvStatic::multianewarray(AbstractState & absState, int cpIndex, int dimensions)
 {
   for (int i = 0; i < dimensions; i++)
     {
-    this->pop();
+    absState.pop();
     }
   this->pushNull();
+  return absState;
 }
 
-void
-AbsEnvStatic::aaload()
-  {
-  AbsValue *index = this->pop();
-  AbsValue *arrayRef = this->pop();
+AbstractState&
+AbsEnvStatic::caload(AbstractState& absState)
+{
+  AbsValue *index = absState.pop();
+  AbsValue *arrayRef = absState.pop();
   this->pushNull();
+  return absState;
+}
+
+
+AbstractState&
+AbsEnvStatic::faload(AbstractState & absState)
+  {
+  AbsValue *index = absState.pop();
+  AbsValue *arrayRef = absState.pop();
+  this->pushNull();
+  return absState;
   }
 
-void
-AbsEnvStatic::laload()
+AbstractState&
+AbsEnvStatic::iaload(AbstractState & absState)
   {
-  AbsValue *index = this->pop();
-  AbsValue *arrayRef = this->pop();
+  AbsValue *index = absState.pop();
+  AbsValue *arrayRef = absState.pop();
+  this->pushNull();
+  return absState;
+  }
+
+AbstractState&
+AbsEnvStatic::saload(AbstractState & absState)
+  {
+  AbsValue *index = absState.pop();
+  AbsValue *arrayRef = absState.pop();
+  this->pushNull();
+  return absState;
+  }
+
+AbstractState&
+AbsEnvStatic::aaload(AbstractState & absState)
+  {
+  AbsValue *index = absState.pop();
+  AbsValue *arrayRef = absState.pop();
+  this->pushNull();
+  return absState;
+  }
+
+AbstractState&
+AbsEnvStatic::laload(AbstractState &absState)
+  {
+  AbsValue *index = absState.pop();
+  AbsValue *arrayRef = absState.pop();
   AbsValue *value1 = this->getTopDataType(TR::Int64);
   AbsValue *value2 = this->getTopDataType(TR::NoType);
-  push(value1);
-  push(value2);
+  absState.push(value1);
+  absState.push(value2);
+  return absState;
   }
 
-void
-AbsEnvStatic::daload()
+AbstractState&
+AbsEnvStatic::daload(AbstractState &absState)
   {
-  AbsValue *index = this->pop();
-  AbsValue *arrayRef = this->pop();
+  AbsValue *index = absState.pop();
+  AbsValue *arrayRef = absState.pop();
   AbsValue *value1 = this->getTopDataType(TR::Double);
   AbsValue *value2 = this->getTopDataType(TR::NoType);
-  push(value1);
-  push(value2);
+  absState.push(value1);
+  absState.push(value2);
+  return absState;
   }
 
-void
-AbsEnvStatic::aastore()
-  {
+AbstractState&
+AbsEnvStatic::castore(AbstractState &absState)
+{
   //TODO:
-  AbsValue *value = this->pop();
-  AbsValue *index = this->pop();
-  AbsValue *arrayRef = this->pop();
+  AbsValue *value = absState.pop();
+  AbsValue *index = absState.pop();
+  AbsValue *arrayRef = absState.pop();
   // if we have arrayRef, we know arrayRef is not null
   // if we have index and arrayRef length, we may know if safe to remove bounds checking
+  return absState;
+}
+
+AbstractState&
+AbsEnvStatic::dastore(AbstractState &absState)
+{
+  //TODO:
+  AbsValue *value = absState.pop();
+  AbsValue *index = absState.pop();
+  AbsValue *arrayRef = absState.pop();
+  // if we have arrayRef, we know arrayRef is not null
+  // if we have index and arrayRef length, we may know if safe to remove bounds checking
+  return absState;
+}
+
+AbstractState&
+AbsEnvStatic::fastore(AbstractState &absState)
+  {
+  //TODO:
+  AbsValue *value = absState.pop();
+  AbsValue *index = absState.pop();
+  AbsValue *arrayRef = absState.pop();
+  // if we have arrayRef, we know arrayRef is not null
+  // if we have index and arrayRef length, we may know if safe to remove bounds checking
+  return absState;
   }
 
-void
-AbsEnvStatic::aconstnull() {
-  TR::VPConstraint *null = TR::VPNullObject::create(this->_vp);
-  AbsValue *absValue = new (_region) AbsValue(null, TR::Address);
-  this->push(absValue);
+AbstractState&
+AbsEnvStatic::iastore(AbstractState &absState)
+  {
+  //TODO:
+  AbsValue *value = absState.pop();
+  AbsValue *index = absState.pop();
+  AbsValue *arrayRef = absState.pop();
+  // if we have arrayRef, we know arrayRef is not null
+  // if we have index and arrayRef length, we may know if safe to remove bounds checking
+  return absState;
+  }
+
+AbstractState&
+AbsEnvStatic::lastore(AbstractState &absState)
+  {
+  //TODO:
+  AbsValue *value = absState.pop();
+  AbsValue *index = absState.pop();
+  AbsValue *arrayRef = absState.pop();
+  // if we have arrayRef, we know arrayRef is not null
+  // if we have index and arrayRef length, we may know if safe to remove bounds checking
+  return absState;
+  }
+
+AbstractState&
+AbsEnvStatic::sastore(AbstractState &absState)
+  {
+  //TODO:
+  AbsValue *value = absState.pop();
+  AbsValue *index = absState.pop();
+  AbsValue *arrayRef = absState.pop();
+  // if we have arrayRef, we know arrayRef is not null
+  // if we have index and arrayRef length, we may know if safe to remove bounds checking
+  return absState;
+  }
+
+AbstractState&
+AbsEnvStatic::aastore(AbstractState &absState)
+  {
+  //TODO:
+  AbsValue *value = absState.pop();
+  AbsValue *index = absState.pop();
+  AbsValue *arrayRef = absState.pop();
+  // if we have arrayRef, we know arrayRef is not null
+  // if we have index and arrayRef length, we may know if safe to remove bounds checking
+  return absState;
+  }
+
+AbstractState&
+AbsEnvStatic::aconstnull(AbstractState &absState) {
+  TR::VPConstraint *null = TR::VPNullObject::create(this->getVP());
+  AbsValue *absValue = new (getRegion()) AbsValue(null, TR::Address);
+  absState.push(absValue);
+  return absState;
+}
+
+AbstractState&
+AbsEnvStatic::aload(AbstractState &absState, int n) {
+  this->aloadn(absState, n);
+  return absState;
+}
+
+AbstractState&
+AbsEnvStatic::aload0(AbstractState &absState) {
+  this->aloadn(absState, 0);
+  return absState;
+}
+
+AbstractState&
+AbsEnvStatic::aload1(AbstractState &absState) {
+  this->aloadn(absState, 1);
+  return absState;
+}
+
+AbstractState&
+AbsEnvStatic::aload2(AbstractState &absState) {
+  this->aloadn(absState, 2);
+  return absState;
+}
+
+AbstractState&
+AbsEnvStatic::aload3(AbstractState &absState) {
+  this->aloadn(absState, 3);
+  return absState;
 }
 
 void
-AbsEnvStatic::aload(int n) {
-  this->aloadn(n);
+AbsEnvStatic::aloadn(AbstractState& absState, int n) {
+  AbsValue *constraint = absState.at(n);
+  absState.push(constraint);
 }
 
-void
-AbsEnvStatic::aload0() {
-  this->aloadn(0);
+AbstractState&
+AbsEnvStatic::astore(AbstractState &absState, int varIndex) {
+  AbsValue* constraint = absState.pop();
+  absState.at(varIndex, constraint);
+  return absState;
 }
 
-void
-AbsEnvStatic::aload1() {
-  this->aloadn(1);
+AbstractState&
+AbsEnvStatic::astore0(AbstractState &absState) {
+  this->astore(absState, 0);
+  return absState;
 }
 
-void
-AbsEnvStatic::aload2() {
-  this->aloadn(2);
+AbstractState&
+AbsEnvStatic::astore1(AbstractState &absState) {
+  this->astore(absState, 1);
+  return absState;
 }
 
-void
-AbsEnvStatic::aload3() {
-  this->aloadn(3);
+AbstractState&
+AbsEnvStatic::astore2(AbstractState &absState) {
+  this->astore(absState, 2);
+  return absState;
 }
 
-void
-AbsEnvStatic::aloadn(int n) {
-  AbsValue *constraint = this->at(n);
-  this->push(constraint);
+AbstractState&
+AbsEnvStatic::astore3(AbstractState &absState) {
+  this->astore(absState, 3);
+  return absState;
 }
 
-void
-AbsEnvStatic::astore(int varIndex) {
-  AbsValue* constraint = this->pop();
-  this->at(varIndex, constraint);
-}
-
-void
-AbsEnvStatic::astore0() {
-  this->astore(0);
-}
-
-void
-AbsEnvStatic::astore1() {
-  this->astore(1);
-}
-
-void
-AbsEnvStatic::astore2() {
-  this->astore(2);
-}
-
-void
-AbsEnvStatic::astore3() {
-  this->astore(3);
-}
-
-void
-AbsEnvStatic::bipush(int byte) {
-  TR::VPShortConst *data = TR::VPShortConst::create(this->_vp, byte);
+AbstractState&
+AbsEnvStatic::bipush(AbstractState &absState, int byte) {
+  TR::VPShortConst *data = TR::VPShortConst::create(this->getVP(), byte);
   //TODO: should I use TR::Int32 or something else?
-  AbsValue *absValue = new (_region) AbsValue(data, TR::Int32);
-  this->push(absValue);
+  AbsValue *absValue = new (getRegion()) AbsValue(data, TR::Int32);
+  absState.push(absValue);
+  return absState;
 }
 
-void
-AbsEnvStatic::bastore() {
-  this->aastore();
+AbstractState&
+AbsEnvStatic::bastore(AbstractState &absState) {
+  this->aastore(absState);
+  return absState;
 }
 
-void
-AbsEnvStatic::baload() {
-  this->aaload();
+AbstractState&
+AbsEnvStatic::baload(AbstractState &absState) {
+  this->aaload(absState);
+  return absState;
 }
 
-void
-AbsEnvStatic::checkcast(int cpIndex, int bytecodeIndex) {
-  AbsValue *absValue = this->pop();
+AbstractState&
+AbsEnvStatic::checkcast(AbstractState &absState, int cpIndex, int bytecodeIndex) {
+  AbsValue *absValue = absState.pop();
   TR::VPConstraint *objectRef = absValue->_vp;
   if (!objectRef)
     {
-    this->push(absValue);
-    return;
+    absState.push(absValue);
+    return absState;
     }
 
-  // TODO: _rms
-  TR_ResolvedMethod* method = this->_rms->getResolvedMethod();
+  TR_ResolvedMethod* method = this->getResolvedMethodSymbol()->getResolvedMethod();
   // TODO: can we do this some other way? I don't want to pass TR::comp();
   TR_OpaqueClassBlock* type = method->getClassFromConstantPool(TR::comp(), cpIndex);
   TR::VPConstraint *typeConstraint = NULL;
   // If objectRef is not assignable to a class of type type then throw an exception.
 
-  this->push(absValue);
+  absState.push(absValue);
+  return absState;
 }
 
-void
-AbsEnvStatic::dup() {
-  AbsValue *value = this->pop();
-  this->push(value);
-  this->push(value); 
+AbstractState&
+AbsEnvStatic::dup(AbstractState &absState) {
+  AbsValue *value = absState.pop();
+  absState.push(value);
+  absState.push(value); 
+  return absState;
 }
 
-void
-AbsEnvStatic::dupx1() {
-  AbsValue *value1 = this->pop();
-  AbsValue *value2 = this->pop();
-  this->push(value1);
-  this->push(value2);
-  this->push(value1);
+AbstractState&
+AbsEnvStatic::dupx1(AbstractState &absState) {
+  AbsValue *value1 = absState.pop();
+  AbsValue *value2 = absState.pop();
+  absState.push(value1);
+  absState.push(value2);
+  absState.push(value1);
+  return absState;
 }
 
-void
-AbsEnvStatic::dupx2() {
-  AbsValue *value1 = this->pop();
-  AbsValue *value2 = this->pop();
-  AbsValue *value3 = this->pop();
-  this->push(value1);
-  this->push(value3);
-  this->push(value2);
-  this->push(value1);
+AbstractState&
+AbsEnvStatic::dupx2(AbstractState &absState) {
+  AbsValue *value1 = absState.pop();
+  AbsValue *value2 = absState.pop();
+  AbsValue *value3 = absState.pop();
+  absState.push(value1);
+  absState.push(value3);
+  absState.push(value2);
+  absState.push(value1);
+  return absState;
 }
 
-void
-AbsEnvStatic::dup2() {
-  AbsValue *value1 = this->pop();
-  AbsValue *value2 = this->pop();
-  this->push(value2);
-  this->push(value1);
-  this->push(value2);
-  this->push(value1);
+AbstractState&
+AbsEnvStatic::dup2(AbstractState &absState) {
+  AbsValue *value1 = absState.pop();
+  AbsValue *value2 = absState.pop();
+  absState.push(value2);
+  absState.push(value1);
+  absState.push(value2);
+  absState.push(value1);
+  return absState;
 }
 
-void
-AbsEnvStatic::dup2x1() {
-  AbsValue *value1 = this->pop();
-  AbsValue *value2 = this->pop();
-  AbsValue *value3 = this->pop();
-  this->push(value2);
-  this->push(value1);
-  this->push(value3);
-  this->push(value2);
-  this->push(value1);
+AbstractState&
+AbsEnvStatic::dup2x1(AbstractState &absState) {
+  AbsValue *value1 = absState.pop();
+  AbsValue *value2 = absState.pop();
+  AbsValue *value3 = absState.pop();
+  absState.push(value2);
+  absState.push(value1);
+  absState.push(value3);
+  absState.push(value2);
+  absState.push(value1);
+  return absState;
 }
 
-void
-AbsEnvStatic::dup2x2() {
-  AbsValue *value1 = this->pop();
-  AbsValue *value2 = this->pop();
-  AbsValue *value3 = this->pop();
-  AbsValue *value4 = this->pop();
-  this->push(value2);
-  this->push(value1);
-  this->push(value4);
-  this->push(value3);
-  this->push(value2);
-  this->push(value1);
+AbstractState&
+AbsEnvStatic::dup2x2(AbstractState &absState) {
+  AbsValue *value1 = absState.pop();
+  AbsValue *value2 = absState.pop();
+  AbsValue *value3 = absState.pop();
+  AbsValue *value4 = absState.pop();
+  absState.push(value2);
+  absState.push(value1);
+  absState.push(value4);
+  absState.push(value3);
+  absState.push(value2);
+  absState.push(value1);
+  return absState;
 }
 
-void
-AbsEnvStatic::getstatic(int cpIndex, TR_J9ByteCodeIterator &bci) {
+AbstractState&
+AbsEnvStatic::_goto(AbstractState &absState, int branch)
+{
+  return absState;
+}
+
+
+AbstractState&
+AbsEnvStatic::_gotow(AbstractState &absState, int branch)
+{
+  return absState;
+}
+
+AbstractState&
+AbsEnvStatic::getstatic(AbstractState &absState, int cpIndex) {
    void* staticAddress;
    TR::DataType type = TR::NoType;
    bool isVolatile;
    bool isPrivate;
    bool isUnresolvedInVP;
    bool isFinal;
-   bool isResolved = bci.method()->staticAttributes(TR::comp(),
+   bool isResolved = this->getResolvedMethodSymbol()->getResolvedMethod()->staticAttributes(TR::comp(),
          cpIndex,
          &staticAddress,
          &type,
@@ -698,23 +802,24 @@ AbsEnvStatic::getstatic(int cpIndex, TR_J9ByteCodeIterator &bci) {
 
    AbsValue *value1 = this->getTopDataType(type);
    //TODO: if datatype is address... then we can probably find the class and get a tighter bound
-   this->push(value1);
-   if (!value1->isType2()) { return; }
-   AbsValue *value2= this->getTopDataType(TR::NoType);
-   this->push(value2);
+   absState.push(value1);
+   if (!value1->isType2()) { return absState; }
+  AbsValue *value2= this->getTopDataType(TR::NoType);
+  absState.push(value2);
+  return absState;
 }
 
 
-void
-AbsEnvStatic::getfield(int cpIndex, TR_J9ByteCodeIterator &bci) {
-   AbsValue *objectref = this->pop();
+AbstractState&
+AbsEnvStatic::getfield(AbstractState &absState, int cpIndex) {
+   AbsValue *objectref = absState.pop();
    uint32_t fieldOffset;
    TR::DataType type = TR::NoType;
    bool isVolatile;
    bool isPrivate;
    bool isUnresolvedInVP;
    bool isFinal;
-   bool isResolved = bci.method()->fieldAttributes(TR::comp(),
+   bool isResolved = this->getResolvedMethodSymbol()->getResolvedMethod()->fieldAttributes(TR::comp(),
          cpIndex,
          &fieldOffset,
          &type,
@@ -726,57 +831,59 @@ AbsEnvStatic::getfield(int cpIndex, TR_J9ByteCodeIterator &bci) {
          false); //needsAOTValidation
    AbsValue *value1 = this->getTopDataType(type);
    //TODO: if datatype is address... then we can probably find the class and get a tighter bound
-   this->push(value1);
-   if (!value1->isType2()) { return; }
+   absState.push(value1);
+   if (!value1->isType2()) { return absState; }
    AbsValue *value2= this->getTopDataType(TR::NoType);
-   this->push(value2);
+   absState.push(value2);
+  return absState;
    
 }
 
-void
-AbsEnvStatic::iand() {
-  AbsValue *value1 = this->pop();
-  AbsValue* value2 = this->pop();
+AbstractState&
+AbsEnvStatic::iand(AbstractState &absState) {
+  AbsValue *value1 = absState.pop();
+  AbsValue* value2 = absState.pop();
   bool nonnull = value1->_vp && value2->_vp;
   if (!nonnull)
      {
      AbsValue *result = this->getTopDataType(TR::Int32);
-     this->push(result);
-     return;
+     absState.push(result);
+     return absState;
      }
 
   bool allConstants = value1->_vp->asIntConst() && value2->_vp->asIntConst();
   if (!allConstants)
      {
      AbsValue *result = this->getTopDataType(TR::Int32);
-     this->push(result);
-     return;
+     absState.push(result);
+     return absState;
      }
 
   int result = value1->_vp->asIntConst()->getLow() & value2->_vp->asIntConst()->getLow();
-  this->push(new (_region) AbsValue(TR::VPIntConst::create(this->_vp, result), TR::Int32));
+  absState.push(new (getRegion()) AbsValue(TR::VPIntConst::create(this->getVP(), result), TR::Int32));
+  return absState;
 }
 
-void
-AbsEnvStatic::instanceof(int cpIndex, int byteCodeIndex, TR_J9ByteCodeIterator &bci) {
-  AbsValue *objectRef = this->pop();
+AbstractState&
+AbsEnvStatic::instanceof(AbstractState &absState, int cpIndex, int byteCodeIndex) {
+  AbsValue *objectRef = absState.pop();
   if (!objectRef->_vp)
      {
-     this->push(new (_region) AbsValue(TR::VPIntConst::create(this->_vp, 0), TR::Int32));
-     return;
+     absState.push(new (getRegion()) AbsValue(TR::VPIntConst::create(this->getVP(), 0), TR::Int32));
+     return absState;
      }
 
-  TR_ResolvedMethod* method = bci.method();
+  TR_ResolvedMethod* method = this->getResolvedMethodSymbol()->getResolvedMethod();
   TR_OpaqueClassBlock *block = method->getClassFromConstantPool(TR::comp(), cpIndex);
   if (!block)
      {
-     this->push(new (_region) AbsValue(TR::VPIntRange::create(this->_vp, 0, 1), TR::Int32));
-     return;
+     absState.push(new (getRegion()) AbsValue(TR::VPIntRange::create(this->getVP(), 0, 1), TR::Int32));
+     return absState;
      }
 
-  TR::VPClassType *fixedClass = TR::VPFixedClass::create(this->_vp, block);
-  TR::VPObjectLocation *objectLocation = TR::VPObjectLocation::create(this->_vp, TR::VPObjectLocation::J9ClassObject);
-  TR::VPConstraint *typeConstraint= TR::VPClass::create(this->_vp, fixedClass, NULL, NULL, NULL, objectLocation);
+  TR::VPClassType *fixedClass = TR::VPFixedClass::create(this->getVP(), block);
+  TR::VPObjectLocation *objectLocation = TR::VPObjectLocation::create(this->getVP(), TR::VPObjectLocation::J9ClassObject);
+  TR::VPConstraint *typeConstraint= TR::VPClass::create(this->getVP(), fixedClass, NULL, NULL, NULL, objectLocation);
   /*
    * The following rules are used to determine whether an objectref that is
    * not null is an instance of the resolved type: 
@@ -794,11 +901,11 @@ AbsEnvStatic::instanceof(int cpIndex, int byteCodeIndex, TR_J9ByteCodeIterator &
       * If T is a class type, then S must be the same class as T, or S
       * must be a subclass of T;
       */
-     if(typeConstraint->intersect(objectRef->_vp, this->_vp))
-        this->push(new (_region) AbsValue(TR::VPIntConst::create(this->_vp, 1), TR::Int32));
+     if(typeConstraint->intersect(objectRef->_vp, this->getVP()))
+        absState.push(new (getRegion()) AbsValue(TR::VPIntConst::create(this->getVP(), 1), TR::Int32));
      else
-        this->push(new (_region) AbsValue(TR::VPIntConst::create(this->_vp, 0), TR::Int32));
-     return;
+        absState.push(new (getRegion()) AbsValue(TR::VPIntConst::create(this->getVP(), 0), TR::Int32));
+   return absState;
      }
   else if (false)
      {
@@ -815,150 +922,156 @@ AbsEnvStatic::instanceof(int cpIndex, int byteCodeIndex, TR_J9ByteCodeIterator &
        TC and SC are the same primitive type.
        TC and SC are reference types, and type SC can be cast to TC by these run-time rules. */
 
-  this->push(new (_region) AbsValue(TR::VPIntRange::create(this->_vp, 0, 1), TR::Int32));
+  absState.push(new (getRegion()) AbsValue(TR::VPIntRange::create(this->getVP(), 0, 1), TR::Int32));
+   return absState;
 }
 
-void
-AbsEnvStatic::ior() {
-  AbsValue *value1 = this->pop();
-  AbsValue* value2 = this->pop();
+AbstractState&
+AbsEnvStatic::ior(AbstractState &absState) {
+  AbsValue *value1 = absState.pop();
+  AbsValue* value2 = absState.pop();
   bool nonnull = value1->_vp && value2->_vp;
   if (!nonnull)
      {
      AbsValue *result = this->getTopDataType(TR::Int32);
-     this->push(result);
-     return;
+     absState.push(result);
+     return absState;
      }
 
   bool allConstants = value1->_vp->asIntConst() && value2->_vp->asIntConst();
   if (!allConstants)
      {
      AbsValue *result = this->getTopDataType(TR::Int32);
-     this->push(result);
-     return;
+     absState.push(result);
+     return absState;
      }
 
   int result = value1->_vp->asIntConst()->getLow() | value2->_vp->asIntConst()->getLow();
-  this->push(new (_region) AbsValue(TR::VPIntConst::create(this->_vp, result), TR::Int32));
+  absState.push(new (getRegion()) AbsValue(TR::VPIntConst::create(this->getVP(), result), TR::Int32));
+  return absState;
 }
 
-void
-AbsEnvStatic::ixor() {
-  AbsValue *value1 = this->pop();
-  AbsValue* value2 = this->pop();
+AbstractState&
+AbsEnvStatic::ixor(AbstractState &absState) {
+  AbsValue *value1 = absState.pop();
+  AbsValue* value2 = absState.pop();
   bool nonnull = value1->_vp && value2->_vp;
   if (!nonnull)
      {
      AbsValue *result = this->getTopDataType(TR::Int32);
-     this->push(result);
-     return;
+     absState.push(result);
+     return absState;
      }
 
   bool allConstants = value1->_vp->asIntConst() && value2->_vp->asIntConst();
   if (!allConstants)
      {
      AbsValue *result = this->getTopDataType(TR::Int32);
-     this->push(result);
-     return;
+     absState.push(result);
+     return absState;
      }
 
   int result = value1->_vp->asIntConst()->getLow() ^ value2->_vp->asIntConst()->getLow();
-  this->push(new (_region) AbsValue(TR::VPIntConst::create(this->_vp, result), TR::Int32));
+  absState.push(new (getRegion()) AbsValue(TR::VPIntConst::create(this->getVP(), result), TR::Int32));
+  return absState;
 }
 
-void
-AbsEnvStatic::irem() {
-  AbsValue *value1 = this->pop();
-  AbsValue* value2 = this->pop();
+AbstractState&
+AbsEnvStatic::irem(AbstractState &absState) {
+  AbsValue *value1 = absState.pop();
+  AbsValue* value2 = absState.pop();
   bool nonnull = value1->_vp && value2->_vp;
   if (!nonnull)
      {
      AbsValue *result = this->getTopDataType(TR::Int32);
-     this->push(result);
-     return;
+     absState.push(result);
+     return absState;
      }
   bool allConstants = value1->_vp->asIntConst() && value2->_vp->asIntConst();
   if (!allConstants)
      {
      AbsValue *result = this->getTopDataType(TR::Int32);
-     this->push(result);
-     return;
+     absState.push(result);
+     return absState;
      }
 
   int int1 = value1->_vp->asIntConst()->getLow();
   int int2 = value2->_vp->asIntConst()->getLow();
   int result = int1 - (int1/ int2) * int2;
-  this->push(new (_region) AbsValue(TR::VPIntConst::create(this->_vp, result), TR::Int32));
+  absState.push(new (getRegion()) AbsValue(TR::VPIntConst::create(this->getVP(), result), TR::Int32));
+  return absState;
 }
 
-void
-AbsEnvStatic::ishl() {
-  AbsValue *value1 = this->pop();
-  AbsValue* value2 = this->pop();
+AbstractState&
+AbsEnvStatic::ishl(AbstractState &absState) {
+  AbsValue *value1 = absState.pop();
+  AbsValue* value2 = absState.pop();
   bool nonnull = value1->_vp && value2->_vp;
   if (!nonnull)
      {
      AbsValue *result = this->getTopDataType(TR::Int32);
-     this->push(result);
-     return;
+     absState.push(result);
+     return absState;
      }
   bool allConstants = value1->_vp->asIntConst() && value2->_vp->asIntConst();
   if (!allConstants)
      {
      AbsValue *result = this->getTopDataType(TR::Int32);
-     this->push(result);
-     return;
+     absState.push(result);
+     return absState;
      }
 
   int int1 = value1->_vp->asIntConst()->getLow();
   int int2 = value2->_vp->asIntConst()->getLow() & 0x1f;
   int result = int1 << int2;
-  this->push(new (_region) AbsValue(TR::VPIntConst::create(this->_vp, result), TR::Int32));
+  absState.push(new (getRegion()) AbsValue(TR::VPIntConst::create(this->getVP(), result), TR::Int32));
+  return absState;
 }
 
-void
-AbsEnvStatic::ishr() {
-  AbsValue *value1 = this->pop();
-  AbsValue* value2 = this->pop();
+AbstractState&
+AbsEnvStatic::ishr(AbstractState &absState) {
+  AbsValue *value1 = absState.pop();
+  AbsValue* value2 = absState.pop();
   bool nonnull = value1->_vp && value2->_vp;
   if (!nonnull)
      {
      AbsValue *result = this->getTopDataType(TR::Int32);
-     this->push(result);
-     return;
+     absState.push(result);
+     return absState;
      }
   bool allConstants = value1->_vp->asIntConst() && value2->_vp->asIntConst();
   if (!allConstants)
      {
      AbsValue *result = this->getTopDataType(TR::Int32);
-     this->push(result);
-     return;
+     absState.push(result);
+     return absState;
      }
 
   int int1 = value1->_vp->asIntConst()->getLow();
   int int2 = value2->_vp->asIntConst()->getLow() & 0x1f;
   //arithmetic shift.
   int result = int1 >> int2;
-  this->push(new (_region) AbsValue(TR::VPIntConst::create(this->_vp, result), TR::Int32));
+  absState.push(new (getRegion()) AbsValue(TR::VPIntConst::create(this->getVP(), result), TR::Int32));
+  return absState;
 }
 
-void
-AbsEnvStatic::iushr() {
-  AbsValue *value1 = this->pop();
-  AbsValue* value2 = this->pop();
+AbstractState&
+AbsEnvStatic::iushr(AbstractState &absState) {
+  AbsValue *value1 = absState.pop();
+  AbsValue* value2 = absState.pop();
   bool nonnull = value1->_vp && value2->_vp;
   if (!nonnull)
      {
      AbsValue *result = this->getTopDataType(TR::Int32);
-     this->push(result);
-     return;
+     absState.push(result);
+     return absState;
      }
   bool allConstants = value1->_vp->asIntConst() && value2->_vp->asIntConst();
   if (!allConstants)
      {
      AbsValue *result = this->getTopDataType(TR::Int32);
-     this->push(result);
-     return;
+     absState.push(result);
+     return absState;
      }
 
   int int1 = value1->_vp->asIntConst()->getLow();
@@ -966,26 +1079,27 @@ AbsEnvStatic::iushr() {
   int result = int1 >> int2;
   //logical shift, gets rid of the sign.
   result &= 0x7FFFFFFF;
-  this->push(new (_region) AbsValue(TR::VPIntConst::create(this->_vp, result), TR::Int32));
+  absState.push(new (getRegion()) AbsValue(TR::VPIntConst::create(this->getVP(), result), TR::Int32));
+  return absState;
 }
 
-void
-AbsEnvStatic::idiv() {
-  AbsValue *value1 = this->pop();
-  AbsValue* value2 = this->pop();
+AbstractState&
+AbsEnvStatic::idiv(AbstractState &absState) {
+  AbsValue *value1 = absState.pop();
+  AbsValue* value2 = absState.pop();
   bool nonnull = value1->_vp && value2->_vp;
   if (!nonnull)
      {
      AbsValue *result = this->getTopDataType(TR::Int32);
-     this->push(result);
-     return;
+     absState.push(result);
+     return absState;
      }
   bool allConstants = value1->_vp->asIntConst() && value2->_vp->asIntConst();
   if (!allConstants)
      {
      AbsValue *result = this->getTopDataType(TR::Int32);
-     this->push(result);
-     return;
+     absState.push(result);
+     return absState;
      }
 
   int int1 = value1->_vp->asIntConst()->getLow();
@@ -994,469 +1108,522 @@ AbsEnvStatic::idiv() {
     {
      // this should throw an exception.
      AbsValue *result = this->getTopDataType(TR::Int32);
-     this->push(result);
-     return;
+     absState.push(result);
+     return absState;
     }
   int result = int1 / int2;
-  this->push(new (_region) AbsValue(TR::VPIntConst::create(this->_vp, result), TR::Int32));
+  absState.push(new (getRegion()) AbsValue(TR::VPIntConst::create(this->getVP(), result), TR::Int32));
+  return absState;
 }
 
-void
-AbsEnvStatic::imul() {
-  AbsValue *value1 = this->pop();
-  AbsValue* value2 = this->pop();
+AbstractState&
+AbsEnvStatic::imul(AbstractState &absState) {
+  AbsValue *value1 = absState.pop();
+  AbsValue* value2 = absState.pop();
   bool nonnull = value1->_vp && value2->_vp;
   if (!nonnull)
      {
      AbsValue *result = this->getTopDataType(TR::Int32);
-     this->push(result);
-     return;
+     absState.push(result);
+     return absState;
      }
   bool allConstants = value1->_vp->asIntConst() && value2->_vp->asIntConst();
   if (!allConstants)
      {
      AbsValue *result = this->getTopDataType(TR::Int32);
-     this->push(result);
-     return;
+     absState.push(result);
+     return absState;
      }
 
   int int1 = value1->_vp->asIntConst()->getLow();
   int int2 = value2->_vp->asIntConst()->getLow();
   int result = int1 * int2;
-  this->push(new (_region) AbsValue(TR::VPIntConst::create(this->_vp, result), TR::Int32));
+  absState.push(new (getRegion()) AbsValue(TR::VPIntConst::create(this->getVP(), result), TR::Int32));
+  return absState;
 }
 
-void
-AbsEnvStatic::ineg() {
-  AbsValue *value1 = this->pop();
+AbstractState&
+AbsEnvStatic::ineg(AbstractState &absState) {
+  AbsValue *value1 = absState.pop();
   bool allConstants = value1->_vp && value1->_vp->asIntConst();
   if (!allConstants)
      {
      AbsValue *result = this->getTopDataType(TR::Int32);
-     this->push(result);
-     return;
+     absState.push(result);
+     return absState;
      }
 
   //TODO: more precision for ranges, subtract VPIntConst 0 from value1
   int int1 = value1->_vp->asIntConst()->getLow();
   int result = -int1;
-  this->push(new (_region) AbsValue(TR::VPIntConst::create(this->_vp, result), TR::Int32));
+  absState.push(new (getRegion()) AbsValue(TR::VPIntConst::create(this->getVP(), result), TR::Int32));
+  return absState;
+}
+
+AbstractState&
+AbsEnvStatic::iconstm1(AbstractState &absState) {
+  this->iconst(absState, -1);
+  return absState;
+}
+
+AbstractState&
+AbsEnvStatic::iconst0(AbstractState &absState) {
+  this->iconst(absState, 0);
+  return absState;
+}
+
+AbstractState&
+AbsEnvStatic::iconst1(AbstractState &absState) {
+  this->iconst(absState, 1);
+  return absState;
+}
+
+AbstractState&
+AbsEnvStatic::iconst2(AbstractState &absState) {
+  this->iconst(absState, 2);
+  return absState;
+}
+
+AbstractState&
+AbsEnvStatic::iconst3(AbstractState &absState) {
+  this->iconst(absState, 3);
+  return absState;
+}
+
+AbstractState&
+AbsEnvStatic::iconst4(AbstractState &absState) {
+  this->iconst(absState, 4);
+  return absState;
+}
+
+AbstractState&
+AbsEnvStatic::iconst5(AbstractState &absState) {
+  this->iconst(absState, 5);
+  return absState;
 }
 
 void
-AbsEnvStatic::iconstm1() {
-  this->iconst(-1);
+AbsEnvStatic::iconst(AbstractState &absState, int n) {
+  this->pushConstInt(absState, n);
 }
 
-void
-AbsEnvStatic::iconst0() {
-  this->iconst(0);
+AbstractState&
+AbsEnvStatic::ifeq(AbstractState& absState, int branchOffset, int bytecodeIndex) {
+  absState.pop();
+  return absState;
 }
 
-void
-AbsEnvStatic::iconst1() {
-  this->iconst(1);
+AbstractState&
+AbsEnvStatic::ifne(AbstractState& absState, int branchOffset, int bytecodeIndex) {
+  absState.pop();
+  return absState;
 }
 
-void
-AbsEnvStatic::iconst2() {
-  this->iconst(2);
+AbstractState&
+AbsEnvStatic::iflt(AbstractState& absState, int branchOffset, int bytecodeIndex) {
+  absState.pop();
+  return absState;
 }
 
-void
-AbsEnvStatic::iconst3() {
-  this->iconst(3);
+AbstractState&
+AbsEnvStatic::ifle(AbstractState& absState, int branchOffset, int bytecodeIndex) {
+  absState.pop();
+  return absState;
 }
 
-void
-AbsEnvStatic::iconst4() {
-  this->iconst(4);
+AbstractState&
+AbsEnvStatic::ifgt(AbstractState& absState, int branchOffset, int bytecodeIndex) {
+  absState.pop();
+  return absState;
 }
 
-void
-AbsEnvStatic::iconst5() {
-  this->iconst(5);
+AbstractState&
+AbsEnvStatic::ifge(AbstractState& absState, int branchOffset, int bytecodeIndex) {
+  absState.pop();
+  return absState;
 }
 
-void
-AbsEnvStatic::iconst(int n) {
-  this->pushConstInt(n);
+AbstractState&
+AbsEnvStatic::ifnull(AbstractState& absState, int branchOffset, int bytecodeIndex) {
+  absState.pop();
+  return absState;
 }
 
-void
-AbsEnvStatic::ifeq(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
-  this->pop();
+AbstractState&
+AbsEnvStatic::ifnonnull(AbstractState& absState, int branchOffset, int bytecodeIndex) {
+  absState.pop();
+  return absState;
 }
 
-void
-AbsEnvStatic::ifne(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
-  this->pop();
+AbstractState&
+AbsEnvStatic::ificmpge(AbstractState& absState, int branchOffset, int bytecodeIndex) {
+  absState.pop();
+  absState.pop();
+  return absState;
 }
 
-void
-AbsEnvStatic::iflt(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
-  this->pop();
+AbstractState&
+AbsEnvStatic::ificmpeq(AbstractState& absState, int branchOffset, int bytecodeIndex) {
+  absState.pop();
+  absState.pop();
+  return absState;
 }
 
-void
-AbsEnvStatic::ifle(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
-  this->pop();
+AbstractState&
+AbsEnvStatic::ificmpne(AbstractState& absState, int branchOffset, int bytecodeIndex) {
+  absState.pop();
+  absState.pop();
+  return absState;
 }
 
-void
-AbsEnvStatic::ifgt(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
-  this->pop();
+AbstractState&
+AbsEnvStatic::ificmplt(AbstractState& absState, int branchOffset, int bytecodeIndex) {
+  absState.pop();
+  absState.pop();
+  return absState;
 }
 
-void
-AbsEnvStatic::ifge(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
-  this->pop();
+AbstractState&
+AbsEnvStatic::ificmpgt(AbstractState& absState, int branchOffset, int bytecodeIndex) {
+  absState.pop();
+  absState.pop();
+  return absState;
 }
 
-void
-AbsEnvStatic::ifnull(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
-  this->pop();
+AbstractState&
+AbsEnvStatic::ificmple(AbstractState& absState, int branchOffset, int bytecodeIndex) {
+  absState.pop();
+  absState.pop();
+  return absState;
 }
 
-void
-AbsEnvStatic::ifnonnull(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
-  this->pop();
+AbstractState&
+AbsEnvStatic::ifacmpeq(AbstractState& absState, int branchOffset, int bytecodeIndex) {
+  absState.pop();
+  absState.pop();
+  return absState;
 }
 
-void
-AbsEnvStatic::ificmpge(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
-  this->pop();
-  this->pop();
+AbstractState&
+AbsEnvStatic::ifacmpne(AbstractState& absState, int branchOffset, int bytecodeIndex) {
+  absState.pop();
+  absState.pop();
+  return absState;
 }
 
-void
-AbsEnvStatic::ificmpeq(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
-  this->pop();
-  this->pop();
+AbstractState&
+AbsEnvStatic::iload(AbstractState& absState, int n) {
+  this->aloadn(absState, n);
+  return absState;
 }
 
-void
-AbsEnvStatic::ificmpne(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
-  this->pop();
-  this->pop();
+AbstractState&
+AbsEnvStatic::iload0(AbstractState& absState) {
+  this->iload(absState, 0);
+  return absState;
 }
 
-void
-AbsEnvStatic::ificmplt(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
-  this->pop();
-  this->pop();
+AbstractState&
+AbsEnvStatic::iload1(AbstractState& absState) {
+  this->iload(absState, 1);
+  return absState;
 }
 
-void
-AbsEnvStatic::ificmpgt(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
-  this->pop();
-  this->pop();
+AbstractState&
+AbsEnvStatic::iload2(AbstractState& absState) {
+  this->iload(absState, 2);
+  return absState;
 }
 
-void
-AbsEnvStatic::ificmple(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
-  this->pop();
-  this->pop();
+AbstractState&
+AbsEnvStatic::iload3(AbstractState& absState) {
+  this->iload(absState, 3);
+  return absState;
 }
 
-void
-AbsEnvStatic::ifacmpeq(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
-  this->pop();
-  this->pop();
+AbstractState&
+AbsEnvStatic::istore(AbstractState& absState, int n) {
+  absState.at(n, absState.pop());
+  return absState;
 }
 
-void
-AbsEnvStatic::ifacmpne(int branchOffset, int bytecodeIndex, TR_J9ByteCodeIterator &bci) {
-  this->pop();
-  this->pop();
+AbstractState&
+AbsEnvStatic::istore0(AbstractState& absState) {
+  absState.at(0, absState.pop());
+  return absState;
 }
 
-void
-AbsEnvStatic::iload(int n) {
-  this->aloadn(n);
+AbstractState&
+AbsEnvStatic::istore1(AbstractState& absState) {
+  absState.at(1, absState.pop());
+  return absState;
 }
 
-void
-AbsEnvStatic::iload0() {
-  this->iload(0);
+AbstractState&
+AbsEnvStatic::istore2(AbstractState& absState) {
+  absState.at(2, absState.pop());
+  return absState;
 }
 
-void
-AbsEnvStatic::iload1() {
-  this->iload(1);
+AbstractState&
+AbsEnvStatic::istore3(AbstractState& absState) {
+  absState.at(3, absState.pop());
+  return absState;
 }
 
-void
-AbsEnvStatic::iload2() {
-  this->iload(2);
-}
-
-void
-AbsEnvStatic::iload3() {
-  this->iload(3);
-}
-
-void
-AbsEnvStatic::istore(int n) {
-  this->at(n, this->pop());
-}
-
-void
-AbsEnvStatic::istore0() {
-  this->at(0, this->pop());
-}
-
-void
-AbsEnvStatic::istore1() {
-  this->at(1, this->pop());
-}
-
-void
-AbsEnvStatic::istore2() {
-  this->at(2, this->pop());
-}
-
-void
-AbsEnvStatic::istore3() {
-  this->at(3, this->pop());
-}
-
-void
-AbsEnvStatic::isub() {
-  AbsValue *value1 = this->pop();
-  AbsValue *value2 = this->pop();
+AbstractState&
+AbsEnvStatic::isub(AbstractState& absState) {
+  AbsValue *value1 = absState.pop();
+  AbsValue *value2 = absState.pop();
   bool nonnull = value1->_vp && value2->_vp;
   if (!nonnull)
     {
     AbsValue *result = this->getTopDataType(TR::Int32);
-    this->push(result);
-    return;
+    absState.push(result);
+    return absState;
     }
 
-  TR::VPConstraint *result_vp = value1->_vp->subtract(value2->_vp, value2->_dt, this->_vp);
-  AbsValue *result = new (_region) AbsValue(result_vp, value2->_dt);
-  this->push(result);
+  TR::VPConstraint *result_vp = value1->_vp->subtract(value2->_vp, value2->_dt, this->getVP());
+  AbsValue *result = new (getRegion()) AbsValue(result_vp, value2->_dt);
+  absState.push(result);
+  return absState;
 }
 
-void
-AbsEnvStatic::iadd() {
-  AbsValue *value1 = this->pop();
-  AbsValue *value2 = this->pop();
+AbstractState&
+AbsEnvStatic::iadd(AbstractState& absState) {
+  AbsValue *value1 = absState.pop();
+  AbsValue *value2 = absState.pop();
   bool nonnull = value1->_vp && value2->_vp;
   if (!nonnull)
     {
     AbsValue *result = this->getTopDataType(TR::Int32);
-    this->push(result);
-    return;
+    absState.push(result);
+    return absState;
     }
 
-  TR::VPConstraint *result_vp = value1->_vp->add(value2->_vp, value2->_dt, this->_vp);
-  AbsValue *result = new (_region) AbsValue(result_vp, value2->_dt);
-  this->push(result);
+  TR::VPConstraint *result_vp = value1->_vp->add(value2->_vp, value2->_dt, this->getVP());
+  AbsValue *result = new (getRegion()) AbsValue(result_vp, value2->_dt);
+  absState.push(result);
+  return absState;
 }
 
-void
-AbsEnvStatic::i2d() {
-  AbsValue *value = this->pop();
+AbstractState&
+AbsEnvStatic::i2d(AbstractState& absState) {
+  AbsValue *value = absState.pop();
   AbsValue *result = this->getTopDataType(TR::Double);
-  this->push(result);
+  absState.push(result);
   AbsValue *result2 = this->getTopDataType(TR::NoType);
-  this->push(result2);
+  absState.push(result2);
+  return absState;
 }
 
-void
-AbsEnvStatic::i2f() {
-  AbsValue *value = this->pop();
+AbstractState&
+AbsEnvStatic::i2f(AbstractState& absState) {
+  AbsValue *value = absState.pop();
   AbsValue *result = this->getTopDataType(TR::Float);
-  this->push(result);
+  absState.push(result);
+  return absState;
 }
 
-void
-AbsEnvStatic::i2l() {
-  AbsValue *value = this->pop();
+AbstractState&
+AbsEnvStatic::i2l(AbstractState& absState) {
+  AbsValue *value = absState.pop();
   AbsValue *result = this->getTopDataType(TR::Int64);
-  this->push(result);
+  absState.push(result);
   AbsValue *result2 = this->getTopDataType(TR::NoType);
-  this->push(result2);
+  absState.push(result2);
+  return absState;
 }
 
-void
-AbsEnvStatic::i2s() {
+AbstractState&
+AbsEnvStatic::i2s(AbstractState& absState) {
   //empty?
+  return absState;
 }
 
-void
-AbsEnvStatic::i2c() {
+AbstractState&
+AbsEnvStatic::i2c(AbstractState& absState) {
   //empty?
+  return absState;
 }
 
-void
-AbsEnvStatic::i2b() {
+AbstractState&
+AbsEnvStatic::i2b(AbstractState& absState) {
   // empty?
+  return absState;
 }
 
-void
-AbsEnvStatic::dadd() {
-  AbsValue *value1 = this->pop();
-  AbsValue *value2 = this->pop();
-  AbsValue *value3 = this->pop();
-  AbsValue *value4 = this->pop();
+AbstractState&
+AbsEnvStatic::dadd(AbstractState& absState) {
+  AbsValue *value1 = absState.pop();
+  AbsValue *value2 = absState.pop();
+  AbsValue *value3 = absState.pop();
+  AbsValue *value4 = absState.pop();
   AbsValue *result1 = this->getTopDataType(TR::Double);
   AbsValue *result2 = this->getTopDataType(TR::NoType);
-  this->push(result1);
-  this->push(result2);
+  absState.push(result1);
+  absState.push(result2);
+  return absState;
 }
 
-void
-AbsEnvStatic::dsub() {
-  AbsValue *value1 = this->pop();
-  AbsValue *value2 = this->pop();
-  AbsValue *value3 = this->pop();
-  AbsValue *value4 = this->pop();
+AbstractState&
+AbsEnvStatic::dsub(AbstractState& absState) {
+  AbsValue *value1 = absState.pop();
+  AbsValue *value2 = absState.pop();
+  AbsValue *value3 = absState.pop();
+  AbsValue *value4 = absState.pop();
   AbsValue *result1 = this->getTopDataType(TR::Double);
   AbsValue *result2 = this->getTopDataType(TR::NoType);
-  this->push(result1);
-  this->push(result2);
+  absState.push(result1);
+  absState.push(result2);
+  return absState;
 }
 
-void
-AbsEnvStatic::fsub() {
-  AbsValue *value1 = this->pop();
-  AbsValue *value2 = this->pop();
+AbstractState&
+AbsEnvStatic::fsub(AbstractState& absState) {
+  AbsValue *value1 = absState.pop();
+  AbsValue *value2 = absState.pop();
   AbsValue *result = this->getTopDataType(TR::Float);
-  this->push(result);
+  absState.push(result);
+  return absState;
 }
 
-void
-AbsEnvStatic::fadd() {
-  AbsValue *value1 = this->pop();
-  AbsValue *value2 = this->pop();
+AbstractState&
+AbsEnvStatic::fadd(AbstractState& absState) {
+  AbsValue *value1 = absState.pop();
+  AbsValue *value2 = absState.pop();
   AbsValue *result = this->getTopDataType(TR::Float);
-  this->push(result);
+  absState.push(result);
+  return absState;
 }
 
-void
-AbsEnvStatic::ladd() {
-  AbsValue *value1 = this->pop();
-  AbsValue *value2 = this->pop();
-  AbsValue *value3 = this->pop();
-  AbsValue *value4 = this->pop();
+AbstractState&
+AbsEnvStatic::ladd(AbstractState& absState) {
+  AbsValue *value1 = absState.pop();
+  AbsValue *value2 = absState.pop();
+  AbsValue *value3 = absState.pop();
+  AbsValue *value4 = absState.pop();
   bool nonnull = value2->_vp && value4->_vp;
   if (!nonnull)
     {
     AbsValue *result1 = this->getTopDataType(TR::Int64);
     AbsValue *result2 = this->getTopDataType(TR::NoType);
-    this->push(result1);
-    this->push(result2);
-    return;
+    absState.push(result1);
+    absState.push(result2);
+    return absState;
     }
 
-  TR::VPConstraint *result_vp = value2->_vp->add(value4->_vp, value4->_dt, this->_vp);
-  AbsValue *result = new (_region) AbsValue(result_vp, TR::Int64);
-  this->push(result);
+  TR::VPConstraint *result_vp = value2->_vp->add(value4->_vp, value4->_dt, this->getVP());
+  AbsValue *result = new (getRegion()) AbsValue(result_vp, TR::Int64);
+  absState.push(result);
   this->getTopDataType(TR::NoType);
+  return absState;
 }
 
-void
-AbsEnvStatic::lsub() {
-  AbsValue *value1 = this->pop();
-  AbsValue *value2 = this->pop();
-  AbsValue *value3 = this->pop();
-  AbsValue *value4 = this->pop();
+AbstractState&
+AbsEnvStatic::lsub(AbstractState& absState) {
+  AbsValue *value1 = absState.pop();
+  AbsValue *value2 = absState.pop();
+  AbsValue *value3 = absState.pop();
+  AbsValue *value4 = absState.pop();
   bool nonnull = value2->_vp && value4->_vp;
   if (!nonnull)
     {
     AbsValue *result1 = this->getTopDataType(TR::Int64);
     AbsValue *result2 = this->getTopDataType(TR::NoType);
-    this->push(result1);
-    this->push(result2);
-    return;
+    absState.push(result1);
+    absState.push(result2);
+    return absState;
     }
 
-  TR::VPConstraint *result_vp = value2->_vp->subtract(value4->_vp, value4->_dt, this->_vp);
-  AbsValue *result = new (_region) AbsValue(result_vp, TR::Int64);
-  this->push(result);
+  TR::VPConstraint *result_vp = value2->_vp->subtract(value4->_vp, value4->_dt, this->getVP());
+  AbsValue *result = new (getRegion()) AbsValue(result_vp, TR::Int64);
+  absState.push(result);
   this->getTopDataType(TR::NoType);
+  return absState;
 }
 
-void
-AbsEnvStatic::l2i() {
-  AbsValue *value1 = this->pop();
-  AbsValue *value2 = this->pop();
+AbstractState&
+AbsEnvStatic::l2i(AbstractState& absState) {
+  AbsValue *value1 = absState.pop();
+  AbsValue *value2 = absState.pop();
   bool nonnull = value2->_vp;
   if (!nonnull)
     {
     AbsValue *result1 = this->getTopDataType(TR::Int32);
-    this->push(result1);
-    return;
+    absState.push(result1);
+    return absState;
     }
 
   bool canCompute = value2->_vp && value2->_vp->asLongConstraint();
   if (!canCompute)
      {
      AbsValue *result = this->getTopDataType(TR::Int32);
-     this->push(result);
+     absState.push(result);
+     return absState;
      }
 
-  TR::VPConstraint *intConst = TR::VPIntRange::create(this->_vp, value2->_vp->asLongConstraint()->getLow(), value2->_vp->asLongConstraint()->getHigh());
-  AbsValue *result = new (_region) AbsValue(intConst, TR::Int32);
-  this->push(result);
+  TR::VPConstraint *intConst = TR::VPIntRange::create(this->getVP(), value2->_vp->asLongConstraint()->getLow(), value2->_vp->asLongConstraint()->getHigh());
+  AbsValue *result = new (getRegion()) AbsValue(intConst, TR::Int32);
+  absState.push(result);
+  return absState;
 }
 
-void
-AbsEnvStatic::land() {
-  AbsValue *value1 = this->pop();
-  AbsValue* value2 = this->pop();
-  AbsValue *value3 = this->pop();
-  AbsValue *value4 = this->pop();
+AbstractState&
+AbsEnvStatic::land(AbstractState& absState) {
+  AbsValue *value1 = absState.pop();
+  AbsValue* value2 = absState.pop();
+  AbsValue *value3 = absState.pop();
+  AbsValue *value4 = absState.pop();
   bool nonnull = value2->_vp && value4->_vp;
   if (!nonnull)
     {
     AbsValue *result1 = this->getTopDataType(TR::Int64);
     AbsValue *result2 = this->getTopDataType(TR::NoType);
-    this->push(result1);
-    this->push(result2);
-    return;
+    absState.push(result1);
+    absState.push(result2);
+    return absState;
     }
   bool allConstants = value2->_vp->asLongConst() && value4->_vp->asLongConst();
   if (!allConstants)
      {
      AbsValue *result1 = this->getTopDataType(TR::Int64);
      AbsValue *result2 = this->getTopDataType(TR::NoType);
-     this->push(result1);
-     this->push(result2);
-     return;
+     absState.push(result1);
+     absState.push(result2);
+     return absState;
      }
 
   int result = value2->_vp->asLongConst()->getLow() & value4->_vp->asLongConst()->getLow();
-  this->push(new (_region) AbsValue(TR::VPLongConst::create(this->_vp, result), TR::Int64));
+  absState.push(new (getRegion()) AbsValue(TR::VPLongConst::create(this->getVP(), result), TR::Int64));
   AbsValue *result2 = this->getTopDataType(TR::NoType);
-  this->push(result2);
+  absState.push(result2);
+  return absState;
 }
 
-void
-AbsEnvStatic::ldiv() {
-  AbsValue *value1 = this->pop();
-  AbsValue* value2 = this->pop();
-  AbsValue* value3 = this->pop();
-  AbsValue* value4 = this->pop();
+AbstractState&
+AbsEnvStatic::ldiv(AbstractState& absState) {
+  AbsValue *value1 = absState.pop();
+  AbsValue* value2 = absState.pop();
+  AbsValue* value3 = absState.pop();
+  AbsValue* value4 = absState.pop();
   bool nonnull = value2->_vp && value4->_vp;
   if (!nonnull)
     {
     AbsValue *result1 = this->getTopDataType(TR::Int64);
     AbsValue *result2 = this->getTopDataType(TR::NoType);
-    this->push(result1);
-    this->push(result2);
-    return;
+    absState.push(result1);
+    absState.push(result2);
+     return absState;
     }
   bool allConstants = value2->_vp->asLongConst() && value4->_vp->asLongConst();
   if (!allConstants)
      {
      AbsValue *result1 = this->getTopDataType(TR::Int64);
      AbsValue *result2 = this->getTopDataType(TR::NoType);
-     this->push(result1);
-     this->push(result2);
-     return;
+     absState.push(result1);
+     absState.push(result2);
+     return absState;
      }
 
   long int1 = value2->_vp->asLongConst()->getLow();
@@ -1466,740 +1633,950 @@ AbsEnvStatic::ldiv() {
      // this should throw an exception.
      AbsValue *result1 = this->getTopDataType(TR::Int64);
      AbsValue *result2 = this->getTopDataType(TR::NoType);
-     this->push(result1);
-     this->push(result2);
-     return;
+     absState.push(result1);
+     absState.push(result2);
+     return absState;
     }
   long result = int1 / int2;
-  this->push(new (_region) AbsValue(TR::VPLongConst::create(this->_vp, result), TR::Int64));
+  absState.push(new (getRegion()) AbsValue(TR::VPLongConst::create(this->getVP(), result), TR::Int64));
   AbsValue *result2 = this->getTopDataType(TR::NoType);
-  this->push(result2);
+  absState.push(result2);
+  return absState;
 }
 
-void
-AbsEnvStatic::lmul() {
-  AbsValue *value1 = this->pop();
-  AbsValue* value2 = this->pop();
-  AbsValue* value3 = this->pop();
-  AbsValue* value4 = this->pop();
+AbstractState&
+AbsEnvStatic::lmul(AbstractState& absState) {
+  AbsValue *value1 = absState.pop();
+  AbsValue* value2 = absState.pop();
+  AbsValue* value3 = absState.pop();
+  AbsValue* value4 = absState.pop();
   bool nonnull = value2->_vp && value4->_vp;
   if (!nonnull)
     {
     AbsValue *result1 = this->getTopDataType(TR::Int64);
     AbsValue *result2 = this->getTopDataType(TR::NoType);
-    this->push(result1);
-    this->push(result2);
-    return;
+    absState.push(result1);
+    absState.push(result2);
+     return absState;
     }
   bool allConstants = value2->_vp->asLongConst() && value4->_vp->asLongConst();
   if (!allConstants)
      {
      AbsValue *result1 = this->getTopDataType(TR::Int64);
      AbsValue *result2 = this->getTopDataType(TR::NoType);
-     this->push(result1);
-     this->push(result2);
-     return;
+     absState.push(result1);
+     absState.push(result2);
+     return absState;
      }
 
   long int1 = value1->_vp->asLongConst()->getLow();
   long int2 = value2->_vp->asLongConst()->getLow();
   long result = int1 * int2;
-  this->push(new (_region) AbsValue(TR::VPLongConst::create(this->_vp, result), TR::Int64));
+  absState.push(new (getRegion()) AbsValue(TR::VPLongConst::create(this->getVP(), result), TR::Int64));
   AbsValue *result2 = this->getTopDataType(TR::NoType);
-  this->push(result2);
+  absState.push(result2);
+  return absState;
 }
 
-void
-AbsEnvStatic::lneg() {
-  AbsValue *value1 = this->pop();
-  AbsValue *value2 = this->pop();
+AbstractState&
+AbsEnvStatic::lookupswitch(AbstractState& absState)
+{
+  absState.pop();
+  return absState;
+}
+
+AbstractState&
+AbsEnvStatic::tableswitch(AbstractState& absState)
+{
+  absState.pop();
+  return absState;
+}
+
+AbstractState&
+AbsEnvStatic::lneg(AbstractState& absState) {
+  AbsValue *value1 = absState.pop();
+  AbsValue *value2 = absState.pop();
   bool nonnull = value2->_vp;
   if (!nonnull)
     {
-    this->push(value2);
-    this->push(value1);
-    return;
+    absState.push(value2);
+    absState.push(value1);
+     return absState;
     }
   bool allConstants = value2->_vp->asLongConst();
   if (!allConstants)
      {
      AbsValue *result1 = this->getTopDataType(TR::Int64);
      AbsValue *result2 = this->getTopDataType(TR::NoType);
-     this->push(result1);
-     this->push(result2);
-     return;
+     absState.push(result1);
+     absState.push(result2);
+     return absState;
      }
 
   long int1 = value1->_vp->asLongConst()->getLow();
   long result = -int1;
-  this->push(new (_region) AbsValue(TR::VPLongConst::create(this->_vp, result), TR::Int64));
+  absState.push(new (getRegion()) AbsValue(TR::VPLongConst::create(this->getVP(), result), TR::Int64));
   AbsValue *result2 = this->getTopDataType(TR::NoType);
-  this->push(result2);
+  absState.push(result2);
+  return absState;
 }
 
-void
-AbsEnvStatic::lor() {
-  AbsValue *value1 = this->pop();
-  AbsValue* value2 = this->pop();
-  AbsValue* value3 = this->pop();
-  AbsValue* value4 = this->pop();
+AbstractState&
+AbsEnvStatic::lor(AbstractState& absState) {
+  AbsValue *value1 = absState.pop();
+  AbsValue* value2 = absState.pop();
+  AbsValue* value3 = absState.pop();
+  AbsValue* value4 = absState.pop();
   bool nonnull = value2->_vp && value4->_vp;
   if (!nonnull)
     {
     AbsValue *result1 = this->getTopDataType(TR::Int64);
     AbsValue *result2 = this->getTopDataType(TR::NoType);
-    this->push(result1);
-    this->push(result2);
-    return;
+    absState.push(result1);
+    absState.push(result2);
+     return absState;
     }
   bool allConstants = value2->_vp->asLongConst() && value2->_vp->asLongConst();
   if (!allConstants)
      {
      AbsValue *result1 = this->getTopDataType(TR::Int64);
      AbsValue *result2 = this->getTopDataType(TR::NoType);
-     this->push(result1);
-     this->push(result2);
-     return;
+     absState.push(result1);
+     absState.push(result2);
+     return absState;
      }
 
   long result = value1->_vp->asLongConst()->getLow() | value2->_vp->asLongConst()->getLow();
-  this->push(new (_region) AbsValue(TR::VPLongConst::create(this->_vp, result), TR::Int64));
+  absState.push(new (getRegion()) AbsValue(TR::VPLongConst::create(this->getVP(), result), TR::Int64));
   AbsValue *result2 = this->getTopDataType(TR::NoType);
-  this->push(result2);
+  absState.push(result2);
+  return absState;
 }
 
-void
-AbsEnvStatic::lrem() {
-  AbsValue *value1 = this->pop();
-  AbsValue* value2 = this->pop();
-  AbsValue* value3 = this->pop();
-  AbsValue* value4 = this->pop();
+AbstractState&
+AbsEnvStatic::lrem(AbstractState& absState) {
+  AbsValue *value1 = absState.pop();
+  AbsValue* value2 = absState.pop();
+  AbsValue* value3 = absState.pop();
+  AbsValue* value4 = absState.pop();
   bool nonnull = value2->_vp && value4->_vp;
   if (!nonnull)
     {
     AbsValue *result1 = this->getTopDataType(TR::Int64);
     AbsValue *result2 = this->getTopDataType(TR::NoType);
-    this->push(result1);
-    this->push(result2);
-    return;
+    absState.push(result1);
+    absState.push(result2);
+     return absState;
     }
   bool allConstants = value2->_vp->asLongConst() && value4->_vp->asLongConst();
   if (!allConstants)
      {
      AbsValue *result1 = this->getTopDataType(TR::Int64);
      AbsValue *result2 = this->getTopDataType(TR::NoType);
-     this->push(result1);
-     this->push(result2);
-     return;
+     absState.push(result1);
+     absState.push(result2);
+     return absState;
      }
 
   long int1 = value2->_vp->asLongConst()->getLow();
   long int2 = value4->_vp->asLongConst()->getLow();
   long result = int1 - (int1/ int2) * int2;
-  this->push(new (_region) AbsValue(TR::VPLongConst::create(this->_vp, result), TR::Int64));
+  absState.push(new (getRegion()) AbsValue(TR::VPLongConst::create(this->getVP(), result), TR::Int64));
   AbsValue *result2 = this->getTopDataType(TR::NoType);
-  this->push(result2);
+  absState.push(result2);
+  return absState;
 }
 
-void
-AbsEnvStatic::lshl() {
-  AbsValue *value2 = this->pop(); // int
-  AbsValue* value0 = this->pop(); // nothing
-  AbsValue* value1 = this->pop(); // long
+AbstractState&
+AbsEnvStatic::lshl(AbstractState& absState) {
+  AbsValue *value2 = absState.pop(); // int
+  AbsValue* value0 = absState.pop(); // nothing
+  AbsValue* value1 = absState.pop(); // long
   bool nonnull = value2->_vp && value1->_vp;
   if (!nonnull)
     {
     AbsValue *result1 = this->getTopDataType(TR::Int64);
     AbsValue *result2 = this->getTopDataType(TR::NoType);
-    this->push(result1);
-    this->push(result2);
-    return;
+    absState.push(result1);
+    absState.push(result2);
+     return absState;
     }
   bool allConstants = value2->_vp->asIntConst() && value1->_vp->asLongConst();
   if (!allConstants)
      {
      AbsValue *result1 = this->getTopDataType(TR::Int64);
      AbsValue *result2 = this->getTopDataType(TR::NoType);
-     this->push(result1);
-     this->push(result2);
-     return;
+     absState.push(result1);
+     absState.push(result2);
+     return absState;
      }
 
   long int1 = value1->_vp->asLongConst()->getLow();
   long int2 = value2->_vp->asIntConst()->getLow() & 0x1f;
   long result = int1 << int2;
-  this->push(new (_region) AbsValue(TR::VPLongConst::create(this->_vp, result), TR::Int64));
+  absState.push(new (getRegion()) AbsValue(TR::VPLongConst::create(this->getVP(), result), TR::Int64));
   AbsValue *result2 = this->getTopDataType(TR::NoType);
-  this->push(result2);
+  absState.push(result2);
+  return absState;
 }
 
-void
-AbsEnvStatic::lshr() {
-  AbsValue *value2 = this->pop(); // int
-  AbsValue* value0 = this->pop(); // nothing
-  AbsValue* value1 = this->pop(); // long
+AbstractState&
+AbsEnvStatic::lshr(AbstractState& absState) {
+  AbsValue *value2 = absState.pop(); // int
+  AbsValue* value0 = absState.pop(); // nothing
+  AbsValue* value1 = absState.pop(); // long
   bool nonnull = value2->_vp && value1->_vp;
   if (!nonnull)
     {
     AbsValue *result1 = this->getTopDataType(TR::Int64);
     AbsValue *result2 = this->getTopDataType(TR::NoType);
-    this->push(result1);
-    this->push(result2);
-    return;
+    absState.push(result1);
+    absState.push(result2);
+     return absState;
     }
   bool allConstants = value2->_vp->asIntConst() && value1->_vp->asLongConst();
   if (!allConstants)
      {
      AbsValue *result1 = this->getTopDataType(TR::Int64);
      AbsValue *result2 = this->getTopDataType(TR::NoType);
-     this->push(result1);
-     this->push(result2);
-     return;
+     absState.push(result1);
+     absState.push(result2);
+     return absState;
      }
 
   long int1 = value1->_vp->asLongConst()->getLow();
   long int2 = value2->_vp->asIntConst()->getLow() & 0x1f;
   long result = int1 >> int2;
-  this->push(new (_region) AbsValue(TR::VPLongConst::create(this->_vp, result), TR::Int64));
+  absState.push(new (getRegion()) AbsValue(TR::VPLongConst::create(this->getVP(), result), TR::Int64));
   AbsValue *result2 = this->getTopDataType(TR::NoType);
-  this->push(result2);
+  absState.push(result2);
+  return absState;
 }
 
-void
-AbsEnvStatic::lushr() {
-  this->lshr();
+AbstractState&
+AbsEnvStatic::lushr(AbstractState& absState) {
+  this->lshr(absState);
+  return absState;
 }
 
-void
-AbsEnvStatic::lxor() {
-  AbsValue *value1 = this->pop();
-  AbsValue* value2 = this->pop();
-  AbsValue* value3 = this->pop();
-  AbsValue* value4 = this->pop();
+AbstractState&
+AbsEnvStatic::lxor(AbstractState& absState) {
+  AbsValue *value1 = absState.pop();
+  AbsValue* value2 = absState.pop();
+  AbsValue* value3 = absState.pop();
+  AbsValue* value4 = absState.pop();
   bool nonnull = value2->_vp && value4->_vp;
   if (!nonnull)
     {
     AbsValue *result1 = this->getTopDataType(TR::Int64);
     AbsValue *result2 = this->getTopDataType(TR::NoType);
-    this->push(result1);
-    this->push(result2);
-    return;
+    absState.push(result1);
+    absState.push(result2);
+    return absState;
     }
   bool allConstants = value2->_vp->asLongConst() && value4->_vp->asLongConst();
   if (!allConstants)
      {
      AbsValue *result1 = this->getTopDataType(TR::Int64);
      AbsValue *result2 = this->getTopDataType(TR::NoType);
-     this->push(result1);
-     this->push(result2);
-     return;
+     absState.push(result1);
+     absState.push(result2);
+     return absState;
      }
 
   long result = value1->_vp->asLongConst()->getLow() ^ value2->_vp->asLongConst()->getLow();
-  this->push(new (_region) AbsValue(TR::VPLongConst::create(this->_vp, result), TR::Int64));
+  absState.push(new (getRegion()) AbsValue(TR::VPLongConst::create(this->getVP(), result), TR::Int64));
+  return absState;
 }
 
-void
-AbsEnvStatic::l2d() {
-  this->pop();
-  this->pop();
+AbstractState&
+AbsEnvStatic::l2d(AbstractState& absState) {
+  absState.pop();
+  absState.pop();
   AbsValue *result = this->getTopDataType(TR::Double);
-  this->push(result);
+  absState.push(result);
   AbsValue *result2 = this->getTopDataType(TR::NoType);
-  this->push(result2);
+  absState.push(result2);
+  return absState;
 }
 
-void
-AbsEnvStatic::l2f() {
-  this->pop();
-  this->pop();
+AbstractState&
+AbsEnvStatic::l2f(AbstractState& absState) {
+  absState.pop();
+  absState.pop();
   AbsValue *result = this->getTopDataType(TR::Float);
-  this->push(result);
+  absState.push(result);
+  return absState;
 }
 
-void
-AbsEnvStatic::d2f() {
-  this->pop();
-  this->pop();
+AbstractState&
+AbsEnvStatic::d2f(AbstractState& absState) {
+  absState.pop();
+  absState.pop();
   AbsValue *result = this->getTopDataType(TR::Float);
-  this->push(result);
+  absState.push(result);
+  return absState;
 }
 
-void
-AbsEnvStatic::f2d() {
-  this->pop();
+AbstractState&
+AbsEnvStatic::f2d(AbstractState& absState) {
+  absState.pop();
   AbsValue *result1 = this->getTopDataType(TR::Double);
   AbsValue *result2 = this->getTopDataType(TR::NoType);
-  this->push(result1);
-  this->push(result2);
+  absState.push(result1);
+  absState.push(result2);
+  return absState;
 }
 
-void
-AbsEnvStatic::f2i() {
-  this->pop();
+AbstractState&
+AbsEnvStatic::f2i(AbstractState& absState) {
+  absState.pop();
   AbsValue *result1 = this->getTopDataType(TR::Int32);
-  this->push(result1);
+  absState.push(result1);
+  return absState;
 }
 
-void
-AbsEnvStatic::f2l() {
-  this->pop();
+AbstractState&
+AbsEnvStatic::f2l(AbstractState& absState) {
+  absState.pop();
   AbsValue *result1 = this->getTopDataType(TR::Int64);
   AbsValue *result2 = this->getTopDataType(TR::NoType);
-  this->push(result1);
-  this->push(result2);
+  absState.push(result1);
+  absState.push(result2);
+  return absState;
 }
 
-void
-AbsEnvStatic::d2i() {
-  this->pop();
-  this->pop();
+AbstractState&
+AbsEnvStatic::d2i(AbstractState& absState) {
+  absState.pop();
+  absState.pop();
   AbsValue *result = this->getTopDataType(TR::Int32);
-  this->push(result);
+  absState.push(result);
+  return absState;
 }
 
-void
-AbsEnvStatic::d2l() {
-  this->pop();
-  this->pop();
+AbstractState&
+AbsEnvStatic::d2l(AbstractState& absState) {
+  absState.pop();
+  absState.pop();
   AbsValue *result1 = this->getTopDataType(TR::Int64);
   AbsValue *result2 = this->getTopDataType(TR::NoType);
-  this->push(result1);
-  this->push(result2);
+  absState.push(result1);
+  absState.push(result2);
+  return absState;
 }
 
-void
-AbsEnvStatic::lload(int n) {
-  aload(n);
-  aload(n + 1);
+AbstractState&
+AbsEnvStatic::lload(AbstractState& absState, int n) {
+  aload(absState, n);
+  aload(absState, n + 1);
+  return absState;
 }
 
-void
-AbsEnvStatic::lload0() {
-  aload(0);
-  aload(1);
+AbstractState&
+AbsEnvStatic::lload0(AbstractState& absState) {
+  aload(absState, 0);
+  aload(absState, 1);
+  return absState;
 }
 
-void
-AbsEnvStatic::lload1() {
-  aload(1);
-  aload(2);
+AbstractState&
+AbsEnvStatic::lload1(AbstractState &absState) {
+  aload(absState, 1);
+  aload(absState, 2);
+  return absState;
 }
 
-void
-AbsEnvStatic::lload2() {
-  aload(2);
-  aload(3);
+AbstractState&
+AbsEnvStatic::lload2(AbstractState &absState) {
+  aload(absState, 2);
+  aload(absState, 3);
+  return absState;
 }
 
-void
-AbsEnvStatic::lload3() {
-  aload(3);
-  aload(4);
+AbstractState&
+AbsEnvStatic::lload3(AbstractState &absState) {
+  aload(absState, 3);
+  aload(absState, 4);
+  return absState;
 }
 
-void
-AbsEnvStatic::dconst0() {
+AbstractState&
+AbsEnvStatic::dconst0(AbstractState &absState) {
   AbsValue *result1 = this->getTopDataType(TR::Double);
   AbsValue *result2 = this->getTopDataType(TR::NoType);
-  this->push(result1);
-  this->push(result2);
+  absState.push(result1);
+  absState.push(result2);
+  return absState;
 }
 
-void
-AbsEnvStatic::fconst0() {
+AbstractState&
+AbsEnvStatic::dconst1(AbstractState &absState) {
+  AbsValue *result1 = this->getTopDataType(TR::Double);
+  AbsValue *result2 = this->getTopDataType(TR::NoType);
+  absState.push(result1);
+  absState.push(result2);
+  return absState;
+}
+
+AbstractState&
+AbsEnvStatic::fconst0(AbstractState &absState) {
   AbsValue *result1 = this->getTopDataType(TR::Float);
-  this->push(result1);
+  absState.push(result1);
+  return absState;
 }
 
-void
-AbsEnvStatic::dload(int n) {
-  aload(n);
-  aload(n + 1);
+AbstractState&
+AbsEnvStatic::fconst1(AbstractState &absState) {
+  AbsValue *result1 = this->getTopDataType(TR::Float);
+  absState.push(result1);
+  return absState;
 }
 
-void
-AbsEnvStatic::dload0() {
-  aload(0);
-  aload(1);
+AbstractState&
+AbsEnvStatic::dload(AbstractState &absState, int n) {
+  aload(absState, n);
+  aload(absState, n + 1);
+  return absState;
 }
 
-void
-AbsEnvStatic::dload1() {
-  aload(1);
-  aload(2);
+AbstractState&
+AbsEnvStatic::dload0(AbstractState &absState) {
+  aload(absState, 0);
+  aload(absState, 1);
+  return absState;
 }
 
-void
-AbsEnvStatic::dload2() {
-  aload(2);
-  aload(3);
+AbstractState&
+AbsEnvStatic::dload1(AbstractState &absState) {
+  aload(absState, 1);
+  aload(absState, 2);
+  return absState;
 }
 
-void
-AbsEnvStatic::dload3() {
-  aload(3);
-  aload(4);
+AbstractState&
+AbsEnvStatic::dload2(AbstractState &absState) {
+  aload(absState, 2);
+  aload(absState, 3);
+  return absState;
 }
 
-void
-AbsEnvStatic::dstore(int n) {
-  AbsValue *top = this->pop();
-  AbsValue *bottom = this->pop();
-  this->at(n, bottom);
-  this->at(n + 1, top);
+AbstractState&
+AbsEnvStatic::dload3(AbstractState &absState) {
+  aload(absState, 3);
+  aload(absState, 4);
+  return absState;
 }
 
-void
-AbsEnvStatic::dstore0() {
-  this->dstore(0);
+AbstractState&
+AbsEnvStatic::lstorew(AbstractState &absState, int n)
+{
+  lstore(absState, n);
+  return absState;
 }
 
-void
-AbsEnvStatic::dstore1() {
-  this->dstore(1);
+AbstractState&
+AbsEnvStatic::lstore0(AbstractState &absState)
+{
+  lstore(absState, 0);
+  return absState;
 }
 
-void
-AbsEnvStatic::dstore2() {
-  this->dstore(2);
+AbstractState&
+AbsEnvStatic::lstore1(AbstractState &absState)
+{
+  lstore(absState, 1);
+  return absState;
 }
 
-void
-AbsEnvStatic::dstore3() {
-  this->dstore(3);
+AbstractState&
+AbsEnvStatic::lstore2(AbstractState &absState)
+{
+  lstore(absState, 2);
+  return absState;
 }
 
-void
-AbsEnvStatic::lconst0() {
+AbstractState&
+AbsEnvStatic::lstore3(AbstractState &absState)
+{
+  lstore(absState, 3);
+  return absState;
+}
+
+
+AbstractState&
+AbsEnvStatic::lstore(AbstractState &absState, int n) {
+  AbsValue *top = absState.pop();
+  AbsValue *bottom = absState.pop();
+  absState.at(n, bottom);
+  absState.at(n + 1, top);
+  return absState;
+}
+
+AbstractState&
+AbsEnvStatic::dstore(AbstractState &absState, int n) {
+  AbsValue *top = absState.pop();
+  AbsValue *bottom = absState.pop();
+  absState.at(n, bottom);
+  absState.at(n + 1, top);
+  return absState;
+}
+
+AbstractState&
+AbsEnvStatic::dstore0(AbstractState& absState) {
+  this->dstore(absState, 0);
+  return absState;
+}
+
+AbstractState&
+AbsEnvStatic::dstore1(AbstractState& absState) {
+  this->dstore(absState, 1);
+  return absState;
+}
+
+AbstractState&
+AbsEnvStatic::dstore2(AbstractState& absState) {
+  this->dstore(absState, 2);
+  return absState;
+}
+
+AbstractState&
+AbsEnvStatic::dstore3(AbstractState& absState) {
+  this->dstore(absState, 3);
+  return absState;
+}
+
+AbstractState&
+AbsEnvStatic::lconst0(AbstractState& absState) {
   AbsValue *result = this->getTopDataType(TR::Int64);
-  this->push(result);
+  absState.push(result);
   AbsValue *result2 = this->getTopDataType(TR::NoType);
-  this->push(result2);
+  absState.push(result2);
+  return absState;
 }
 
-void
-AbsEnvStatic::lconst1() {
+AbstractState&
+AbsEnvStatic::lconst1(AbstractState& absState) {
   AbsValue *result = this->getTopDataType(TR::Int64);
-  this->push(result);
+  absState.push(result);
   AbsValue *result2 = this->getTopDataType(TR::NoType);
-  this->push(result2);
+  absState.push(result2);
+  return absState;
 }
 
-void
-AbsEnvStatic::lcmp() {
-  this->pop();
-  this->pop();
-  this->pop();
-  this->pop();
+AbstractState&
+AbsEnvStatic::lcmp(AbstractState& absState) {
+  absState.pop();
+  absState.pop();
+  absState.pop();
+  absState.pop();
   AbsValue *result = this->getTopDataType(TR::Int32);
-  this->push(result);
+  absState.push(result);
+  return absState;
 }
 
-void
-AbsEnvStatic::pop2() {
-  this->pop();
-  this->pop();
+AbstractState&
+AbsEnvStatic::pop2(AbstractState& absState) {
+  absState.pop();
+  absState.pop();
+  return absState;
 }
 
-void
-AbsEnvStatic::fload(int n) {
-  aload(n);
+AbstractState&
+AbsEnvStatic::fload(AbstractState& absState, int n) {
+  aload(absState, n);
+  return absState;
 }
 
-void
-AbsEnvStatic::fload0() {
-  this->fload(0);
+AbstractState&
+AbsEnvStatic::fload0(AbstractState& absState) {
+  this->fload(absState, 0);
+  return absState;
 }
 
-void
-AbsEnvStatic::fload1() {
-  this->fload(1);
+AbstractState&
+AbsEnvStatic::fload1(AbstractState& absState) {
+  this->fload(absState, 1);
+  return absState;
 }
 
-void
-AbsEnvStatic::fload2() {
-  this->fload(2);
+AbstractState&
+AbsEnvStatic::fload2(AbstractState& absState) {
+  this->fload(absState, 2);
+  return absState;
 }
 
-void
-AbsEnvStatic::fload3() {
-  this->fload(3);
+AbstractState&
+AbsEnvStatic::fload3(AbstractState& absState) {
+  this->fload(absState, 3);
+  return absState;
 }
 
-void
-AbsEnvStatic::swap() {
-  AbsValue *value1 = this->pop();
-  AbsValue *value2 = this->pop();
-  this->push(value1);
-  this->push(value2);
+AbstractState&
+AbsEnvStatic::swap(AbstractState& absState) {
+  AbsValue *value1 = absState.pop();
+  AbsValue *value2 = absState.pop();
+  absState.push(value1);
+  absState.push(value2);
+  return absState;
 }
 
-void
-AbsEnvStatic::fstore(int n) {
-  this->at(n, this->pop());
+AbstractState&
+AbsEnvStatic::fstore(AbstractState& absState, int n) {
+  absState.at(n, absState.pop());
+  return absState;
 }
 
 
-void
-AbsEnvStatic::fstore0() {
-  this->fstore(0);
+AbstractState&
+AbsEnvStatic::fstore0(AbstractState& absState) {
+  this->fstore(absState, 0);
+  return absState;
 }
 
-void
-AbsEnvStatic::fstore1() {
-  this->fstore(1);
+AbstractState&
+AbsEnvStatic::fstore1(AbstractState& absState) {
+  this->fstore(absState, 1);
+  return absState;
 }
 
-void
-AbsEnvStatic::fstore2() {
-  this->fstore(2);
+AbstractState&
+AbsEnvStatic::fstore2(AbstractState& absState) {
+  this->fstore(absState, 2);
+  return absState;
 }
 
-void
-AbsEnvStatic::fstore3() {
-  this->fstore(3);
+AbstractState&
+AbsEnvStatic::fstore3(AbstractState &absState) {
+  this->fstore(absState, 3);
+  return absState;
 }
 
-void
-AbsEnvStatic::fmul() {
-  AbsValue *value1 = this->pop();
+AbstractState&
+AbsEnvStatic::fmul(AbstractState &absState) {
+  AbsValue *value1 = absState.pop();
+  return absState;
 }
 
-void
-AbsEnvStatic::dmul() {
-  AbsValue *value1 = this->pop();
-  AbsValue* value2 = this->pop();
+AbstractState&
+AbsEnvStatic::dmul(AbstractState &absState) {
+  AbsValue *value1 = absState.pop();
+  AbsValue* value2 = absState.pop();
+  return absState;
 }
 
-void
-AbsEnvStatic::dcmpl() {
-  AbsValue *value1 = this->pop();
-  AbsValue* value2 = this->pop();
-  AbsValue *value3 = this->pop();
-  AbsValue* value4 = this->pop();
+AbstractState&
+AbsEnvStatic::dneg(AbstractState &absState)
+{
+  return absState;
+}
+
+AbstractState&
+AbsEnvStatic::dcmpl(AbstractState &absState) {
+  AbsValue *value1 = absState.pop();
+  AbsValue* value2 = absState.pop();
+  AbsValue *value3 = absState.pop();
+  AbsValue* value4 = absState.pop();
   AbsValue *result = this->getTopDataType(TR::Int32);
-  this->push(result);
+  absState.push(result);
+  return absState;
 }
 
-
-void
-AbsEnvStatic::fcmpl() {
-  AbsValue *value1 = this->pop();
-  AbsValue* value2 = this->pop();
+AbstractState&
+AbsEnvStatic::dcmpg(AbstractState &absState) {
+  AbsValue *value1 = absState.pop();
+  AbsValue* value2 = absState.pop();
+  AbsValue *value3 = absState.pop();
+  AbsValue* value4 = absState.pop();
   AbsValue *result = this->getTopDataType(TR::Int32);
-  this->push(result);
+  absState.push(result);
+  return absState;
 }
 
-void
-AbsEnvStatic::ddiv() {
-  AbsValue *value1 = this->pop();
-  AbsValue* value2 = this->pop();
+AbstractState&
+AbsEnvStatic::fcmpg(AbstractState &absState) {
+  AbsValue *value1 = absState.pop();
+  AbsValue* value2 = absState.pop();
+  AbsValue *result = this->getTopDataType(TR::Int32);
+  absState.push(result);
+  return absState;
 }
 
-void
-AbsEnvStatic::fdiv() {
-  AbsValue *value1 = this->pop();
+AbstractState&
+AbsEnvStatic::fcmpl(AbstractState &absState) {
+  AbsValue *value1 = absState.pop();
+  AbsValue* value2 = absState.pop();
+  AbsValue *result = this->getTopDataType(TR::Int32);
+  absState.push(result);
+  return absState;
 }
 
-void
-AbsEnvStatic::drem() {
-  AbsValue *value1 = this->pop();
-  AbsValue* value2 = this->pop();
+AbstractState&
+AbsEnvStatic::ddiv(AbstractState &absState) {
+  AbsValue *value1 = absState.pop();
+  AbsValue* value2 = absState.pop();
+  return absState;
 }
 
-void
-AbsEnvStatic::frem() {
-  AbsValue *value = this->pop();
+AbstractState&
+AbsEnvStatic::fdiv(AbstractState &absState) {
+  AbsValue *value1 = absState.pop();
+  return absState;
 }
 
-void
-AbsEnvStatic::sipush(int16_t _short) {
-  TR::VPShortConst *data = TR::VPShortConst::create(this->_vp, _short);
-  AbsValue *result = new (_region) AbsValue(data, TR::Int16);
-  this->push(result);
+AbstractState&
+AbsEnvStatic::drem(AbstractState &absState) {
+  AbsValue *value1 = absState.pop();
+  AbsValue* value2 = absState.pop();
+  return absState;
 }
 
-void
-AbsEnvStatic::iinc(int index, int incval) {
-  AbsValue *value1 = this->at(index);
+AbstractState&
+AbsEnvStatic::fneg(AbstractState &absState)
+{
+  return absState;
+}
+
+AbstractState&
+AbsEnvStatic::freturn(AbstractState &absState)
+{
+  return absState;
+}
+
+AbstractState&
+AbsEnvStatic::frem(AbstractState &absState) {
+  AbsValue *value = absState.pop();
+  return absState;
+}
+
+AbstractState&
+AbsEnvStatic::sipush(AbstractState &absState, int16_t _short) {
+  TR::VPShortConst *data = TR::VPShortConst::create(this->getVP(), _short);
+  AbsValue *result = new (getRegion()) AbsValue(data, TR::Int16);
+  absState.push(result);
+  return absState;
+}
+
+AbstractState&
+AbsEnvStatic::iinc(AbstractState& absState, int index, int incval) {
+  AbsValue *value1 = absState.at(index);
   TR::VPIntConstraint *value = value1->_vp ? value1->_vp->asIntConstraint() : nullptr;
   if (!value)
     {
-    return;
+    return absState;
     }
 
-  TR::VPIntConst *inc = TR::VPIntConst::create(this->_vp, incval);
-  TR::VPConstraint *result = value->add(inc, TR::Int32, this->_vp);
-  AbsValue *result2 = new (_region) AbsValue(result, TR::Int32);
-  this->at(index, result2);
+  TR::VPIntConst *inc = TR::VPIntConst::create(this->getVP(), incval);
+  TR::VPConstraint *result = value->add(inc, TR::Int32, this->getVP());
+  AbsValue *result2 = new (getRegion()) AbsValue(result, TR::Int32);
+  absState.at(index, result2);
+  return absState;
 }
 
-void
-AbsEnvStatic::putfield() {
+AbstractState&
+AbsEnvStatic::putfield(AbstractState& absState) {
   // WONTFIX we do not model the heap
-  AbsValue *value1 = this->pop();
-  AbsValue *value2 = this->pop();
+  AbsValue *value1 = absState.pop();
+  AbsValue *value2 = absState.pop();
   if(value2->isType2()) {
-    AbsValue *value3 = this->pop();
+    AbsValue *value3 = absState.pop();
   }
+  return absState;
 }
 
-void
-AbsEnvStatic::putstatic() {
+AbstractState&
+AbsEnvStatic::putstatic(AbstractState& absState) {
   // WONTFIX we do not model the heap
-  AbsValue *value1 = this->pop();
+  AbsValue *value1 = absState.pop();
   if (!value1->_dt == TR::NoType) { // category type 2
-    AbsValue *value2 = this->pop();
+    AbsValue *value2 = absState.pop();
   }
+  return absState;
 }
 
 void
-AbsEnvStatic::ldcInt32(int cpIndex, TR_J9ByteCodeIterator &bci) {
-  int32_t value =  bci.method()->intConstant(cpIndex); 
-  TR::VPIntConst *constraint = TR::VPIntConst::create(this->_vp, value);
-  AbsValue *result = new (_region) AbsValue(constraint, TR::Int32);
-  this->push(result);
+AbsEnvStatic::ldcInt32(int cpIndex) {
+  int32_t value =  this->getResolvedMethodSymbol()->getResolvedMethod()->intConstant(cpIndex); 
+  TR::VPIntConst *constraint = TR::VPIntConst::create(this->getVP(), value);
+  AbsValue *result = new (getRegion()) AbsValue(constraint, TR::Int32);
+  this->getState().push(result);
 }
 
 void
-AbsEnvStatic::ldcInt64(int cpIndex, TR_J9ByteCodeIterator &bci) {
-   auto value =  bci.method()->longConstant(cpIndex); 
-   TR::VPLongConst *constraint = TR::VPLongConst::create(this->_vp, value);
-   AbsValue *result = new (_region) AbsValue(constraint, TR::Int64);
-   this->push(result);
+AbsEnvStatic::ldcInt64(int cpIndex) {
+   auto value =  this->getResolvedMethodSymbol()->getResolvedMethod()->longConstant(cpIndex); 
+   TR::VPLongConst *constraint = TR::VPLongConst::create(this->getVP(), value);
+   AbsValue *result = new (getRegion()) AbsValue(constraint, TR::Int64);
+   this->getState().push(result);
    AbsValue *result2 = this->getTopDataType(TR::NoType);
-   this->push(result2);
+   this->getState().push(result2);
 }
 
 void
 AbsEnvStatic::ldcFloat() {
    AbsValue *result = this->getTopDataType(TR::Float);
-   this->push(result);
+   this->getState().push(result);
 }
 
 void
 AbsEnvStatic::ldcDouble() {
    AbsValue *result = this->getTopDataType(TR::Double);
    AbsValue *result2 = this->getTopDataType(TR::NoType);
-   this->push(result);
-   this->push(result2);
+   this->getState().push(result);
+   this->getState().push(result2);
 }
 
 void
-AbsEnvStatic::ldcAddress(int cpIndex, TR_J9ByteCodeIterator &bci) {
-  bool isString = bci.method()->isStringConstant(cpIndex);
+AbsEnvStatic::ldcAddress(int cpIndex) {
+  bool isString = this->getResolvedMethodSymbol()->getResolvedMethod()->isStringConstant(cpIndex);
   if (isString) { ldcString(cpIndex); return; }
   //TODO: non string case
   AbsValue *result = this->getTopDataType(TR::Address);
-  this->push(result);
+  this->getState().push(result);
 }
 
 void
 AbsEnvStatic::ldcString(int cpIndex) {
    // TODO: we might need the resolved method symbol here
-   // TODO: avoid _rms    
-   TR::SymbolReference *symRef = TR::comp()->getSymRefTab()->findOrCreateStringSymbol(_rms, cpIndex);
+   // TODO: aAbstractState& _rms    
+   TR::SymbolReference *symRef = TR::comp()->getSymRefTab()->findOrCreateStringSymbol(this->getResolvedMethodSymbol(), cpIndex);
    if (symRef->isUnresolved())
         {
         AbsValue *result = this->getTopDataType(TR::Address);
-        this->push(result);
+        this->getState().push(result);
         return;
         }
-   TR::VPConstraint *constraint = TR::VPConstString::create(_vp, symRef);
-   AbsValue *result = new (_region) AbsValue(constraint, TR::Address);
-   this->push(result);
+   TR::VPConstraint *constraint = TR::VPConstString::create(this->getVP(), symRef);
+   AbsValue *result = new (getRegion()) AbsValue(constraint, TR::Address);
+   this->getState().push(result);
 }
 
-void
-AbsEnvStatic::ldc(int cpIndex, TR_J9ByteCodeIterator &bci) {
-   TR::DataType datatype = bci.method()->getLDCType(cpIndex);
+AbstractState&
+AbsEnvStatic::ldcw(AbstractState &absState, int cpIndex)
+{
+  ldc(absState, cpIndex);
+  return absState;
+}
+
+AbstractState&
+AbsEnvStatic::ldc(AbstractState& absState, int cpIndex) {
+   TR::DataType datatype = this->getResolvedMethodSymbol()->getResolvedMethod()->getLDCType(cpIndex);
    switch(datatype) {
-     case TR::Int32: this->ldcInt32(cpIndex, bci); break;
-     case TR::Int64: this->ldcInt64(cpIndex, bci); break;
+     case TR::Int32: this->ldcInt32(cpIndex); break;
+     case TR::Int64: this->ldcInt64(cpIndex); break;
      case TR::Float: this->ldcFloat(); break;
      case TR::Double: this->ldcDouble(); break;
-     case TR::Address: this->ldcAddress(cpIndex, bci); break;
+     case TR::Address: this->ldcAddress(cpIndex); break;
      default: {
        //TODO: arrays and what nots.
        AbsValue *result = this->getTopDataType(TR::Address);
-      this->push(result);
+      absState.push(result);
       
      } break;
    }
+  return absState;
 }
 
-void
-AbsEnvStatic::monitorenter() {
+AbstractState&
+AbsEnvStatic::monitorenter(AbstractState& absState) {
   // TODO: possible optimization
-  this->pop();
+  absState.pop();
+  return absState;
 }
 
-void
-AbsEnvStatic::monitorexit() {
+AbstractState&
+AbsEnvStatic::monitorexit(AbstractState& absState) {
   // TODO: possible optimization
-  this->pop();
+  absState.pop();
+  return absState;
 }
 
-void
-AbsEnvStatic::anewarray(int cpIndex) {
+AbstractState&
+AbsEnvStatic::areturn(AbstractState& absState)
+{
+  return absState;
+}
+
+AbstractState&
+AbsEnvStatic::dreturn(AbstractState& absState)
+{
+  return absState;
+}
+
+AbstractState&
+AbsEnvStatic::athrow(AbstractState& absState)
+{
+  return absState;
+}
+
+AbstractState&
+AbsEnvStatic::anewarray(AbstractState& absState, int cpIndex) {
   //TODO: actually make an array
-  AbsValue *count = this->pop();
+  AbsValue *count = absState.pop();
   AbsValue *result = this->getTopDataType(TR::Address);
-  this->push(result);
+  absState.push(result);
+  return absState;
 }
 
-void
-AbsEnvStatic::arraylength() {
+AbstractState&
+AbsEnvStatic::arraylength(AbstractState& absState) {
   //TODO: actually make use of the value
-  this->pop();
+  absState.pop();
   AbsValue *result = this->getTopDataType(TR::Int32);
-  this->push(result);
+  absState.push(result);
+  return absState;
 }
 
-void
-AbsEnvStatic::_new(int cpIndex) {
+AbstractState&
+AbsEnvStatic::_new(AbstractState& absState, int cpIndex) {
   //TODO: actually look at the semantics
   AbsValue *result = this->getTopDataType(TR::Address);
-  this->push(result);
+  absState.push(result);
+  return absState;
 }
 
-void
-AbsEnvStatic::newarray(int atype) {
+AbstractState&
+AbsEnvStatic::newarray(AbstractState& absState, int atype) {
   //TODO: actually impement the sematncis
-  this->pop();
+  absState.pop();
   AbsValue *result = this->getTopDataType(TR::Address);
-  this->push(result);
+  absState.push(result);
+  return absState;
+}
+
+AbstractState&
+AbsEnvStatic::invokevirtual(AbstractState& absState, int bcIndex, int cpIndex) {
+  invoke(bcIndex, cpIndex, TR::MethodSymbol::Kinds::Virtual);
+  return absState;
+}
+
+AbstractState&
+AbsEnvStatic::invokestatic(AbstractState& absState, int bcIndex, int cpIndex) {
+  invoke(bcIndex, cpIndex, TR::MethodSymbol::Kinds::Static);
+  return absState;
+}
+
+AbstractState&
+AbsEnvStatic::invokespecial(AbstractState& absState, int bcIndex, int cpIndex) {
+  invoke(bcIndex, cpIndex, TR::MethodSymbol::Kinds::Special);
+  return absState;
+}
+
+AbstractState&
+AbsEnvStatic::invokedynamic(AbstractState& absState, int bcIndex, int cpIndex) {
+  invoke(bcIndex, cpIndex, TR::MethodSymbol::Kinds::ComputedVirtual);
+  return absState;
+}
+
+AbstractState&
+AbsEnvStatic::invokeinterface(AbstractState& absState, int bcIndex, int cpIndex) {
+  invoke(bcIndex, cpIndex, TR::MethodSymbol::Kinds::Interface);
+  return absState;
 }
 
 void
-AbsEnvStatic::invokevirtual(int bcIndex, int cpIndex, TR_J9ByteCodeIterator &bci) {
-  invoke(bcIndex, cpIndex, bci, TR::MethodSymbol::Kinds::Virtual);
-}
-
-void
-AbsEnvStatic::invokestatic(int bcIndex, int cpIndex, TR_J9ByteCodeIterator &bci) {
-  invoke(bcIndex, cpIndex, bci, TR::MethodSymbol::Kinds::Static);
-}
-
-void
-AbsEnvStatic::invokespecial(int bcIndex, int cpIndex, TR_J9ByteCodeIterator &bci) {
-  invoke(bcIndex, cpIndex, bci, TR::MethodSymbol::Kinds::Special);
-}
-
-void
-AbsEnvStatic::invokedynamic(int bcIndex, int cpIndex, TR_J9ByteCodeIterator &bci) {
-  invoke(bcIndex, cpIndex, bci, TR::MethodSymbol::Kinds::ComputedVirtual);
-}
-
-void
-AbsEnvStatic::invokeinterface(int bcIndex, int cpIndex, TR_J9ByteCodeIterator &bci) {
-  invoke(bcIndex, cpIndex, bci, TR::MethodSymbol::Kinds::Interface);
-}
-
-void
-AbsEnvStatic::invoke(int bcIndex, int cpIndex, TR_J9ByteCodeIterator &bci, TR::MethodSymbol::Kinds kind) {
-  auto callerResolvedMethodSymbol = this->_rms;
+AbsEnvStatic::invoke(int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind) {
+  auto callerResolvedMethodSymbol = this->getResolvedMethodSymbol();
   auto callerResolvedMethod = callerResolvedMethodSymbol->getResolvedMethod();
   TR::Compilation *comp = TR::comp();
   TR::SymbolReference *symRef;
@@ -2222,14 +2599,14 @@ AbsEnvStatic::invoke(int bcIndex, int cpIndex, TR_J9ByteCodeIterator &bci, TR::M
   uint32_t params = method->numberOfExplicitParameters();
   int isStatic = kind == TR::MethodSymbol::Kinds::Static;
   int numberOfImplicitParameters = isStatic ? 0 : 1;
-  if (numberOfImplicitParameters == 1) this->pop();
+  if (numberOfImplicitParameters == 1) this->getState().pop();
   for (int i = 0; i < params; i++) {
     TR::DataType datatype = method->parmType(i);
-    this->pop();
+    this->getState().pop();
     switch (datatype) {
       case TR::Double:
       case TR::Int64:
-        this->pop();
+        this->getState().pop();
         break;
       default:
         break;
@@ -2249,53 +2626,139 @@ AbsEnvStatic::invoke(int bcIndex, int cpIndex, TR_J9ByteCodeIterator &bci, TR::M
       case TR::Address:
         {
         AbsValue *result = this->getTopDataType(datatype);
-        this->push(result);
+        this->getState().push(result);
         }
         break;
       case TR::Double:
       case TR::Int64:
         {
         AbsValue *result = this->getTopDataType(datatype);
-        this->push(result);
+        this->getState().push(result);
         AbsValue *result2 = this->getTopDataType(TR::NoType);
-        this->push(result2);
+        this->getState().push(result2);
         }
         break;
       default:
         {
         //TODO: 
         AbsValue *result = this->getTopDataType(TR::Address);
-        this->push(result);
+        this->getState().push(result);
         }
         break;
   }
   
 }
 
-void
-AbsEnvStatic::interpret()
+
+
+AbsFrame::AbsFrame(TR::Region &region, IDT::Node *node)
+  : _region(region)
+  , _node(node)
+  , _vp(node->getValuePropagation())
+  , _rms(node->getResolvedMethodSymbol())
+  , _bci(node->getResolvedMethodSymbol(), static_cast<TR_ResolvedJ9Method*>(node->getResolvedMethodSymbol()->getResolvedMethod()), static_cast<TR_J9VMBase*>(TR::comp()->fe()), TR::comp())
 {
-  //TODO: avoid TR::comp();
-  TR::Compilation *comp = TR::comp();
-  TR::ResolvedMethodSymbol *resolvedMethodSymbol = this->_rms;
-  this->enterMethod(resolvedMethodSymbol);
-  this->trace(this->_node->getName());
-  TR_ResolvedMethod *resolvedMethod = resolvedMethodSymbol->getResolvedMethod();
-  TR_ResolvedJ9Method *resolvedJ9Method = static_cast<TR_ResolvedJ9Method*>(resolvedMethod);
-  TR_J9VMBase *vm = static_cast<TR_J9VMBase*>(comp->fe());
-  TR_J9ByteCodeIterator bci(resolvedMethodSymbol, resolvedJ9Method, vm, comp);
-  TR::CFG* cfg = resolvedMethodSymbol->getFlowGraph();
+}
+
+
+AbsEnvStatic* AbsEnvStatic::enterMethod(TR::Region& region, IDT::Node* node, AbsFrame* absFrame, TR::ResolvedMethodSymbol* rms)
+{
+  AbsEnvStatic *absEnv = new (region) AbsEnvStatic(region, node, absFrame);
+  TR_ResolvedMethod *resolvedMethod = rms->getResolvedMethod();
+  const auto numberOfParameters = resolvedMethod->numberOfParameters();
+  const auto numberOfExplicitParameters = resolvedMethod->numberOfExplicitParameters();
+  const auto numberOfImplicitParameters = numberOfParameters - numberOfExplicitParameters;
+  const auto hasImplicitParameter = numberOfImplicitParameters > 0;
+
+  if (hasImplicitParameter)
+     {
+     TR_OpaqueClassBlock *implicitParameterClass = resolvedMethod->containingClass();
+     AbsValue* value = AbsEnvStatic::getClassConstraint(implicitParameterClass, absFrame->getValuePropagation(), region);
+     absEnv->getState().at(0, value);
+     }
+
+  TR_MethodParameterIterator *parameterIterator = resolvedMethod->getParameterIterator(*TR::comp());
+  TR::ParameterSymbol *p = nullptr;
+  for (int i = numberOfImplicitParameters; !parameterIterator->atEnd(); parameterIterator->advanceCursor(), i++)
+     {
+     auto parameter = parameterIterator;
+     TR::DataType dataType = parameter->getDataType();
+     switch (dataType) {
+        case TR::Int8:
+          absEnv->getState().at(i, new (region) AbsValue(NULL, TR::Int32));
+          continue;
+        break;
+
+        case TR::Int16:
+          absEnv->getState().at(i, new (region) AbsValue(NULL, TR::Int32));
+          continue;
+        break;
+
+        case TR::Int32:
+          absEnv->getState().at(i, new (region) AbsValue(NULL, TR::Int32));
+          continue;
+        break;
+
+        case TR::Int64:
+          absEnv->getState().at(i, new (region) AbsValue(NULL, TR::Int64));
+          i = i+1;
+          absEnv->getState().at(i, new (region) AbsValue(NULL, TR::NoType));
+          continue;
+        break;
+
+        case TR::Float:
+          absEnv->getState().at(i, new (region) AbsValue(NULL, TR::Float));
+          continue;
+        break;
+
+        case TR::Double:
+          absEnv->getState().at(i, new (region) AbsValue(NULL, TR::Double));
+          i = i+1;
+          absEnv->getState().at(i, new (region) AbsValue(NULL, TR::NoType));
+        continue;
+        break;
+
+        default:
+        //TODO: what about vectors and aggregates?
+        break;
+     }
+     const bool isClass = parameter->isClass();
+     if (!isClass)
+       {
+       absEnv->getState().at(i, new (region) AbsValue(NULL, TR::Address));
+       continue;
+       }
+
+     TR_OpaqueClassBlock *parameterClass = parameter->getOpaqueClass();
+     if (!parameterClass)
+       {
+       absEnv->getState().at(i, new (region) AbsValue(NULL, TR::Address));
+       continue;
+       }
+
+      AbsValue* value = AbsEnvStatic::getClassConstraint(parameterClass, absFrame->getValuePropagation(), region);
+      absEnv->getState().at(i, value);
+     }
+  return absEnv;
+}
+
+
+void AbsFrame::interpret()
+{
+  TR::CFG* cfg = this->getResolvedMethodSymbol()->getFlowGraph();
   TR::CFGNode *cfgNode = cfg->getStartForReverseSnapshot();
   TR::Block *startBlock = cfgNode->asBlock();
 
   // TODO: maybe instead of region try trCurrentStackRegion
-  TR::list<OMR::Block*, TR::Region&> queue(_region);
+  TR::list<OMR::Block*, TR::Region&> queue(this->getRegion());
   bool first = true;
-  for (TR::ReversePostorderSnapshotBlockIterator blockIt (startBlock, comp); blockIt.currentBlock(); ++blockIt)
+  //TODO: get rid of TR::comp()
+  for (TR::ReversePostorderSnapshotBlockIterator blockIt (startBlock, TR::comp()); blockIt.currentBlock(); ++blockIt)
      {
         OMR::Block *block = blockIt.currentBlock();
         if (first) {
-           block->_absEnv = this;
+           block->_absEnv = AbsEnvStatic::enterMethod(this->getRegion(), this->_node, this, this->getResolvedMethodSymbol());
+           block->_absEnv->_block = block;
            first = false;
         }
         block->setVisitCount(0);
@@ -2305,33 +2768,40 @@ AbsEnvStatic::interpret()
   while (!queue.empty()) {
     OMR::Block *block = queue.front();
     queue.pop_front();
-    interpret(block, bci);
-    // TODO: merging
+    interpret(block);
   }
 }
 
-void
-AbsEnvStatic::interpret(OMR::Block *block, TR_J9ByteCodeIterator &bci) {
+
+void AbsFrame::interpret(OMR::Block* block)
+{
   int start = block->getBlockBCIndex();
   int end = start + block->getBlockSize();
   if (start < 0 || end < 1) return;
-  bci.setIndex(start);
+  this->factFlow(block);
+  _bci.setIndex(start);
   TR::Compilation *comp = TR::comp();
   if (comp->trace(OMR::benefitInliner))
      {
      traceMsg(comp, "basic block %d start = %d end = %d\n", block->getNumber(), start, end);
      }
-  this->factFlow(block);
-  for (TR_J9ByteCode bc = bci.current(); bc != J9BCunknown && bci.currentByteCodeIndex() < end; bc = bci.next())
+  for (TR_J9ByteCode bc = _bci.current(); bc != J9BCunknown && _bci.currentByteCodeIndex() < end; bc = _bci.next())
      {
      if (block->_absEnv)
-     block->_absEnv->interpret(bc, bci);
+     block->_absEnv->interpret(bc, _bci);
      }
-
 }
 
-void
-AbsEnvStatic::factFlow(OMR::Block *block) {
+AbsValue* AbsEnvStatic::getClassConstraint(TR_OpaqueClassBlock *opaqueClass, TR::ValuePropagation *vp, TR::Region &region)
+  {
+  if (!opaqueClass) return NULL;
+
+  TR::VPClassType *fixedClass = TR::VPFixedClass::create(vp, opaqueClass);
+  TR::VPConstraint *classConstraint = TR::VPClass::create(vp, fixedClass, NULL, NULL, NULL, NULL);
+  return new (region) AbsValue (classConstraint, TR::Address);
+  }
+
+void AbsFrame::factFlow(OMR::Block *block) {
   int start = block->getBlockBCIndex();
   if (start == 0) {
      return; // _absEnv should already be computed and stored there.
@@ -2351,24 +2821,25 @@ AbsEnvStatic::factFlow(OMR::Block *block) {
 
   // should never be null if we only have one predecessor and there are no loops.
   if (block->hasOnlyOnePredecessor() && block->getPredecessors().front()->getFrom()->asBlock()->_absEnv) {
-    AbsEnvStatic *absEnv = new (_region) AbsEnvStatic(*block->getPredecessors().front()->getFrom()->asBlock()->_absEnv);
+    AbsEnvStatic *absEnv = new (this->getRegion()) AbsEnvStatic(*block->getPredecessors().front()->getFrom()->asBlock()->_absEnv);
     block->_absEnv = absEnv;
+    block->_absEnv->_block = block;
     return;
   }
 
   // multiple predecessors...
   if (block->hasAbstractInterpretedAllPredecessors()) {
      block->_absEnv = this->mergeAllPredecessors(block);
+     block->_absEnv->_block = block;
      return;
   }
-  
 }
 
-AbsEnvStatic *
-AbsEnvStatic::mergeAllPredecessors(OMR::Block *block) {
+AbsEnvStatic* AbsFrame::mergeAllPredecessors(OMR::Block *block) {
   TR::CFGEdgeList &predecessors = block->getPredecessors();
   AbsEnvStatic *absEnv = nullptr;
   bool first = true;
+  traceMsg(TR::comp(), "computing how merging strategy for basic block %d\n", block->getNumber());
   for (auto i = predecessors.begin(), e = predecessors.end(); i != e; ++i)
   {
      auto *edge = *i;
@@ -2382,11 +2853,15 @@ AbsEnvStatic::mergeAllPredecessors(OMR::Block *block) {
      if (first) {
         first = false;
         // copy the first one
-        absEnv = new (_region) AbsEnvStatic(*aBlock->_absEnv);
+        traceMsg(TR::comp(), "copy basic block %d\n", aBlock->getNumber());
+        absEnv = new (this->getRegion()) AbsEnvStatic(*aBlock->_absEnv);
+        absEnv->trace();
         continue;
      }
      // merge with the rest;
+     traceMsg(TR::comp(), "merge with basic block %d\n", aBlock->getNumber());
      absEnv->merge(*aBlock->_absEnv);
+     absEnv->trace();
   }
   return absEnv;
 }

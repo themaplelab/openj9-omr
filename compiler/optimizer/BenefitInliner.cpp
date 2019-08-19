@@ -14,6 +14,7 @@
 #include "optimizer/Growable_2d_array.hpp"
 #include "optimizer/InlinerPacking.hpp"
 #include "optimizer/AbsEnvStatic.hpp"
+#include "optimizer/IDTConstructor.hpp"
 
 
 int32_t OMR::BenefitInlinerWrapper::perform()
@@ -24,7 +25,13 @@ int32_t OMR::BenefitInlinerWrapper::perform()
 
    OMR::BenefitInliner inliner(optimizer(), this, budget);
    inliner.initIDT(sym, budget);
+   if (comp()->trace(OMR::benefitInliner))
+     traceMsg(TR::comp(), "starting benefit inliner for %s\n", sym->signature(this->comp()->trMemory()));
    inliner.obtainIDT(inliner._idt->getRoot(), budget);
+   
+   if (comp()->trace(OMR::benefitInliner))
+     traceMsg(TR::comp(), "ending benefit inliner for %s\n", sym->signature(this->comp()->trMemory()));
+
    if (inliner._idt->howManyNodes() == 1) 
       {
       inliner._idt->getRoot()->getResolvedMethodSymbol()->setFlowGraph(inliner._rootRms);
@@ -33,6 +40,7 @@ int32_t OMR::BenefitInlinerWrapper::perform()
    inliner.abstractInterpreter();
    inliner.analyzeIDT();
    inliner.traceIDT();
+   inliner._idt->getRoot()->getResolvedMethodSymbol()->setFlowGraph(inliner._rootRms);
    //inliner.performInlining(sym);
    return 1;
    }
@@ -41,8 +49,9 @@ int32_t OMR::BenefitInlinerWrapper::perform()
 void
 OMR::BenefitInliner::abstractInterpreter()
    {
-   AbsEnvStatic absEnv(_absEnvRegion, this->_idt->getRoot());
-   absEnv.interpret();
+   AbsFrame absFrame(_absEnvRegion, this->_idt->getRoot());
+   AbsEnvStatic absEnvStatic(_absEnvRegion, this->_idt->getRoot(), &absFrame);
+   absFrame.interpret();
    this->_idt->getRoot()->getResolvedMethodSymbol()->setFlowGraph(this->_rootRms);
    }
 
@@ -99,7 +108,7 @@ void OMR::BenefitInliner::traceIDT()
    }
 
 void
-OMR::BenefitInliner::obtainIDT(IDT::Indices &Deque, IDT::Node *currentNode, TR_CallSite *callsite, int32_t budget, int cpIndex)
+OMR::BenefitInliner::obtainIDT(IDT::Indices *Deque, IDT::Node *currentNode, TR_CallSite *callsite, int32_t budget, int cpIndex)
    {
    if (!callsite) return;
    for (int i = 0; i < callsite->numTargets(); i++)
@@ -108,10 +117,9 @@ OMR::BenefitInliner::obtainIDT(IDT::Indices &Deque, IDT::Node *currentNode, TR_C
       TR::ResolvedMethodSymbol *resolvedMethodSymbol = callTarget->_calleeSymbol ? callTarget->_calleeSymbol : callTarget->_calleeMethod->findOrCreateJittedMethodSymbol(this->comp());
 
       IDT::Node *node = currentNode->addChildIfNotExists(this->_idt, callsite->_byteCodeIndex, resolvedMethodSymbol, callTarget->_callRatio, callsite);
-      if(node) traceMsg(this->comp(), "Added node %d %s budget = %d parent = %s\n", node->getCalleeIndex(), node->getName(), budget, node->getParent()->getName());
-      if (node) Deque.push_back(node);
-      if (node) traceMsg(this->comp(), "Parent knows about child? %s \n", node->getParent()->findChildWithBytecodeIndex(callsite->_byteCodeIndex) != nullptr ? "true" : "false");
-      this->traceIDT();
+      if (node) Deque->push_back(node);
+      if (node && comp()->trace(OMR::benefitInliner))
+         traceMsg(TR::comp(), "adding %d %s into %d %s\n", node->getCalleeIndex(), node->getName(), currentNode->getCalleeIndex(), currentNode->getName());
       }
 
    }
@@ -121,9 +129,6 @@ OMR::BenefitInliner::obtainIDT(IDT::Node *node, int32_t budget)
    {
       if (budget < 0) return;
 
-      if (comp()->trace(OMR::benefitInliner)) {
-         traceMsg(this->comp(), "Starting processing node %d %s budget = %d\n", node->getCalleeIndex(), node->getName(), budget);
-      }
 
       TR::ResolvedMethodSymbol *resolvedMethodSymbol = node->getResolvedMethodSymbol();
       TR_ResolvedMethod *resolvedMethod = resolvedMethodSymbol->getResolvedMethod();
@@ -158,14 +163,23 @@ OMR::BenefitInliner::obtainIDT(IDT::Node *node, int32_t budget)
             }
          }
 
+
    IDT::Indices Deque(0, nullptr, this->comp()->trMemory()->currentStackRegion());
+   bool shouldInterpret = this->obtainIDT(Deque, node, budget);
+
    this->_inliningCallStack = new (this->comp()->trMemory()->currentStackRegion()) TR_CallStack(this->comp(), resolvedMethodSymbol, resolvedMethod, prevCallStack, budget);
    // modifies Deque
-   this->obtainIDT(Deque, node, budget);
-
-   if (comp()->trace(OMR::benefitInliner)) {
-      traceMsg(this->comp(), "Finish processing node %d %s budget = %d\n", node->getCalleeIndex(), node->getName(), budget);
+     AbsFrameIDTConstructor constructor(this->comp()->trMemory()->currentStackRegion(), node, this->_callerIndex, this->_inliningCallStack, this);
+     constructor.setDeque(&Deque);
+   if (shouldInterpret) {
+     constructor.interpret();
    }
+
+   if (comp()->trace(OMR::benefitInliner))
+      {
+      traceMsg(TR::comp(), "tracing method summary for %s \n", resolvedMethodSymbol->signature(this->comp()->trMemory()));
+      constructor.traceMethodSummary();
+      }
 
    while (!Deque.empty())
       {
@@ -180,9 +194,10 @@ OMR::BenefitInliner::obtainIDT(IDT::Node *node, int32_t budget)
       }
 
    this->_inliningCallStack = prevCallStack;
+   
    }
 
-void
+bool
 OMR::BenefitInliner::obtainIDT(IDT::Indices &Deque, IDT::Node *node, int32_t budget)
    {
       // Here is where I should make a method summary and edit it in the next obtainIDT...
@@ -192,40 +207,26 @@ OMR::BenefitInliner::obtainIDT(IDT::Indices &Deque, IDT::Node *node, int32_t bud
       // if it is found, keep it as a nullptr, as we don't want to write new data?
       auto iter = this->_methodSummaryMap.find(persistentIdentifier);
       IDT::Node *ms = iter == this->_methodSummaryMap.end() ? nullptr : iter->second;
-      if (comp()->trace(OMR::benefitInliner))
-         {
-         traceMsg(this->comp(), "method summary found = %s\n", ms == nullptr? "false" : "true");
-         traceMsg(this->comp(), "ms == node = %s\n", ms == node ? "false" : "true");
-         }
 
       if (ms != nullptr)
          {
          // At this moment, the method visited by node has already been visited by the method in ms.
          // So, ideally we would like to create avoid all the iteration and just create nodes.
          // We add the children from ms to Deque and Children in Node.
-         //node->copyChildrenFrom(ms, Deque);
-         return;
+         node->copyChildrenFrom(ms, Deque);
+         return false;
          }
       if (ms == nullptr)
          {
          this->_methodSummaryMap.insert(std::pair<TR_OpaqueMethodBlock *, IDT::Node *>(persistentIdentifier,node));
          }
 
-      
-      TR_ResolvedJ9Method *resolvedJ9Method = static_cast<TR_ResolvedJ9Method*>(resolvedMethod);
-      TR_J9VMBase *vm = static_cast<TR_J9VMBase*>(this->comp()->fe());
-      TR_J9ByteCodeIterator bci(resolvedMethodSymbol, resolvedJ9Method, vm, this->comp());
-      TR::CFG *cfg = resolvedMethodSymbol->getFlowGraph();
-      TR::Block *startBlock = cfg->getStartForReverseSnapshot()->asBlock();
-      for (TR::ReversePostorderSnapshotBlockIterator blockIt (startBlock, comp()); blockIt.currentBlock(); ++blockIt)
-         {
-         TR::Block *block = blockIt.currentBlock();
-         // Modifies Deque
-         this->obtainIDT(Deque, node, bci, block, budget);
-         }
-      
+      return true;
    }
 
+
+// This is basically very limited abstract interpreter, we should be able to 
+// re-use the class.
 void
 OMR::BenefitInliner::obtainIDT(IDT::Indices &Deque, IDT::Node *node, TR_J9ByteCodeIterator &bci, TR::Block *block, int budget)
    {
@@ -237,6 +238,7 @@ OMR::BenefitInliner::obtainIDT(IDT::Indices &Deque, IDT::Node *node, TR_J9ByteCo
          TR::MethodSymbol::Kinds kind = TR::MethodSymbol::Kinds::Helper;
          switch(bc)
             {
+               
                case J9BCinvokestatic:
                kind = TR::MethodSymbol::Kinds::Static;
                break;
@@ -256,11 +258,12 @@ OMR::BenefitInliner::obtainIDT(IDT::Indices &Deque, IDT::Node *node, TR_J9ByteCo
          if (kind != TR::MethodSymbol::Kinds::Helper)
             {
             TR_CallSite *callsite = this->findCallSiteTarget(bci.methodSymbol(), bci.currentByteCodeIndex(), bci.next2Bytes(), kind, block);
-            this->obtainIDT(Deque, node, callsite, budget, bci.next2Bytes());
+            this->obtainIDT(&Deque, node, callsite, budget, bci.next2Bytes());
             }
          }
    }
 
+//TODO: delete me
 TR::SymbolReference*
 OMR::BenefitInliner::getSymbolReference(TR::ResolvedMethodSymbol *callerSymbol, int cpIndex, TR::MethodSymbol::Kinds kind)
    {
@@ -631,11 +634,6 @@ OMR::BenefitInliner::printStaticTargets(TR::ResolvedMethodSymbol *callerSymbol, 
 
    }
 
-inline const uint32_t
-OMR::BenefitInliner::budget() const
-   {
-      return this->_budget;
-   }
 
 void
 OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSite *callsite, TR::Block *callblock)
@@ -646,6 +644,8 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
 
       if (!supportsMultipleTargetInlining () && i > 0)
          {
+         if (comp()->trace(OMR::benefitInliner))
+           traceMsg(TR::comp(), "not considering %s because exceeds byte code threshold\n", calltarget->_calleeMethod->signature(this->comp()->trMemory()));
          callsite->removecalltarget(i,tracer(),Exceeds_ByteCode_Threshold);
          i--;
          continue;
@@ -654,6 +654,8 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
       TR_ASSERT(calltarget->_guard, "assertion failure");
       if (!getPolicy()->canInlineMethodWhileInstrumenting(calltarget->_calleeMethod))
          {
+         if (comp()->trace(OMR::benefitInliner))
+           traceMsg(TR::comp(), "not considering %s cannot inline while instrumenting\n", calltarget->_calleeMethod->signature(this->comp()->trMemory()));
          callsite->removecalltarget(i,tracer(),Needs_Method_Tracing);
          i--;
          continue;
@@ -676,6 +678,8 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
          : 3;
       if (callStack && callStack->isAnywhereOnTheStack(calltarget->_calleeMethod, selfInliningLimit))
          {
+         if (comp()->trace(OMR::benefitInliner))
+           traceMsg(TR::comp(), "not considering %s recursive\n", calltarget->_calleeMethod->signature(this->comp()->trMemory()));
          debugTrace(tracer(),"Don't inline recursive call %p %s\n", calltarget, tracer()->traceSignature(calltarget));
          tracer()->insertCounter(Recursive_Callee,callsite->_callNodeTreeTop);
          callsite->removecalltarget(i,tracer(),Recursive_Callee);
@@ -687,6 +691,8 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
 
       if (checkInlineableTarget != InlineableTarget)
          {
+         if (comp()->trace(OMR::benefitInliner))
+           traceMsg(TR::comp(), "not considering %s not inlineable\n", calltarget->_calleeMethod->signature(this->comp()->trMemory()));
          tracer()->insertCounter(checkInlineableTarget,callsite->_callNodeTreeTop);
          callsite->removecalltarget(i,tracer(),checkInlineableTarget);
          i--;
@@ -711,6 +717,8 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
 
       if (realGuard && (!inlineVirtuals() || comp()->getOption(TR_DisableVirtualInlining)))
          {
+         if (comp()->trace(OMR::benefitInliner))
+           traceMsg(TR::comp(), "not considering %s virtual inlining disabled\n", calltarget->_calleeMethod->signature(this->comp()->trMemory()));
          tracer()->insertCounter(Virtual_Inlining_Disabled, callsite->_callNodeTreeTop);
          callsite->removecalltarget(i, tracer(), Virtual_Inlining_Disabled);
          i--;
@@ -720,6 +728,8 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
       static const char * onlyVirtualInlining = feGetEnv("TR_OnlyVirtualInlining");
       if (comp()->getOption(TR_DisableNonvirtualInlining) && !realGuard)
          {
+         if (comp()->trace(OMR::benefitInliner))
+           traceMsg(TR::comp(), "not considering %s non virtual inlining disabled\n", calltarget->_calleeMethod->signature(this->comp()->trMemory()));
          tracer()->insertCounter(NonVirtual_Inlining_Disabled,callsite->_callNodeTreeTop);
          callsite->removecalltarget(i,tracer(),NonVirtual_Inlining_Disabled);
          i--;
@@ -729,6 +739,8 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
       static const char * dontInlineSyncMethods = feGetEnv("TR_DontInlineSyncMethods");
       if (calltarget->_calleeMethod->isSynchronized() && (!inlineSynchronized() || comp()->getOption(TR_DisableSyncMethodInlining)))
          {
+         if (comp()->trace(OMR::benefitInliner))
+           traceMsg(TR::comp(), "not considering %s dont inline sync methods\n", calltarget->_calleeMethod->signature(this->comp()->trMemory()));
          tracer()->insertCounter(Sync_Method_Inlining_Disabled,callsite->_callNodeTreeTop);
          callsite->removecalltarget(i,tracer(),Sync_Method_Inlining_Disabled);
          i--;
@@ -737,6 +749,8 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
 
       if (debug("dontInlineEHAware") && calltarget->_calleeMethod->numberOfExceptionHandlers() > 0)
          {
+         if (comp()->trace(OMR::benefitInliner))
+           traceMsg(TR::comp(), "not considering %s dont inline ehaware\n", calltarget->_calleeMethod->signature(this->comp()->trMemory()));
          tracer()->insertCounter(EH_Aware_Callee,callsite->_callNodeTreeTop);
          callsite->removecalltarget(i,tracer(),EH_Aware_Callee);
          i--;
@@ -745,6 +759,8 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
 
       if (!callsite->_callerResolvedMethod->isStrictFP() && calltarget->_calleeMethod->isStrictFP())
          {
+         if (comp()->trace(OMR::benefitInliner))
+           traceMsg(TR::comp(), "not considering %s dont inline strictFP\n", calltarget->_calleeMethod->signature(this->comp()->trMemory()));
          tracer()->insertCounter(StrictFP_Callee,callsite->_callNodeTreeTop);
          callsite->removecalltarget(i,tracer(),StrictFP_Callee);
 
@@ -754,6 +770,8 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
 
       if (getPolicy()->tryToInline(calltarget, callStack, false))
          {
+         if (comp()->trace(OMR::benefitInliner))
+           traceMsg(TR::comp(), "not considering %s dont inline\n", calltarget->_calleeMethod->signature(this->comp()->trMemory()));
          tracer()->insertCounter(DontInline_Callee,callsite->_callNodeTreeTop);
          callsite->removecalltarget(i,tracer(),DontInline_Callee);
          i--;
@@ -764,6 +782,8 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
          TR::SimpleRegex * regex = comp()->getOptions()->getOnlyInline();
          if (regex && !TR::SimpleRegex::match(regex, calltarget->_calleeMethod))
             {
+            if (comp()->trace(OMR::benefitInliner))
+               traceMsg(TR::comp(), "not considering %s dont inline\n", calltarget->_calleeMethod->signature(this->comp()->trMemory()));
             tracer()->insertCounter(Not_InlineOnly_Callee,callsite->_callNodeTreeTop);
             callsite->removecalltarget(i,tracer(),Not_InlineOnly_Callee);
             i--;
@@ -777,6 +797,8 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
          TR::CFG *cfg = caller->getFlowGraph();
          if (!allowInliningColdCallSites && cfg->isColdCall(callsite->_bcInfo, this))
             {
+            if (comp()->trace(OMR::benefitInliner))
+                traceMsg(TR::comp(), "not considering %s cold call\n", calltarget->_calleeMethod->signature(this->comp()->trMemory()));
             tracer()->insertCounter(DontInline_Callee,callsite->_callNodeTreeTop);
             callsite->removecalltarget(i,tracer(),DontInline_Callee);
             i--;
@@ -787,6 +809,8 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
          bool allowInliningColdTargets = false;
          if (!allowInliningColdTargets && cfg->isColdTarget(callsite->_bcInfo, calltarget, this))
             {
+            if (comp()->trace(OMR::benefitInliner))
+                traceMsg(TR::comp(), "not considering %s cold target\n", calltarget->_calleeMethod->signature(this->comp()->trMemory()));
             tracer()->insertCounter(DontInline_Callee,callsite->_callNodeTreeTop);
             callsite->removecalltarget(i,tracer(),DontInline_Callee);
             i--;
@@ -816,11 +840,14 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
          //bool allowInliningColdTargets = false;
          if (!allowInliningColdTargets && callblock->getFrequency() <= 6)
             {
+            if (comp()->trace(OMR::benefitInliner))
+                traceMsg(TR::comp(), "not considering %s my cold target\n", calltarget->_calleeMethod->signature(this->comp()->trMemory()));
             callsite->removecalltarget(i,tracer(),DontInline_Callee);
             i--;
             continue;
             }
          calltarget->_callRatio = (float)callblock->getFrequency() / cfg->getStartBlockFrequency();
+         traceMsg(TR::comp(), "%s will be added to the IDT\n", calltarget->_calleeMethod->signature(this->comp()->trMemory()));
       }
 
    return;
@@ -892,9 +919,11 @@ OMR::BenefitInliner::BenefitInliner(TR::Optimizer *optimizer, TR::Optimization *
          _callStacksRegion(optimizer->comp()->region()),
          _holdingProposalRegion(optimizer->comp()->region()),
          _mapRegion(optimizer->comp()->region()),
+         _IDTConstructorRegion(optimizer->comp()->region()),
          _inliningCallStack(NULL),
          _rootRms(NULL),
          _budget(budget),
          _methodSummaryMap(MethodSummaryMapComparator(), MethodSummaryMapAllocator(_mapRegion))
          {
          }
+

@@ -11,48 +11,75 @@
 class PotentialOptimization
    {
    public:
-   PotentialOptimization(int bytecode_idx, AbsValue *constraint) :
+   PotentialOptimization(int bytecode_idx, AbsValue *constraint, int argPos) :
       _bytecode_idx(bytecode_idx),
-      _constraint(constraint)
+      _constraint(constraint),
+      _argPos(argPos)
    {};
+   static const char *name;
+   virtual void trace(TR::ValuePropagation *vp); 
    protected:
    int _bytecode_idx;
    AbsValue *_constraint;
+   int _argPos;
    };
 
-class BranchFolding : PotentialOptimization
+class BranchFolding : public PotentialOptimization
    {
    public:
-   BranchFolding(int bytecode_idx, AbsValue *constraint) :
-      PotentialOptimization(bytecode_idx, constraint)
-   {};
-   };
-
-class NullCheckFolding : PotentialOptimization
-   {
-   public:
-   NullCheckFolding(int bytecode_idx, AbsValue *constraint) :
-      PotentialOptimization(bytecode_idx, constraint)
-   {};
-   };
-
-class InstanceOfFolding : PotentialOptimization
-   {
-   public:
-   InstanceOfFolding(int bytecode_idx, AbsValue *constraint):
-      PotentialOptimization(bytecode_idx, constraint)
-   {};
-   };
-
-class CheckCastFolding : PotentialOptimization
-   {
-   public:
-   CheckCastFolding(int bytecode_idx, AbsValue *constraint):
-      PotentialOptimization(bytecode_idx, constraint)
+   BranchFolding(int bytecode_idx, AbsValue *constraint, int argPos) :
+      PotentialOptimization(bytecode_idx, constraint, argPos)
    {};
    static const char *name;
+   virtual void trace(TR::ValuePropagation *vp); 
    };
 
+class NullCheckFolding : public PotentialOptimization
+   {
+   public:
+   NullCheckFolding(int bytecode_idx, AbsValue *constraint, int argPos) :
+      PotentialOptimization(bytecode_idx, constraint, argPos)
+   {};
+   static const char *name;
+   virtual void trace(TR::ValuePropagation *vp); 
+   };
+
+class InstanceOfFolding : public PotentialOptimization
+   {
+   public:
+   InstanceOfFolding(int bytecode_idx, AbsValue *constraint, int argPos):
+      PotentialOptimization(bytecode_idx, constraint, argPos)
+   {};
+   static const char *name;
+   virtual void trace(TR::ValuePropagation *vp); 
+   };
+
+class CheckCastFolding : public PotentialOptimization
+   {
+   public:
+   CheckCastFolding(int bytecode_idx, AbsValue *constraint, int argPos):
+      PotentialOptimization(bytecode_idx, constraint, argPos)
+   {};
+   static const char *name;
+   virtual void trace(TR::ValuePropagation *vp); 
+   };
+
+class MethodSummaryExtension
+   {
+public:
+   MethodSummaryExtension(TR::Region &, TR::ValuePropagation *);
+   void addIfeq(int, int);
+   void addNullCheckFolding(int, AbsValue*, int);
+   void addBranchFolding(int, AbsValue*, int);
+   void addInstanceOfFolding(int, AbsValue*, int);
+   void addCheckCastFolding(int, AbsValue*, int);
+   void trace();
+private:
+   void add(PotentialOptimization*);
+   List<PotentialOptimization> _potentialOpts;
+   TR::Region &_region;
+   TR::ValuePropagation *_vp;
+   };
 
 
 
