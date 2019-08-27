@@ -17,6 +17,8 @@
 #include "compiler/ilgen/J9ByteCodeIterator.hpp"
 #include "compiler/infra/Cfg.hpp"
 
+class InliningProposal;
+
 /**
  * Class IDT 
  * =========
@@ -60,6 +62,7 @@ class IDT
     void buildIndices(IDT::Node **indices);
     void enqueue_subordinates(IDT::NodePtrPriorityQueue *q) const;
     unsigned int getNumChildren() const;
+    IDT::Node *getChild(unsigned int) const;
     void copyChildrenFrom(const IDT::Node*, Indices&);
     bool isRoot() const;
     IDT::Node* findChildWithBytecodeIndex(int bcIndex);
@@ -76,8 +79,16 @@ class IDT
     int budget() const;
     TR_CallSite *_callSite;
     void print();
+    bool isInProposal(InliningProposal *inliningProposal);
+    //TODO: maybe get rid of this
+    void setCallTarget(TR_CallTarget*);
+    TR_CallTarget *getCallTarget();
+    void setCallStack(TR_CallStack*);
+    TR_CallStack* getCallStack();
+    unsigned int getByteCodeIndex();
     private:
-
+    TR_CallStack *_callStack;
+    TR_CallTarget *_calltarget;
     typedef TR::deque<Node*, TR::Region&> Children;
     Node *_parent;
     IDT* _head;

@@ -181,7 +181,6 @@ IDTConstructor::findCallSiteTargets(TR::ResolvedMethodSymbol *callerSymbol, int 
       callsite->_byteCodeIndex = bcIndex;
       callsite->_bcInfo = info; //info has to be a reference, so it is being deleted after node exits.
       callsite->_cpIndex= cpIndex;
-
       callsite->findCallSiteTarget(this->getCallStack(), this->inliner());
       //TODO: Sometimes these were not set, why?
       this->getCallStack()->_methodSymbol = this->getCallStack()->_methodSymbol ? this->getCallStack()->_methodSymbol : callerSymbol;

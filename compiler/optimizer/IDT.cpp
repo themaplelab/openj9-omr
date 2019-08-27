@@ -6,6 +6,7 @@
 #include "compiler/il/OMRBlock.hpp"
 #include "il/Block.hpp"
 #include "ilgen/J9ByteCodeIterator.hpp"
+#include "compiler/optimizer/InliningProposal.hpp"
 
 #define SINGLE_CHILD_BIT 1
 
@@ -20,7 +21,9 @@ IDT::Node::Node(IDT* idt, int idx, int32_t callsite_bci, TR::ResolvedMethodSymbo
   _rms(rms),
   _parent(parent),
   _budget(budget),
-  _callSite(callsite)
+  _callSite(callsite),
+  _calltarget(nullptr),
+  _callStack(nullptr)
   {}
 
 /*
@@ -47,6 +50,13 @@ IDT::IDT(TR_InlinerBase* inliner, TR::Region &mem, TR::ResolvedMethodSymbol* rms
   _current(_root)
   {
   }
+
+bool
+IDT::Node::isInProposal(InliningProposal *inliningProposal)
+{
+  TR_ASSERT_FATAL(inliningProposal, "inliningProposal is null");
+  return inliningProposal->inSet(this);
+}
 
 
 int
@@ -282,7 +292,7 @@ IDT::Node::getNumChildren() const
    if (getOnlyChild() != nullptr) return 1;
    int retval = _children->size();
    //TODO... why is this assertion being triggered?
-   //TR_ASSERT(retval > 1, "retval can't be 1 nor 0");
+   TR_ASSERT(retval > 1, "retval can't be 1 nor 0");
    return retval;
    }
 
@@ -429,6 +439,12 @@ IDT::Node::isSameMethod(IDT::Node* aNode) const
      return this->isSameMethod(aNode->getResolvedMethodSymbol());
   }
 
+unsigned int
+IDT::Node::getByteCodeIndex()
+{
+   return this->_callsite_bci;
+}
+
 IDT::Node*
 IDT::Node::findChildWithBytecodeIndex(int bcIndex)
   {
@@ -564,4 +580,50 @@ void
 IDT::Node::print()
 {
   traceMsg(TR::comp(), "IDT: name = %s\n", this->getName());
+}
+
+IDT::Node*
+IDT::Node::getChild(unsigned int childIndex) const
+{
+   int children = this->getNumChildren();
+   if (0 == children) return nullptr;
+
+   bool correct = childIndex < children;
+   if (!correct) {
+      TR_ASSERT_FATAL(false, "we shouldn't call this");
+      return nullptr;
+   }
+
+   bool onlyOneChild = (childIndex == 0 && children == 1);
+   if (onlyOneChild)
+      {
+      return this->getOnlyChild();
+      }
+
+
+   return _children->at(childIndex);
+}
+
+TR_CallTarget *
+IDT::Node::getCallTarget()
+{
+  return this->_calltarget;
+}
+
+void
+IDT::Node::setCallTarget(TR_CallTarget *calltarget)
+{
+   this->_calltarget = calltarget;
+}
+
+TR_CallStack*
+IDT::Node::getCallStack()
+{
+  return this->_callStack;
+}
+
+void
+IDT::Node::setCallStack(TR_CallStack* callStack)
+{
+  this->_callStack = callStack;
 }

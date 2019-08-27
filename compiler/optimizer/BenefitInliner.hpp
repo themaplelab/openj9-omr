@@ -11,6 +11,7 @@
 #include "optimizer/MethodSummary.hpp"
 
 
+class InliningProposal;
 
 namespace OMR {
 
@@ -37,6 +38,8 @@ class BenefitInlinerBase: public TR_InlinerBase
    {
    protected:
       virtual bool supportsMultipleTargetInlining () { return true; }
+      virtual inline void updateBenefitInliner();
+      virtual bool analyzeCallSite(TR_CallStack *, TR::TreeTop *, TR::Node *, TR::Node *, TR_CallTarget*);
       BenefitInlinerBase(TR::Optimizer *optimizer, TR::Optimization *optimization);
       TR::Region _cfgRegion;
    public:
@@ -47,6 +50,8 @@ class BenefitInlinerBase: public TR_InlinerBase
 protected:
       virtual bool inlineCallTargets(TR::ResolvedMethodSymbol *, TR_CallStack *, TR_InnerPreexistenceInfo *info);
       IDT *_idt;
+      IDT::Node *_currentNode;
+      InliningProposal *_inliningProposal;
    private:
       AbsEnvInlinerUtil *_util2;
       void setAbsEnvUtil(AbsEnvInlinerUtil *u) { this->_util2 = u; }
@@ -59,10 +64,6 @@ class BenefitInliner: public BenefitInlinerBase
    public:
    friend class BenefitInlinerWrapper;
       BenefitInliner(TR::Optimizer *, TR::Optimization *, uint32_t);
-      virtual bool inlineCallTargets(TR::ResolvedMethodSymbol *, TR_CallStack *, TR_InnerPreexistenceInfo *)
-         {
-         return false;
-         }
       void initIDT(TR::ResolvedMethodSymbol *root, int);
       void analyzeIDT();
       void abstractInterpreter();

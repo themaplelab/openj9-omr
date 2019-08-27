@@ -263,6 +263,7 @@ class TR_InlinerBase: public TR_HasRandomGenerator
    {
    protected:
       virtual bool supportsMultipleTargetInlining () { return false ; }
+      virtual inline void updateBenefitInliner() { };
 
    public:
       vcount_t getVisitCount() { return _visitCount;}
@@ -356,6 +357,7 @@ class TR_InlinerBase: public TR_HasRandomGenerator
       virtual bool inlineCallTargets(TR::ResolvedMethodSymbol *, TR_CallStack *, TR_InnerPreexistenceInfo *info)
          {
          TR_ASSERT(0, "invalid call to TR_InlinerBase::inlineCallTargets");
+         traceMsg(TR::comp(), "the one defined on the hpp\n");
          return false;
          }
       TR::TreeTop * addGuardForVirtual(TR::ResolvedMethodSymbol *, TR::ResolvedMethodSymbol *, TR::TreeTop *, TR::Node *,

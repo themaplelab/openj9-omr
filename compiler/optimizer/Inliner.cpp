@@ -1201,6 +1201,7 @@ OMR_InlinerPolicy::inlineMethodEvenForColdBlocks(TR_ResolvedMethod *method)
 
 bool
 TR_DumbInliner::inlineCallTargets(TR::ResolvedMethodSymbol * callerSymbol, TR_CallStack * prevCallStack, TR_InnerPreexistenceInfo *innerPrexInfo) {
+   traceMsg(comp(), "inline call targets dumb inliner\n");
    int32_t maxCallSize;
 
    if (!comp()->getOption(TR_DisableAdaptiveDumbInliner))
@@ -4683,6 +4684,7 @@ bool OMR_InlinerPolicy::tryToInlineTrivialMethod (TR_CallStack* callStack, TR_Ca
 //TODO: currently this method returns true in some cases when the inlining fails. This needs to be fixed
 bool TR_InlinerBase::inlineCallTarget2(TR_CallStack * callStack, TR_CallTarget *calltarget, TR::TreeTop** cursorTreeTop, bool inlinefromgraph, int32_t)
    {
+   updateBenefitInliner();
    TR_InlinerDelimiter delimiter(tracer(),"inlineCallTarget2");
    //printf("*****INLINERCALLSITE2: BEGIN for calltarget %p*****\n",calltarget);
    TR::ResolvedMethodSymbol * calleeSymbol = calltarget->_calleeSymbol;
