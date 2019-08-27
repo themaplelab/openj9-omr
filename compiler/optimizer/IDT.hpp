@@ -57,7 +57,7 @@ class IDT
     unsigned int getCost() const;
     unsigned int getBenefit() const;
     void setBenefit(unsigned int);
-    void buildIndices(IDT::Indices &indices);
+    void buildIndices(IDT::Node **indices);
     void enqueue_subordinates(IDT::NodePtrPriorityQueue *q) const;
     unsigned int getNumChildren() const;
     void copyChildrenFrom(const IDT::Node*, Indices&);
@@ -75,6 +75,7 @@ class IDT
     TR::ValuePropagation *getValuePropagation();
     int budget() const;
     TR_CallSite *_callSite;
+    void print();
     private:
 
     typedef TR::deque<Node*, TR::Region&> Children;
@@ -104,13 +105,13 @@ private:
   int _max_idx = -1;
   Node *_root;
   Node *_current;
-  Indices *_indices = nullptr;
-  void buildIndices();
+  IDT::Node **_indices = nullptr;
   typedef TR::deque<Node, TR::Region&> BuildStack;
   int nextIdx();
   TR::ValuePropagation *getValuePropagation();
 
 public:
+  void buildIndices();
   TR::Region &getMemoryRegion() const;
   IDT(TR_InlinerBase* inliner, TR::Region& mem, TR::ResolvedMethodSymbol* rms, int budget);
   Node* getRoot() const;

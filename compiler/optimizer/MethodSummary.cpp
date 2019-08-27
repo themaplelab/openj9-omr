@@ -33,28 +33,24 @@ void
 CheckCastFolding::trace(TR::ValuePropagation *vp)
 {
    traceMsg(TR::comp(), "%s in bytecode %d for argument %d\n", CheckCastFolding::name, this->_bytecode_idx, this->_argPos);
-   PotentialOpt::trace();
 }
 
 void
 InstanceOfFolding::trace(TR::ValuePropagation *vp)
 {
    traceMsg(TR::comp(), "%s in bytecode %d for argument %d\n", InstanceOfFolding::name, this->_bytecode_idx, this->_argPos);
-   PotentialOpt::trace();
 }
 
 void
 NullCheckFolding::trace(TR::ValuePropagation *vp)
 {
    traceMsg(TR::comp(), "%s in bytecode %d for argument %d\n", NullCheckFolding::name, this->_bytecode_idx, this->_argPos);
-   PotentialOpt::trace();
 }
 
 void
 BranchFolding::trace(TR::ValuePropagation *vp)
 {
    traceMsg(TR::comp(), "%s in bytecode %d for argument %d\n", BranchFolding::name, this->_bytecode_idx, this->_argPos);
-   PotentialOpt::trace();
 }
 
 void

@@ -552,6 +552,7 @@ AbsEnvStatic::lastore(AbstractState &absState)
   {
   //TODO:
   AbsValue *value = absState.pop();
+  AbsValue *value2 = absState.pop();
   AbsValue *index = absState.pop();
   AbsValue *arrayRef = absState.pop();
   // if we have arrayRef, we know arrayRef is not null

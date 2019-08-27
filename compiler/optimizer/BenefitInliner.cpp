@@ -26,7 +26,7 @@ int32_t OMR::BenefitInlinerWrapper::perform()
    OMR::BenefitInliner inliner(optimizer(), this, budget);
    inliner.initIDT(sym, budget);
    if (comp()->trace(OMR::benefitInliner))
-     traceMsg(TR::comp(), "starting benefit inliner for %s\n", sym->signature(this->comp()->trMemory()));
+     traceMsg(TR::comp(), "starting benefit inliner for %s, budget = %d, hotness = %s\n", sym->signature(this->comp()->trMemory()), budget, comp()->getHotnessName(comp()->getMethodHotness()));
    inliner.obtainIDT(inliner._idt->getRoot(), budget);
    
    if (comp()->trace(OMR::benefitInliner))
@@ -39,11 +39,25 @@ int32_t OMR::BenefitInlinerWrapper::perform()
       }
    inliner.abstractInterpreter();
    inliner.analyzeIDT();
-   inliner.traceIDT();
    inliner._idt->getRoot()->getResolvedMethodSymbol()->setFlowGraph(inliner._rootRms);
-   //inliner.performInlining(sym);
+   // I am not sure whether I can inherit this method...
+   // Let's try it...
+   inliner.performInlining(sym);
+   inliner.traceIDT();
    return 1;
    }
+
+
+bool
+OMR::BenefitInlinerBase::inlineCallTargets(TR::ResolvedMethodSymbol *rms, TR_CallStack *callStack, TR_InnerPreexistenceInfo *info)
+{
+   // inputs : IDT = all possible inlining candidates
+   // TR::InliningProposal results = candidates selected for inlining
+   this->_idt;
+   return false;
+}
+
+
 
 
 void
@@ -59,9 +73,13 @@ void
 OMR::BenefitInliner::analyzeIDT()
    {
       if (this->_idt->howManyNodes() == 1) return; // No Need to analyze, since there is nothing to inline.
+      this->_idt->buildIndices();
       PriorityPreorder items(this->_idt, this->comp());
-      Growable_2d_array_BitVectorImpl results(this->comp(), items.size(), 100, this);
-      forwards_BitVectorImpl(100, items, &results, this->comp(), this, this->_idt);
+      traceMsg(TR::comp(), "size = %d, budget = %d\n", items.size(), this->budget());
+      Growable_2d_array_BitVectorImpl results(this->comp(), items.size(), this->budget() + 1, this);
+      InliningProposal *retval = forwards_BitVectorImpl(this->budget(), items, &results, this->comp(), this, this->_idt);
+      traceMsg(TR::comp(), "budget: %d result: \n", this->budget());
+      retval->print();
    }
 
 int32_t
@@ -100,6 +118,7 @@ void OMR::BenefitInliner::initIDT(TR::ResolvedMethodSymbol *root, int budget)
    {
    //TODO: can we do this in the initialization list?
    _idt = new (comp()->trMemory()->currentStackRegion()) IDT(this, comp()->trMemory()->currentStackRegion(), root, budget);
+   traceMsg(TR::comp(), "cost of root %d\n", _idt->getRoot()->getCost());
    }
 
 void OMR::BenefitInliner::traceIDT()
@@ -846,7 +865,7 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
             i--;
             continue;
             }
-         calltarget->_callRatio = (float)callblock->getFrequency() / cfg->getStartBlockFrequency();
+         calltarget->_callRatio = 100 * ((float)callblock->getFrequency() / (float) cfg->getStartBlockFrequency()) + 1;
          traceMsg(TR::comp(), "%s will be added to the IDT\n", calltarget->_calleeMethod->signature(this->comp()->trMemory()));
       }
 
@@ -906,7 +925,8 @@ OMR::BenefitInlinerBase::BenefitInlinerBase(TR::Optimizer *optimizer, TR::Optimi
    _cfgRegion(optimizer->comp()->region()),
    _callerIndex(-1),
    _nodes(0),
-   _util2(NULL)
+   _util2(NULL),
+   _idt(NULL)
    {
       AbsEnvInlinerUtil *absEnvUtil = new (comp()->allocator()) AbsEnvInlinerUtil(this->comp());
       this->setAbsEnvUtil(absEnvUtil);

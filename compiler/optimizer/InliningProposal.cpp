@@ -9,8 +9,8 @@
 
 InliningProposal::InliningProposal(OMR::BenefitInliner *inliner, IDT *idt, int max):
    _inliner(inliner),
-   _cost(0),
-   _benefit(0),
+   _cost(-1),
+   _benefit(-1),
    _idt(idt)
     {
         TR_Memory *mem = inliner->comp()->trMemory();
@@ -28,6 +28,22 @@ InliningProposal::InliningProposal(InliningProposal &proposal, OMR::BenefitInlin
        *this->_nodes = *proposal._nodes;
     }
 
+void
+InliningProposal::print()
+{
+   if (true)
+   { // make a flag for printing inlining proposals
+     traceMsg(TR::comp(), "Printing bit vector with nodes\n");
+     if (!_nodes)
+     { 
+        traceMsg(TR::comp(), "bit vector is NULL\n");
+        return;
+     }
+    this->_nodes->print(TR::comp(), TR::comp()->getOutFile());
+    traceMsg(TR::comp(), "\n");
+   }
+}
+
 
 void
 InliningProposal::pushBack(IDT::Node *node)
@@ -39,8 +55,8 @@ InliningProposal::pushBack(IDT::Node *node)
     }
   _nodes->set(calleeIdx);
 
-  this->_cost += node->getCost();
-  this->_benefit += node->getBenefit();
+  //this->_cost += node->getCost();
+  //this->_benefit += node->getBenefit();
   }
 
 bool
@@ -86,14 +102,14 @@ InliningProposal::computeCostAndBenefit()
             }
         this->_cost += node->getCost();
         this->_benefit += node->getBenefit();
-    }
+      }
     }
 
 void
 InliningProposal::clear()
   {
-  this->_cost = 0;
-  this->_benefit = 0;
+  this->_cost = -1;
+  this->_benefit = -1;
   this->_nodes->empty();
   }
 

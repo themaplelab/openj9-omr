@@ -140,15 +140,27 @@ IDT::getRoot() const
 void
 IDT::buildIndices() 
   {
-    _indices = new (_mem) IDT::Indices(howManyNodes(), nullptr, _mem);
-    getRoot()->buildIndices(*_indices);
+    int howManyNodes = this->howManyNodes() + 1;
+    _indices = new (_mem) IDT::Node *[howManyNodes];
+    memset(_indices, 0, sizeof(IDT::Node*) * (howManyNodes));
+    getRoot()->buildIndices(_indices);
   }
 
 void
-IDT::Node::buildIndices(IDT::Indices &indices)
+IDT::Node::buildIndices(IDT::Node **indices)
   {
-    TR_ASSERT(indices[getCalleeIndex()] == nullptr, "callee index not unique");
-    indices[getCalleeIndex()] = this;
+    TR_ASSERT(indices[getCalleeIndex() + 1] == 0, "callee index not unique");
+    indices[getCalleeIndex() + 1] = this;
+    if (0 == this->getNumChildren()) return;
+
+    if (1 == this->getNumChildren())
+    {
+       IDT::Node *onlyChild = this->getOnlyChild();
+       onlyChild->buildIndices(indices);
+       return;
+    }
+
+    // this only works for if you have more than 1 children..
     for (auto curr = _children->begin(); curr != _children->end(); ++curr)
       {
       (*curr)->buildIndices(indices);
@@ -322,7 +334,7 @@ IDT::Node::getParent() const
 IDT::Node *IDT::getNodeByCalleeIndex(int calleeIndex)
   {
     if (!_indices) return NULL;
-    return (*_indices)[calleeIndex];
+    return (_indices)[calleeIndex + 1];
   }
 
 void
@@ -547,3 +559,9 @@ IDT::Node::analyzeBasicBlock(OMR::Block *block, AbsEnvStatic* absEnv, unsigned i
   return NULL;
   }
 */
+
+void
+IDT::Node::print()
+{
+  traceMsg(TR::comp(), "IDT: name = %s\n", this->getName());
+}

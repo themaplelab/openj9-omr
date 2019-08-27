@@ -82,10 +82,14 @@ Growable_2d_array_BitVectorImpl::get_new(const int row, const int col) {
 void
 Growable_2d_array_BitVectorImpl::put(int row, int col, InliningProposal& proposal) {
   if (row < 0 or col < 0) {
+    TR_ASSERT(false, "putting in negative is not cool, this might fail first");
+    traceMsg(TR::comp(), "putting in %d, %d\n", row, col);
     return;
   }
 
   if (row >= this->_rows or col >= this->_cols) {
+    TR_ASSERT(false, "putting in overflow is not cool, this might fail first");
+    traceMsg(TR::comp(), "putting in %d, %d\n", row, col);
     return;
   }
 
@@ -96,9 +100,13 @@ Growable_2d_array_BitVectorImpl::put(int row, int col, InliningProposal& proposa
 void
 Growable_2d_array_BitVectorImpl::_put(int row, int col, InliningProposal* proposal) {
   if (row < 0 or col < 0) {
+    TR_ASSERT(false, "putting in negative is not cool, this might fail first");
+    traceMsg(TR::comp(), "putting in %d, %d\n", row, col);
     return;
   }
   if (row >= this->_rows or col >= this->_cols) {
+    TR_ASSERT(false, "putting in overflow is not cool, this might fail first");
+    traceMsg(TR::comp(), "putting in %d, %d\n", row, col);
     return;
   }
   

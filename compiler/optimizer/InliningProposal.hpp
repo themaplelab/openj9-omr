@@ -18,6 +18,7 @@ class InliningProposal
   public:
   InliningProposal(OMR::BenefitInliner *inliner, IDT *idt, int max);
   InliningProposal(InliningProposal&, OMR::BenefitInliner *inliner);
+  void print();
   bool isEmpty() const;
   void clear();
   int getCost() ;

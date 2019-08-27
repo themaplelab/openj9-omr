@@ -43,6 +43,10 @@ class BenefitInlinerBase: public TR_InlinerBase
       virtual void applyPolicyToTargets(TR_CallStack *, TR_CallSite *, TR::Block *block=NULL);
       int _callerIndex;
       int _nodes;
+      //void performInlining(TR::ResolvedMethodSymbol *);
+protected:
+      virtual bool inlineCallTargets(TR::ResolvedMethodSymbol *, TR_CallStack *, TR_InnerPreexistenceInfo *info);
+      IDT *_idt;
    private:
       AbsEnvInlinerUtil *_util2;
       void setAbsEnvUtil(AbsEnvInlinerUtil *u) { this->_util2 = u; }
@@ -63,6 +67,7 @@ class BenefitInliner: public BenefitInlinerBase
       void analyzeIDT();
       void abstractInterpreter();
       void obtainIDT(IDT::Node *node, int32_t budget);
+      
       bool obtainIDT(IDT::Indices&, IDT::Node*, int32_t budget);
       void obtainIDT(IDT::Indices&, IDT::Node*, TR_J9ByteCodeIterator&, TR::Block *, int32_t);
       void obtainIDT(IDT::Indices*, IDT::Node *, TR_CallSite*, int32_t budget, int cpIndex);
@@ -82,7 +87,6 @@ class BenefitInliner: public BenefitInlinerBase
       TR::Region _IDTConstructorRegion;
       MethodSummaryMap _methodSummaryMap;
       TR_CallStack *_inliningCallStack;
-      IDT *_idt;
       const uint32_t _budget;
 
       TR_CallSite *findCallSiteTarget(TR::ResolvedMethodSymbol *resolvedMethodSymbol, int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind, TR::Block *block);
