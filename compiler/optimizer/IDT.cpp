@@ -448,14 +448,21 @@ IDT::Node::getByteCodeIndex()
 IDT::Node*
 IDT::Node::findChildWithBytecodeIndex(int bcIndex)
   {
+    //TODO: not linear search
     int size = this->getNumChildren();
     if (size == 0) return nullptr;
-    if (size == 1) return this->getOnlyChild();
-    for (int i = 0; i < size; i++) {
-       if (_children->at(i)->_callsite_bci == bcIndex)
-          return ((_children->at(i)));
+    if (size == 1) {
+        IDT::Node *child = this->getOnlyChild();
+        return (child->_callsite_bci == bcIndex) ? child : nullptr;
     }
-  TR_ASSERT_FATAL(false, "why shouldn't be here");
+    IDT::Node *child = nullptr;
+    for (int i = 0; i < size; i++) {
+       if (child && _children->at(i)->_callsite_bci == bcIndex)
+          TR_ASSERT(false, "we have more than two, how to disambiguate?");
+       if (_children->at(i)->_callsite_bci == bcIndex)
+          child = ((_children->at(i)));
+    }
+  //TR_ASSERT_FATAL(false, "we shouldn't be here");
   return nullptr;
   }
 

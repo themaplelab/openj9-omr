@@ -62,7 +62,7 @@ public:
   void traceMethodSummary();
 protected:
   OMR::BenefitInliner* _inliner;
-  TR::Region _callSitesRegion;
+  TR::Region &_callSitesRegion;
   TR_CallStack *_inliningCallStack;
   int _callerIndex;
   virtual void factFlow(OMR::Block *);
