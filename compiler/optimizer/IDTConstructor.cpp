@@ -175,7 +175,10 @@ IDTConstructor::findCallSiteTargets(TR::ResolvedMethodSymbol *callerSymbol, int 
             isIndirect,
             isInterface,
             info,
-            TR::comp()
+            TR::comp(),
+            -1,
+            false,
+            symRef
          );
       //TODO: Sometimes these were not set, why?
       callsite->_byteCodeIndex = bcIndex;
@@ -377,8 +380,20 @@ IDTConstructor::getCallSite(TR::MethodSymbol::Kinds kind,
                                     TR_ByteCodeInfo & bcInfo,
                                     TR::Compilation *comp,
                                     int32_t depth,
-                                    bool allConsts)
+                                    bool allConsts,
+                                    TR::SymbolReference *symRef)
    {
+      if (false) {
+          return TR_CallSite::create(callNodeTreeTop, parent, callNode, receiverClass, symRef, initialCalleeMethod, comp, comp->trMemory(), heapAlloc, callerResolvedMethod, depth, allConsts);
+      }
+      
+      if (initialCalleeMethod)
+      {
+
+        kind = symRef->getSymbol()->isFinal() ||
+         initialCalleeMethod->isPrivate() ||
+         (debug("omitVirtualGuard") && !initialCalleeMethod->virtualMethodIsOverridden()) ? TR::MethodSymbol::Kinds::Static : kind;
+      }
       TR_CallSite *callsite = NULL;
       switch (kind) {
          case TR::MethodSymbol::Kinds::Virtual:

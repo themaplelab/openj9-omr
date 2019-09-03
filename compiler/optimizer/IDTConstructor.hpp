@@ -47,7 +47,8 @@ private:
                                     TR_ByteCodeInfo & bcInfo,
                                     TR::Compilation *comp,
                                     int32_t depth=-1,
-                                    bool allConsts=false);
+                                    bool allConsts=false,
+                                    TR::SymbolReference *symRef=nullptr);
 };
 
 class AbsFrameIDTConstructor : public AbsFrame

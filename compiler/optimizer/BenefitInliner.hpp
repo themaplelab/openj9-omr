@@ -41,6 +41,7 @@ class BenefitInlinerBase: public TR_InlinerBase
       void getSymbolAndFindInlineTargets(TR_CallStack *callStack, TR_CallSite *callsite, bool findNewTargets=true);
       virtual bool supportsMultipleTargetInlining () { return true; }
       virtual inline void updateBenefitInliner();
+      virtual inline void popBenefitInlinerInformation();
       virtual bool analyzeCallSite(TR_CallStack *, TR::TreeTop *, TR::Node *, TR::Node *);
       BenefitInlinerBase(TR::Optimizer *optimizer, TR::Optimization *optimization);
       TR::Region _cfgRegion;
@@ -54,6 +55,7 @@ protected:
       bool usedSavedInformation(TR::ResolvedMethodSymbol *, TR_CallStack *, TR_InnerPreexistenceInfo *info, IDT::Node *idtNode);
       IDT *_idt;
       IDT::Node *_currentNode;
+      IDT::Node *_previousNode;
       InliningProposal *_inliningProposal;
    private:
       AbsEnvInlinerUtil *_util2;

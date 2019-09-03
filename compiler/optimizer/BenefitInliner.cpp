@@ -28,11 +28,9 @@ int32_t OMR::BenefitInlinerWrapper::perform()
    inliner.debugTrees(sym);
    inliner._rootRms = prevCFG;
    inliner.initIDT(sym, budget);
-   inliner.debugTrees(inliner._idt->getRoot()->getResolvedMethodSymbol());
    if (comp()->trace(OMR::benefitInliner))
      traceMsg(TR::comp(), "starting benefit inliner for %s, budget = %d, hotness = %s\n", sym->signature(this->comp()->trMemory()), budget, comp()->getHotnessName(comp()->getMethodHotness()));
    inliner.obtainIDT(inliner._idt->getRoot(), budget);
-   inliner.debugTrees(inliner._idt->getRoot()->getResolvedMethodSymbol());
    
    if (inliner._idt->howManyNodes() == 1) 
       {
@@ -46,8 +44,7 @@ int32_t OMR::BenefitInlinerWrapper::perform()
    // I am not sure whether I can inherit this method...
    // Let's try it...
    inliner._currentNode = inliner._idt->getRoot();
-   inliner.debugTrees(inliner._idt->getRoot()->getResolvedMethodSymbol());
-   inliner.traceIDT();
+   inliner.debugTrees(sym);
    inliner.performInlining(sym);
    inliner.traceIDT();
    return 1;
@@ -63,9 +60,10 @@ OMR::BenefitInlinerBase::debugTrees(TR::ResolvedMethodSymbol *rms)
 
          TR::Node * node = parent->getChild(0);
          if (!node->getOpCode().isCall()) continue;
-         traceMsg(TR::comp(), "CHECK HERE WHAT NODE ARE WE USING? %s\n", node->getOpCode().getName());
+         traceMsg(TR::comp(), "name of node ? %s\n", node->getOpCode().getName());
          TR_ByteCodeInfo &bcInfo = node->getByteCodeInfo();
          traceMsg(TR::comp(), "bytecodeIndex %d\n", bcInfo.getByteCodeIndex());
+         traceMsg(comp(), "is call indirect? %s\n", node->getOpCode().isCallIndirect() ? "true" : "false");
          }
 }
 
@@ -159,6 +157,9 @@ OMR::BenefitInlinerBase::usedSavedInformation(TR::ResolvedMethodSymbol *rms, TR_
             callsite->_callerResolvedMethod = idtNode->getResolvedMethodSymbol()->getResolvedMethod();
             int32_t numArgs = (int32_t) (target->_myCallSite->_callNode->getNumChildren());
             int32_t numParms = target->_calleeSymbol->getParameterList().getSize();
+            traceMsg(comp(), "name of node ? %s\n", node->getOpCode().getName());
+            traceMsg(comp(), "bcIndex of node ? %d\n", node->getByteCodeInfo().getByteCodeIndex());
+            traceMsg(comp(), "what kind of call site ? %s\n", callsite->name());
             traceMsg(comp(), "target->calleeSymbol =  %s\n", target->_calleeSymbol->signature(comp()->trMemory()));
             trfflush(comp()->getOutFile());
          } else {
@@ -186,7 +187,11 @@ OMR::BenefitInlinerBase::usedSavedInformation(TR::ResolvedMethodSymbol *rms, TR_
                               tracer()->getGuardKindString(target->_guard),
                               tracer()->getGuardTypeString(target->_guard));
 
-         inlined |= inlineCallTarget(callStack, target, false, NULL, &tt);
+         bool success = inlineCallTarget(callStack, target, false, NULL, &tt);
+         if (success) {
+            callStack->commit();
+         }
+         inlined |= success;
          
          node->setVisitCount(_visitCount);
          target->_myCallSite->_visitCount++;
@@ -1240,6 +1245,7 @@ OMR::BenefitInlinerBase::BenefitInlinerBase(TR::Optimizer *optimizer, TR::Optimi
    _util2(NULL),
    _idt(NULL),
    _currentNode(NULL),
+   _previousNode(NULL),
    _inliningProposal(NULL)
    {
       AbsEnvInlinerUtil *absEnvUtil = new (comp()->allocator()) AbsEnvInlinerUtil(this->comp());
@@ -1264,5 +1270,13 @@ OMR::BenefitInliner::BenefitInliner(TR::Optimizer *optimizer, TR::Optimization *
 void
 OMR::BenefitInlinerBase::updateBenefitInliner()
 {
+   this->_previousNode = this->_currentNode;
    this->_currentNode = nullptr;
+}
+
+void
+OMR::BenefitInlinerBase::popBenefitInlinerInformation()
+{
+  this->_currentNode = this->_previousNode;
+  this->_previousNode = nullptr;
 }

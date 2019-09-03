@@ -264,6 +264,7 @@ class TR_InlinerBase: public TR_HasRandomGenerator
    protected:
       virtual bool supportsMultipleTargetInlining () { return false ; }
       virtual inline void updateBenefitInliner() { };
+      virtual inline void popBenefitInlinerInformation() { };
 
    public:
       vcount_t getVisitCount() { return _visitCount;}

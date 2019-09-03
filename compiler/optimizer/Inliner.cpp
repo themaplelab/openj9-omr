@@ -1311,7 +1311,10 @@ TR_DumbInliner::analyzeCallSite(
    TR_CallSite *callsite = TR_CallSite::create(callNodeTreeTop, parent, callNode,
                                                (TR_OpaqueClassBlock*) 0, symRef, (TR_ResolvedMethod*) 0,
                                                comp(), trMemory() , stackAlloc);
-
+   traceMsg(comp(), "name of node ? %s\n", callNode->getOpCode().getName());
+   traceMsg(comp(), "bcIndex of node ? %d\n", callNode->getByteCodeInfo().getByteCodeIndex());
+   traceMsg(comp(), "what kind of call site ? %s\n", callsite->name());
+   traceMsg(comp(), "is call indirect? %s\n", callNode->getOpCode().isCallIndirect() ? "true" : "false");
    getSymbolAndFindInlineTargets(callStack,callsite);
 
    if (!callsite->numTargets())
@@ -3905,6 +3908,7 @@ bool TR_DirectCallSite::findCallSiteTarget (TR_CallStack* callStack, TR_InlinerB
    static const char *disableFSDGuard = feGetEnv("TR_DisableFSDGuard");
    if (!disableHCRGuards2 && comp()->getHCRMode() != TR::none && !comp()->compileRelocatableCode() && !skipHCRGuardForCallee)
       {
+      traceMsg(comp(), "HERE, we are selecting HCRGuard\n");
       tempreceiverClass = _initialCalleeMethod->classOfMethod();
       guard = new (comp()->trHeapMemory()) TR_VirtualGuardSelection(TR_HCRGuard, TR_NonoverriddenTest);
       }
@@ -5077,6 +5081,9 @@ bool TR_InlinerBase::inlineCallTarget2(TR_CallStack * callStack, TR_CallTarget *
    bool disableTailRecursion = false;
    TR::TreeTop *induceOSRCallTree = NULL;
 
+   traceMsg(comp(), "Inlining with a virtual guard kind=%s type=%s\n",
+                              tracer()->getGuardKindString(calltarget->_guard),
+                              tracer()->getGuardTypeString(calltarget->_guard));
    if (guard->_kind != TR_NoGuard)
       {
       virtualGuard =
