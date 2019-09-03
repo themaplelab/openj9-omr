@@ -20,6 +20,10 @@ if ((COND)) { traceMsg(this->_comp, M, ##__VA_ARGS__ ); }
 void
 MethodSummaryExtension::trace()
 {
+   if (!this->_potentialOpts.getSize()) { 
+     traceMsg(TR::comp(), "empty method summary\n");
+     return;
+   }
    traceMsg(TR::comp(), "Method Summary: \n");
    ListIterator<PotentialOptimization> iter(&this->_potentialOpts);
    PotentialOptimization *popt = iter.getFirst();

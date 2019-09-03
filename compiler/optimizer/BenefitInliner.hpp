@@ -56,6 +56,7 @@ protected:
       IDT *_idt;
       IDT::Node *_currentNode;
       IDT::Node *_previousNode;
+      IDT::Node *_currentChild;
       InliningProposal *_inliningProposal;
    private:
       AbsEnvInlinerUtil *_util2;

@@ -22,7 +22,7 @@ int32_t OMR::BenefitInlinerWrapper::perform()
    TR::ResolvedMethodSymbol * sym = comp()->getMethodSymbol();
    TR::CFG *prevCFG = sym->getFlowGraph();
    int32_t budget = this->getBudget(sym);
-   if (budget < 0) return -1;
+   if (budget < 0) return 1;
 
    OMR::BenefitInliner inliner(optimizer(), this, budget);
    inliner.debugTrees(sym);
@@ -77,7 +77,11 @@ OMR::BenefitInlinerBase::inlineCallTargets(TR::ResolvedMethodSymbol *rms, TR_Cal
 
    // if current node is in inlining proposal
    // at the beginning, current node is root, so it can't be inlined. So we need to iterate over its children to see if they are inlined...
-   if (!this->_currentNode) return false;
+   if (!this->_currentNode) {
+      return false;
+   }
+
+   traceMsg(TR::comp(), "inlining into %s\n", this->_currentNode->getName());
    bool inlined = this->usedSavedInformation(rms, callStack, info, this->_currentNode);
    return inlined;
 }
@@ -179,6 +183,7 @@ OMR::BenefitInlinerBase::usedSavedInformation(TR::ResolvedMethodSymbol *rms, TR_
 
          if (target->_alreadyInlined) continue;
 
+         _currentChild = child;
          // I am adding some guards here...
          getSymbolAndFindInlineTargets(callStack,callsite);
 
@@ -1246,6 +1251,7 @@ OMR::BenefitInlinerBase::BenefitInlinerBase(TR::Optimizer *optimizer, TR::Optimi
    _idt(NULL),
    _currentNode(NULL),
    _previousNode(NULL),
+   _currentChild(NULL),
    _inliningProposal(NULL)
    {
       AbsEnvInlinerUtil *absEnvUtil = new (comp()->allocator()) AbsEnvInlinerUtil(this->comp());
@@ -1270,13 +1276,11 @@ OMR::BenefitInliner::BenefitInliner(TR::Optimizer *optimizer, TR::Optimization *
 void
 OMR::BenefitInlinerBase::updateBenefitInliner()
 {
-   this->_previousNode = this->_currentNode;
-   this->_currentNode = nullptr;
+   this->_currentNode = this->_currentChild;
 }
 
 void
 OMR::BenefitInlinerBase::popBenefitInlinerInformation()
 {
-  this->_currentNode = this->_previousNode;
-  this->_previousNode = nullptr;
+  this->_currentNode = this->_currentNode->getParent();
 }
