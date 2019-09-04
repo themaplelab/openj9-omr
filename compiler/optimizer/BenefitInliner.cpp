@@ -7,6 +7,7 @@
 #include "infra/Cfg.hpp"
 #include "infra/CfgNode.hpp" // for CFGNode
 #include "infra/ILWalk.hpp"
+#include "infra/SimpleRegex.hpp"
 #include "optimizer/BenefitInliner.hpp"
 #include "optimizer/J9CallGraph.hpp"
 #include "optimizer/J9EstimateCodeSize.hpp"
@@ -19,6 +20,19 @@
 
 int32_t OMR::BenefitInlinerWrapper::perform()
    {
+   char * s = "{*IPC.*\|*PrintStream.write*\|*LegacyInterpreter.fastLoop*\|*StringUtil.appendFract*\|*Unsafe.copyMemory*}";
+   TR::SimpleRegex *regex = TR::SimpleRegex::create(s);
+   const char * signature = comp()->signature();
+   if (signature && regex && TR::SimpleRegex::match(regex, signature))
+      {
+      return 0;
+      }
+   char * s2 = "{*UnixNativeDispatcher.lstat0*}";
+   TR::SimpleRegex *regex2 = TR::SimpleRegex::create(s2);
+   if (signature && regex2 && TR::SimpleRegex::match(regex2, signature))
+      {
+      return 0;
+      }
    TR::ResolvedMethodSymbol * sym = comp()->getMethodSymbol();
    TR::CFG *prevCFG = sym->getFlowGraph();
    int32_t budget = this->getBudget(sym);
@@ -490,12 +504,13 @@ OMR::BenefitInliner::obtainIDT(IDT::Node *node, int32_t budget)
      AbsFrameIDTConstructor constructor(this->_callSitesRegion, node, this->_callerIndex, this->_inliningCallStack, this);
      constructor.setDeque(&Deque);
    if (shouldInterpret) {
+     traceMsg(TR::comp(), "tracing method summary construction for %s \n", resolvedMethodSymbol->signature(this->comp()->trMemory()));
      constructor.interpret();
    }
 
    if (comp()->trace(OMR::benefitInliner))
       {
-      traceMsg(TR::comp(), "tracing method summary for %s \n", resolvedMethodSymbol->signature(this->comp()->trMemory()));
+      traceMsg(TR::comp(), "tracing method for %s \n", resolvedMethodSymbol->signature(this->comp()->trMemory()));
       constructor.traceMethodSummary();
       }
 
