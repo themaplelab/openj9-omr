@@ -7,6 +7,7 @@
 #include "infra/Cfg.hpp"
 #include "infra/CfgNode.hpp" // for CFGNode
 #include "infra/ILWalk.hpp"
+#include "compiler/env/PersistentCHTable.hpp"
 #include "infra/SimpleRegex.hpp"
 #include "optimizer/BenefitInliner.hpp"
 #include "optimizer/J9CallGraph.hpp"
@@ -436,7 +437,9 @@ OMR::BenefitInliner::obtainIDT(IDT::Indices *Deque, IDT::Node *currentNode, TR_C
    for (int i = 0; i < callsite->numTargets(); i++)
       {
       TR_CallTarget *callTarget = callsite->getTarget(i);
-      TR::ResolvedMethodSymbol *resolvedMethodSymbol = callTarget->_calleeSymbol ? callTarget->_calleeSymbol : callTarget->_calleeMethod->findOrCreateJittedMethodSymbol(this->comp());
+      //TODO: can I delete the ?
+      TR::ResolvedMethodSymbol *resolvedMethodSymbol = callTarget->_calleeSymbol ; //? callTarget->_calleeSymbol : callTarget->_calleeMethod->findOrCreateJittedMethodSymbol(this->comp());
+      //TR::ResolvedMethodSymbol *resolvedMethodSymbol = callTarget->_guard->getSymbolReference()->getSymbol()->getMethodSymbol();
 
       IDT::Node *node = currentNode->addChildIfNotExists(this->_idt, callsite->_byteCodeIndex, resolvedMethodSymbol, callTarget->_callRatio, callsite);
       if (node) {
@@ -1203,7 +1206,12 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
             continue;
             }
          calltarget->_callRatio = 100 * ((float)callblock->getFrequency() / (float) cfg->getStartBlockFrequency()) + 1;
-         traceMsg(TR::comp(), "%s will be added to the IDT\n", calltarget->_calleeMethod->signature(this->comp()->trMemory()));
+         int32_t len;
+         char *s = TR::Compiler->cls.classNameChars(comp(), calltarget->_receiverClass, len);
+         TR::ResolvedMethodSymbol * hello = calltarget->_calleeSymbol;
+
+        //comp()->getPersistentInfo()->getPersistentCHTable()->findSingleImplementer(calltarget->_receiverClass,TR::Compiler->cls.isInterfaceClass(comp(), calltarget->_receiverClass) ? callsite->_cpIndex : callsite->_vftSlot,callsite->_callerResolvedMethod, comp(), false, TR_yes);
+         traceMsg(TR::comp(), "receiver %s signature %s will be added to the IDT\n", !hello ? "null" : hello->signature(this->comp()->trMemory()), calltarget->_calleeSymbol->signature(this->comp()->trMemory()));
       }
 
    return;

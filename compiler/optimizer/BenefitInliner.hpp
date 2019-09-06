@@ -39,7 +39,7 @@ class BenefitInlinerBase: public TR_InlinerBase
    protected:
       void debugTrees(TR::ResolvedMethodSymbol*);
       void getSymbolAndFindInlineTargets(TR_CallStack *callStack, TR_CallSite *callsite, bool findNewTargets=true);
-      virtual bool supportsMultipleTargetInlining () { return true; }
+      virtual bool supportsMultipleTargetInlining () { return false; }
       virtual inline void updateBenefitInliner();
       virtual inline void popBenefitInlinerInformation();
       virtual bool analyzeCallSite(TR_CallStack *, TR::TreeTop *, TR::Node *, TR::Node *);
