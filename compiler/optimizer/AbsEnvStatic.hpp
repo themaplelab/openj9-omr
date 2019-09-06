@@ -636,17 +636,6 @@ public:
   virtual AbstractState& tableswitch(AbstractState&) = 0;
   //virtual AbstractState& wide(AbstractState&) = 0;
 };
-/*
-  AbsEnvStatic(TR::Region &region, IDT::Node *node);
-  AbsEnvStatic(AbsEnvStatic&);
-  void trace(const char* methodName = NULL);
-  void interpretBlock(OMR::Block *block);
-  AbsEnvStatic *getWidened();
-  typedef AbsValue::CompareResult CompareResult;
-  CompareResult compareWith(AbsEnvStatic *other);
-  bool isNarrowerThan(AbsEnvStatic *other);
-  void merge(AbsEnvStatic&);
-*/
 
 //TODO: template over AbsValue
 class AbstractState
@@ -658,6 +647,7 @@ public:
   AbsValue *at(unsigned int);
   void push(AbsValue *);
   AbsValue* pop();
+  void merge(MergeOperation *op, const AbstractState &other);
   void merge(AbstractState &, TR::ValuePropagation*);
   size_t getStackSize() const;
   void trace(TR::ValuePropagation*);
@@ -676,6 +666,7 @@ public:
   AbsEnvStatic(TR::Region &region, IDT::Node *node, AbsFrame*);
   AbsEnvStatic(AbsEnvStatic&);
   void trace(const char* methodName = NULL);
+  AbsEnvStatic *getWidened();
   void merge(AbsEnvStatic&);
   void interpret(TR_J9ByteCode, TR_J9ByteCodeIterator &);
   AbstractState &getState() { return this->_absState; }
@@ -683,9 +674,7 @@ public:
   static AbsEnvStatic *enterMethod(TR::Region&region, IDT::Node* node, AbsFrame* absFrame, TR::ResolvedMethodSymbol*);
   OMR::Block *getBlock() { return this->_block; }
   OMR::Block *_block;
-  bool isNarrowerThan(AbsEnvStatic *other);
-  AbsEnvStatic *getWidened();
-  static AbsEnvStatic *mergeIdenticalValuesBottom(AbsEnvStatic *a, AbsEnvStatic *b);
+  AbsValue *createAbsValue(TR::VPConstraint *vp, TR::DataType dt);
 protected:
   AbsFrame* _absFrame;
   AbstractState _absState;
@@ -908,8 +897,6 @@ private:
   void aloadn(AbstractState&, int);
   void pushConstInt(AbstractState&, int);
   void interpretBlock(OMR::Block *block);
-  typedef AbsValue::CompareResult CompareResult;
-  CompareResult compareWith(AbsEnvStatic *other);
   void pushNull();
   void iconst(AbstractState&, int);
   void ldcString(int);
@@ -918,9 +905,8 @@ private:
   void ldcInt64(int); 
   void ldcFloat();
   void ldcDouble();
-  AbsValue* getTopDataType(TR::DataType);
+  virtual AbsValue* getTopDataType(TR::DataType);
 };
-
 
 class AbsFrame
 {
@@ -934,7 +920,9 @@ public:
   IDT::Node *_node;
   TR::ValuePropagation *_vp;
   TR_J9ByteCodeIterator _bci;
-  void interpret(OMR::Block *); 
+  void interpret(OMR::Block *);
+  void interpret(OMR::Block *, AbsEnvStatic *); 
+  virtual AbsValue *createAbsValue(TR::VPConstraint *vp, TR::DataType dt);
 protected:
   TR::Region &_region;
   TR::ResolvedMethodSymbol *_rms;

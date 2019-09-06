@@ -15,7 +15,7 @@
 #include "optimizer/InlinerPacking.hpp"
 #include "optimizer/AbsEnvStatic.hpp"
 #include "optimizer/IDTConstructor.hpp"
-#include "AbstractInterpretation.hpp"
+#include "optimizer/ArgumentsEstimator.hpp"
 
 
 int32_t OMR::BenefitInlinerWrapper::perform()
@@ -36,10 +36,11 @@ int32_t OMR::BenefitInlinerWrapper::perform()
 
    if (inliner._idt->howManyNodes() == 1) 
       {
+      goto c;// TODO spencer remove this
       inliner._idt->getRoot()->getResolvedMethodSymbol()->setFlowGraph(inliner._rootRms);
       return 1; // No Need to analyze, since there is nothing to inline.
       }
-   inliner.abstractInterpreter();
+   c: inliner.abstractInterpreter();
    inliner.analyzeIDT();
    inliner.traceIDT();
    inliner._idt->getRoot()->getResolvedMethodSymbol()->setFlowGraph(inliner._rootRms);
@@ -60,10 +61,10 @@ OMR::BenefitInliner::abstractInterpreter()
       return;
       }
    IDT::Node *method = this->_idt->getRoot();
-   TR_AbstractInterpretation analyzer(_absEnvRegion, method, method->getValuePropagation(), structure, comp(), /* trace */ true);
-   analyzer.perform();
+   AbsFrameArgumentsEstimator analyzer(_absEnvRegion, method, method->getValuePropagation(), structure, comp(), /* trace */ true);
+   analyzer.interpret();
    traceMsg(TR::comp(), "Final state\n");
-   analyzer.getExitState()->trace("");
+   analyzer.getMethodExitState()->trace("");
 
 
    // Repair flow graph

@@ -15,9 +15,6 @@ class AbsOpStack {
 public:
   AbsOpStack(TR::Compilation *comp, TR::Region & region);
   AbsOpStack(const AbsOpStack & );
-  typedef AbsValue::CompareResult CompareResult;
-  // TODO
-  CompareResult compareWith(AbsOpStack *other);
   void pushConstraint(TR::VPConstraint*);
   void pushConstInt(int i);
   void pushNullConstraint(void);

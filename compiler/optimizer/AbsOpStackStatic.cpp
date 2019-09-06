@@ -5,34 +5,10 @@
 
 //TODO: can we use maxSize somehow to make memory allocation more efficient?
 AbsOpStackStatic::AbsOpStackStatic(TR::Region &region, unsigned int maxSize) :
-  _stack(StackContainer(0, nullptr, region)),
+  _stack(ConstraintStack(0, nullptr, region)),
   _maxSize(maxSize)
   //_stack(0, nullptr, region)
   {
-  }
-
-// TODO there are no doubt better ways of doing this
-// Copy the contents of the stack and widen every item
-// The result is a stack with the same types and depth
-// But every element is top
-AbsOpStackStatic* AbsOpStackStatic::getWidened(TR::Region &region)
-  {
-  AbsOpStackStatic copy(*this, region);
-  ConstraintStack temp(StackContainer(0, nullptr, region));
-  while (!copy.empty())
-    {
-      AbsValue *v = copy.top();
-      copy.pop();
-      temp.push(v->getWidened(region));
-    }
-  AbsOpStackStatic *top = new (region) AbsOpStackStatic(region, _maxSize);
-  while (!temp.empty())
-    {
-      AbsValue *v = temp.top();
-      temp.pop();
-      top->push(v);
-    }
-  return top;
   }
 
 AbsOpStackStatic::AbsOpStackStatic(const AbsOpStackStatic &other, TR::Region &region) :
@@ -40,6 +16,16 @@ AbsOpStackStatic::AbsOpStackStatic(const AbsOpStackStatic &other, TR::Region &re
   _maxSize(other._maxSize)
   {
 
+  }
+
+
+void AbsOpStackStatic::merge(MergeOperation *op, const AbsOpStackStatic &other)
+  {
+  TR_ASSERT(other._stack.size() == this->_stack.size(), "Cannot merge stack of different size!");
+  for (int i = 0; i < _stack.size(); i++)
+    {
+    _stack[i] = op->merge(_stack[i], other._stack[i]);
+    }
   }
 
 void
@@ -51,8 +37,8 @@ AbsOpStackStatic::merge(const AbsOpStackStatic &stack, TR::Region &regionForAbsV
   ConstraintStack copyOfOther(stack._stack);
   //ConstraintStack copyOfOther(StackContainer(0, nullptr, region));
   //copyOfOther = stack._stack;
-  StackContainer dequeSelf(region);
-  StackContainer dequeOther(region);
+  ConstraintStack dequeSelf(region);
+  ConstraintStack dequeOther(region);
   //dequeSelf(region);
   //StackContainer dequeOther(region);
   //TODO: is there an easier way to merge to stacks?
@@ -60,9 +46,9 @@ AbsOpStackStatic::merge(const AbsOpStackStatic &stack, TR::Region &regionForAbsV
   for (int i = 0; i < size; i++)
     {
     dequeSelf.push_back(this->top());
-    dequeOther.push_back(copyOfOther.top());
+    dequeOther.push_back(copyOfOther.back());
     this->pop();
-    copyOfOther.pop();
+    copyOfOther.pop_back();
     }
   // cool so now we have the contents of both of these stack in a deque.
   // top is at front and bottom is at back.
@@ -81,22 +67,19 @@ AbsOpStackStatic::merge(const AbsOpStackStatic &stack, TR::Region &regionForAbsV
 void
 AbsOpStackStatic::push(AbsValue *value)
   {
-  _stack.push(value);
-  //_stack.push_back(value);
+  _stack.push_back(value);
   }
 
 void
 AbsOpStackStatic::pop()
   {
-  _stack.pop();
-  //_stack.pop_back();
+  _stack.pop_back();
   }
 
 AbsValue*
 AbsOpStackStatic::top()
   {
-  return _stack.top();
-  //return _stack.back();
+  return _stack.back();
   }
 
 bool
@@ -126,8 +109,8 @@ AbsOpStackStatic::trace(OMR::ValuePropagation *vp, TR::Region &region)
   ConstraintStack copy(this->_stack);
   traceMsg(comp, "<top>\n");
   for (int i = 0; i < size; i++) {
-    AbsValue *value = copy.top();
-    copy.pop();
+    AbsValue *value = copy.back();
+    copy.pop_back();
     //AbsValue *value = this->_stack.back();
     //this->_stack.pop_back();
     traceMsg(comp, "fp[%d] = ", size - i - 1);
@@ -145,7 +128,7 @@ AbsOpStackStatic::mergeIdenticalValuesBottom(AbsOpStackStatic &a, AbsOpStackStat
   TR_ASSERT(a._maxSize == b._maxSize && a.size() == b.size(), "Cannot merge different sized stacks");
   AbsOpStackStatic copyA(a, region);
   AbsOpStackStatic copyB(b, region);
-  ConstraintStack temp(StackContainer(0, nullptr, region));
+  ConstraintStack temp(ConstraintStack(0, nullptr, region));
   while (!copyA.empty())
     {
       AbsValue *v1 = copyA.top();
@@ -161,14 +144,38 @@ AbsOpStackStatic::mergeIdenticalValuesBottom(AbsOpStackStatic &a, AbsOpStackStat
         {
         m = v1->merge(v2, region, vp);
         }
-      temp.push(m);
+      temp.push_back(m);
     }
   AbsOpStackStatic *merged = new (region) AbsOpStackStatic(region, a._maxSize);
   while (!temp.empty())
     {
-      AbsValue *v = temp.top();
-      temp.pop();
+      AbsValue *v = temp.back();
+      temp.pop_back();
       merged->push(v);
     }
   return merged;
+  }
+
+// TODO there are no doubt better ways of doing this
+// Copy the contents of the stack and widen every item
+// The result is a stack with the same types and depth
+// But every element is top
+AbsOpStackStatic* AbsOpStackStatic::getWidened(TR::Region &region)
+  {
+  AbsOpStackStatic copy(*this, region);
+  ConstraintStack temp(ConstraintStack(0, nullptr, region));
+  while (!copy.empty())
+    {
+      AbsValue *v = copy.top();
+      copy.pop();
+      temp.push_back(v->getWidened(region));
+    }
+  AbsOpStackStatic *top = new (region) AbsOpStackStatic(region, _maxSize);
+  while (!temp.empty())
+    {
+      AbsValue *v = temp.back();
+      temp.pop_back();
+      top->push(v);
+    }
+  return top;
   }

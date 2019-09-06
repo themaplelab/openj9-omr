@@ -37,16 +37,6 @@ AbsOpStack::AbsOpStack(const AbsOpStack &absOpStack) :
     this->_base = new (_region) TR_Stack<VPConstraint*> (_comp->trMemory(), 8, true, heapAlloc);
 }
 
-// TODO
-AbsOpStack::CompareResult AbsOpStack::compareWith(AbsOpStack *other)
-  {
-  if (other == nullptr)
-    {
-    return CompareResult::Narrower;
-    }
-  return CompareResult::Narrower;
-  }
-
 void
 AbsOpStack::copyStack(AbsOpStack &absOpStack) {
   if (absOpStack.empty()) { return ; }

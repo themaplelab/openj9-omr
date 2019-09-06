@@ -18,6 +18,7 @@ public:
   AbsOpStackStatic(const AbsOpStackStatic&, TR::Region &);
   AbsOpStackStatic(const AbsOpStackStatic&) = delete; // we need a region...
 
+  void merge(MergeOperation *op, const AbsOpStackStatic &other);
   void merge(const AbsOpStackStatic &, TR::Region &, OMR::ValuePropagation *);
   void pop();
   void trace(OMR::ValuePropagation *, TR::Region &region);
@@ -26,14 +27,10 @@ public:
   size_t size() const;
   AbsValue* top();
   AbsOpStackStatic *getWidened(TR::Region &region);
-  AbsOpStackStatic *getOptimistic(TR::Region &region);
   static AbsOpStackStatic *mergeIdenticalValuesBottom(AbsOpStackStatic &, AbsOpStackStatic &, TR::Region &, OMR::ValuePropagation *);
-
 private:
-  //typedef TR::deque<AbsValue*, TR::Region&> ConstraintStack;
-  typedef TR::deque<AbsValue*, TR::Region&> StackContainer;
-  typedef std::stack<AbsValue*, StackContainer> ConstraintStack;
-  
+  friend class ArgumentsEstimator;
+  typedef TR::deque<AbsValue*, TR::Region&> ConstraintStack;
   ConstraintStack _stack;
   int _maxSize;
 

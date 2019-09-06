@@ -13,17 +13,6 @@ AbsVarArrayStatic::AbsVarArrayStatic(const AbsVarArrayStatic &other, TR::Region 
   {
   }
 
-
-// TODO
-AbsVarArrayStatic::CompareResult AbsVarArrayStatic::compareWith(AbsVarArrayStatic *other)
-  {
-    if (other == nullptr)
-      {
-      return CompareResult::Narrower;
-      }
-    return CompareResult::Narrower;
-  }
-
 AbsVarArrayStatic *AbsVarArrayStatic::getWidened(TR::Region &region)
   {
     AbsVarArrayStatic *top = new (region) AbsVarArrayStatic(region, _maxSize);
@@ -37,6 +26,22 @@ AbsVarArrayStatic *AbsVarArrayStatic::getWidened(TR::Region &region)
       top->at(i, v);
       }
     return top;
+  }
+
+
+void AbsVarArrayStatic::merge(MergeOperation *op, const AbsVarArrayStatic &other)
+  {
+  for (int i = 0; i < size(); i++)
+    {
+    if (!at(i) || !other.at(i))
+      {
+      at(i, NULL);
+      }
+    else 
+      {
+      at(i, op->merge(at(i), other.at(i)));
+      }
+    }
   }
 
 void
@@ -74,7 +79,7 @@ AbsVarArrayStatic::at(unsigned int index, AbsValue *constraint)
   }
 
 AbsValue*
-AbsVarArrayStatic::at(unsigned int index)
+AbsVarArrayStatic::at(unsigned int index) const
   {
   return _array.at(index);
   }
