@@ -91,14 +91,19 @@ AbsEnvStatic::AbsEnvStatic(AbsEnvStatic &other) :
 }
 
 void
-AbstractState::merge(MergeOperation *op, const AbstractState &other)
+AbstractState::visit(AbstractStateVisitor *visitor)
   {
-  if (this == &other)
-    {
-    return;
-    }
-  _array.merge(op, other._array);
-  _stack.merge(op, other._stack);
+  visitor->visitState(this);
+  _array.visit(visitor);
+  _stack.visit(visitor);
+  }
+
+void
+AbstractState::visit(AbstractStateVisitor *visitor, AbstractState *other)
+  {
+  visitor->visitState(this, other);
+  _array.visit(visitor, &other->_array);
+  _stack.visit(visitor, &other->_stack);  
   }
 
 void

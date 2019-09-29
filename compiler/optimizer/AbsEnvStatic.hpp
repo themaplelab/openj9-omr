@@ -1,5 +1,6 @@
 #pragma once
 
+#include "AbsStateVisitor.hpp"
 #include "compiler/ilgen/J9ByteCodeIterator.hpp"
 #include "compiler/optimizer/AbsVarArrayStatic.hpp"
 #include "compiler/optimizer/AbsOpStackStatic.hpp"
@@ -647,7 +648,8 @@ public:
   AbsValue *at(unsigned int);
   void push(AbsValue *);
   AbsValue* pop();
-  void merge(MergeOperation *op, const AbstractState &other);
+  void visit(AbstractStateVisitor *visitor);
+  void visit(AbstractStateVisitor *visitor, AbstractState *other);
   void merge(AbstractState &, TR::ValuePropagation*);
   size_t getStackSize() const;
   void trace(TR::ValuePropagation*);
@@ -666,6 +668,7 @@ public:
   AbsEnvStatic(TR::Region &region, IDT::Node *node, AbsFrame*);
   AbsEnvStatic(AbsEnvStatic&);
   void trace(const char* methodName = NULL);
+
   AbsEnvStatic *getWidened();
   void merge(AbsEnvStatic&);
   void interpret(TR_J9ByteCode, TR_J9ByteCodeIterator &);
@@ -930,3 +933,7 @@ protected:
   virtual AbsEnvStatic *mergeAllPredecessors(OMR::Block *);
 };
 
+class AbsEnvStaticMerging : public AbsEnvStatic
+  {
+  
+  };

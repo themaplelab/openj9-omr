@@ -4,25 +4,6 @@
 #include "compiler/il/OMRDataTypes.hpp"
 #include "compiler/optimizer/ValuePropagation.hpp"
 
-// TODO refactor, see comment for fields at bottom of class
-class DependencyNode; 
-
-  // This should be a static method in DependencyNode
-    static DependencyNode *dmerge(DependencyNode *a, DependencyNode *b)
-        {
-        if (a == b)
-            {
-            return a;
-            }
-        return NULL;
-        }
-
-class AbsValue;
-class MergeOperation
-    {
-    public:
-    virtual AbsValue *merge(AbsValue *a, AbsValue *b) = 0;
-    };
 
 class AbsValue
 {
@@ -33,13 +14,8 @@ public:
     static AbsValue bottom(nullptr, TR::NoType);
     return &bottom;
     }
-  AbsValue *merge(MergeOperation *op, AbsValue *other, TR::Region &region, OMR::ValuePropagation *vp)
-    {
-    return op->merge(this, other);
-    }
   AbsValue *merge(AbsValue *other, TR::Region &region, OMR::ValuePropagation *vp)
     {
-    // This is required for narrowing abs values form backedges
     if (this == other)
       {
       return this;
@@ -52,14 +28,10 @@ public:
       {
       return this;
       }
-    //TR_ASSERT(other->_dt == this->_dt, "different data types");
-    // when merging array this isn't true
     if (!this->_vp) return this;
     if (!other->_vp) return other;
     TR::VPConstraint *constraint = this->_vp->merge(other->_vp, vp);
-    // TODO refactor depends logic elsewhere
     AbsValue *v = new (region) AbsValue(constraint, this->_dt);
-    v->setDependsOn(dmerge(this->_dependency, other->_dependency));
     return v;
     }
   void print(OMR::ValuePropagation *vp)
@@ -79,14 +51,4 @@ public:
     }
   TR::VPConstraint *_vp;
   TR::DataType _dt;
-  // TODO refactor following members into own class when absvalue is templated in semantics
-  DependencyNode *_dependency = nullptr;
-  void setDependsOn(DependencyNode *d)
-    {
-    // Top does not properly track dependencies
-    if (_vp != NULL)
-      {
-      _dependency = d;
-      }
-    }
 };

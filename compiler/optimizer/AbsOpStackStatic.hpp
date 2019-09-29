@@ -7,6 +7,8 @@
 #include "compiler/optimizer/VPConstraint.hpp"
 #include "compiler/optimizer/ValuePropagation.hpp"
 #include "compiler/optimizer/AbsValue.hpp"
+#include "compiler/optimizer/AbsStateVisitor.hpp"
+
 
 //TODO: can we inherit instead of encapsulating?
 //TODO: use AbsValue instead of VPConstraint
@@ -14,11 +16,11 @@ class AbsOpStackStatic
 {
 public:
   AbsOpStackStatic(TR::Region & region, unsigned int maxSize);
-  //AbsOpStackStatic(AbsOpStackStatic&, TR::Region &);
   AbsOpStackStatic(const AbsOpStackStatic&, TR::Region &);
   AbsOpStackStatic(const AbsOpStackStatic&) = delete; // we need a region...
 
-  void merge(MergeOperation *op, const AbsOpStackStatic &other);
+  void visit(AbstractStateVisitor *visitor);
+  void visit(AbstractStateVisitor *visitor, AbsOpStackStatic *other);
   void merge(const AbsOpStackStatic &, TR::Region &, OMR::ValuePropagation *);
   void pop();
   void trace(OMR::ValuePropagation *, TR::Region &region);
@@ -27,7 +29,6 @@ public:
   size_t size() const;
   AbsValue* top();
   AbsOpStackStatic *getWidened(TR::Region &region);
-  static AbsOpStackStatic *mergeIdenticalValuesBottom(AbsOpStackStatic &, AbsOpStackStatic &, TR::Region &, OMR::ValuePropagation *);
 private:
   friend class ArgumentsEstimator;
   typedef TR::deque<AbsValue*, TR::Region&> ConstraintStack;

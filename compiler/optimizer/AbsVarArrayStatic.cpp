@@ -28,18 +28,28 @@ AbsVarArrayStatic *AbsVarArrayStatic::getWidened(TR::Region &region)
     return top;
   }
 
-
-void AbsVarArrayStatic::merge(MergeOperation *op, const AbsVarArrayStatic &other)
+void
+AbsVarArrayStatic::visit(AbstractStateVisitor *visitor)
   {
+  visitor->visitArray(this);
   for (int i = 0; i < size(); i++)
     {
-    if (!at(i) || !other.at(i))
+    if (at(i))
       {
-      at(i, NULL);
+      visitor->visitValue(at(i));
       }
-    else 
+    }
+  }
+
+void
+AbsVarArrayStatic::visit(AbstractStateVisitor *visitor, AbsVarArrayStatic *other)
+  {
+  visitor->visitArray(this, other);
+  for (int i = 0; i < size(); i++)
+    {
+    if (at(i) && other->at(i))
       {
-      at(i, op->merge(at(i), other.at(i)));
+      visitor->visitValue(at(i), other->at(i));
       }
     }
   }
@@ -107,27 +117,4 @@ AbsVarArrayStatic::trace(OMR::ValuePropagation *vp)
     traceMsg(comp, "\n");
     }
   traceMsg(comp, "\n");
-  }
-
-AbsVarArrayStatic *
-AbsVarArrayStatic::mergeIdenticalValuesBottom(AbsVarArrayStatic &a, AbsVarArrayStatic &b, TR::Region &region, OMR::ValuePropagation *vp)
-  {
-    TR_ASSERT(a._maxSize == b._maxSize, "Arrays are different");
-    AbsVarArrayStatic *merged = new (region) AbsVarArrayStatic(region, a._maxSize);
-    for (int i = 0; i < a.size(); i++)
-      {
-      AbsValue *v1 = a.at(i);
-      AbsValue *v2 = b.at(i);
-      AbsValue *v;
-      if (v1 != nullptr && v2 != nullptr && v1 == v2)
-        {
-        v = AbsValue::getBottom();
-        }
-      else
-        {
-        v = v1->merge(v2, region, vp);
-        }
-      merged->at(i, v);
-      }
-    return merged;
   }

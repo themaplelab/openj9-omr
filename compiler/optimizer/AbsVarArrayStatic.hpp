@@ -7,6 +7,7 @@
 #include "compiler/optimizer/VPConstraint.hpp"
 #include "compiler/optimizer/ValuePropagation.hpp"
 #include "compiler/optimizer/AbsValue.hpp"
+#include "compiler/optimizer/AbsStateVisitor.hpp"
 
 //TODO: can we inherit instead of encapsulating?
 //TODO: use AbsValue instead of VPConstraint
@@ -16,9 +17,9 @@ public:
   AbsVarArrayStatic(const AbsVarArrayStatic&, TR::Region &);
   AbsVarArrayStatic(const AbsVarArrayStatic&) = delete; // we need TR::Region
   AbsVarArrayStatic *getWidened(TR::Region &region);
-  void merge(MergeOperation *op, const AbsVarArrayStatic &other);
+  void visit(AbstractStateVisitor *visitor);
+  void visit(AbstractStateVisitor *visitor, AbsVarArrayStatic *other);
   void merge(const AbsVarArrayStatic &, TR::Region &, OMR::ValuePropagation *);
-  static AbsVarArrayStatic *mergeIdenticalValuesBottom(AbsVarArrayStatic &, AbsVarArrayStatic &, TR::Region &, OMR::ValuePropagation *);
   void trace(OMR::ValuePropagation *vp);
   void at(unsigned int, AbsValue*);
   size_t size() const;
