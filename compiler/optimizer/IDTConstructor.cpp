@@ -2,6 +2,7 @@
 
 #include "compiler/il/OMRBlock.hpp"
 #include "il/Block.hpp"
+#include "il/OMRBlock_inlines.hpp"
 #include "compiler/optimizer/IDT.hpp"
 #include "compiler/infra/ILWalk.hpp"
 #include "compiler/ilgen/J9ByteCodeIterator.hpp"
