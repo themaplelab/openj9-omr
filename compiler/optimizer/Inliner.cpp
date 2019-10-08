@@ -1311,10 +1311,6 @@ TR_DumbInliner::analyzeCallSite(
    TR_CallSite *callsite = TR_CallSite::create(callNodeTreeTop, parent, callNode,
                                                (TR_OpaqueClassBlock*) 0, symRef, (TR_ResolvedMethod*) 0,
                                                comp(), trMemory() , stackAlloc);
-   traceMsg(comp(), "name of node ? %s\n", callNode->getOpCode().getName());
-   traceMsg(comp(), "bcIndex of node ? %d\n", callNode->getByteCodeInfo().getByteCodeIndex());
-   traceMsg(comp(), "what kind of call site ? %s\n", callsite->name());
-   traceMsg(comp(), "is call indirect? %s\n", callNode->getOpCode().isCallIndirect() ? "true" : "false");
    getSymbolAndFindInlineTargets(callStack,callsite);
 
    if (!callsite->numTargets())
@@ -2676,7 +2672,6 @@ TR_TransformInlinedFunction::transform()
    TR::Block *lastBlock  = NULL;
    TR::Block *b          = NULL;
    TR::Block *firstBlock = _calleeSymbol->getFirstTreeTop()->getNode()->getBlock();
-   traceMsg(TR::comp(), "firstBlock->getNumber() = %d\n", firstBlock->getNumber());
    for (b = firstBlock; b; lastBlock = b, b = b->getNextBlock())
       if (!_firstCatchBlock)
          {
@@ -2686,9 +2681,6 @@ TR_TransformInlinedFunction::transform()
             _lastMainLineTreeTop = b->getExit();
          }
 
-   traceMsg(TR::comp(), "firstCatchBlock ? %s\n", _firstCatchBlock ? "true" : "false");
-   traceMsg(TR::comp(), "firstCatchBlock->getNumber() ? %d\n", _firstCatchBlock ? _firstCatchBlock->getNumber() : -1);
-   traceMsg(TR::comp(), "lastBlock->getNumber() %d\n", lastBlock->getNumber());
    _penultimateTreeTop = lastBlock->getExit()->getPrevRealTreeTop();
 
    // If the first block has exception predecessors or multiply predecessors then we can't merge
@@ -2711,10 +2703,8 @@ TR_TransformInlinedFunction::transform()
    // to keep the BBEnd.
    //
    TR::Node * penultimateNode = _penultimateTreeTop->getNode();
-   traceMsg(TR::comp(), "penultimateNode->getOpCode().getName() = %s\n", penultimateNode->getOpCode().getName());
    if (!_penultimateTreeTop->getNode()->getOpCode().isReturn() || _firstCatchBlock) {
       _generatedLastBlock = TR::Block::createEmptyBlock(penultimateNode, comp(), firstBlock->getFrequency(), firstBlock);
-      traceMsg(TR::comp(), "_generatedLastBlock->getNumber() %d\n", _generatedLastBlock->getNumber());
   }
 
    TR::NodeChecklist visitedNodes(comp());
@@ -2750,9 +2740,7 @@ TR_TransformInlinedFunction::transform()
    //
    if (_generatedLastBlock)
       {
-      traceMsg(TR::comp(), "adding _generatedLastBlock->getNumber() %d to the calleeSymbol flow graph\n", _generatedLastBlock->getNumber());
       _calleeSymbol->getFlowGraph()->addNode(_generatedLastBlock);
-      traceMsg(TR::comp(), "is the getNumberFixed ? %d\n", _generatedLastBlock->getNumber());
       if (!_firstBBEnd)
          _firstBBEnd = _lastMainLineTreeTop;
       _lastMainLineTreeTop->join(_generatedLastBlock->getEntry());
@@ -2868,8 +2856,6 @@ TR_TransformInlinedFunction::transformReturn(TR::Node * returnNode, TR::Node * p
    TR_ASSERT(!parent, "Inlining, a return has a parent node?");
    bool isAtEOF = (_currentTreeTop == _penultimateTreeTop && !_firstCatchBlock);
 
-   traceMsg(TR::comp(), "Transform Return: returnNode = %p, parent = %p\n",returnNode,parent);
-
    if (returnNode->getNumChildren() && _callNode->getReferenceCount() > 1)
       {
       TR_ASSERT(returnNode->getNumChildren() == 1,  "Inlining, a return has more than one child?");
@@ -2897,9 +2883,7 @@ TR_TransformInlinedFunction::transformReturn(TR::Node * returnNode, TR::Node * p
             {
             _treeTopsToRemove.add(_currentTreeTop); // remove the return
             if (isAtEOF && !_generatedLastBlock) {
-               traceMsg(TR::comp(), "0 creating empty block with return node\n");
                _generatedLastBlock = TR::Block::createEmptyBlock(returnNode, comp());
-               traceMsg(TR::comp(), "_generatedLastBlock->getNumber() %d\n", _generatedLastBlock->getNumber());
             }
             return;
             }
@@ -2916,36 +2900,24 @@ TR_TransformInlinedFunction::transformReturn(TR::Node * returnNode, TR::Node * p
    if (!isAtEOF && !wasReturnTo)
       {
       if (!_generatedLastBlock) {
-         traceMsg(TR::comp(), "1 creating empty block with return node\n");
          _generatedLastBlock = TR::Block::createEmptyBlock(returnNode, comp(), -1, firstBlock);
-         traceMsg(TR::comp(), "_generatedLastBlock->getNumber() %d\n", _generatedLastBlock->getNumber());
       }
 
-      traceMsg(TR::comp(), "%s\n", "creating gotonode and treetop");
-      traceMsg(TR::comp(), "%s\n", "originatingByteCodeNode = returnNode");
-      traceMsg(TR::comp(), "%s\n", "TR::ILOpCodes = TR::Goto");
-      traceMsg(TR::comp(), "%s\n", "numChildren = 0");
-      traceMsg(TR::comp(), "%s\n", "dest = _generatedLastBlock");
-      
       TR::Node * gotoNode = TR::Node::create(returnNode, TR::Goto, 0, _generatedLastBlock->getEntry());
       TR::TreeTop::create(comp(), _currentTreeTop->getPrevTreeTop(), gotoNode);
       }
 
    if (_generatedLastBlock)
       {
-      traceMsg(TR::comp(), "addingEdge from currentBlock->getNumber() %d to _generatedLastBlock->getNumber() %d\n", currentBlock->getNumber(), _generatedLastBlock->getNumber());
       _calleeSymbol->getFlowGraph()->addEdge(currentBlock, _generatedLastBlock);
-      traceMsg(TR::comp(), "hello again after adding _generatedLastBlock %d\n", _generatedLastBlock->getNumber());
       }
 
    // remove the edge from the block with the return to the end block
    for (auto e = currentBlock->getSuccessors().begin(); e != currentBlock->getSuccessors().end(); ++e)
    {
-   traceMsg(comp(),"attempting to remove edges from the block with the return to the end block");
       if ((*e)->getTo() == _calleeSymbol->getFlowGraph()->getEnd())
          {
          _calleeSymbol->getFlowGraph()->removeEdge(*e);
-         traceMsg(comp(),"e->getNumber() = %d remove edge to end\n", (*e)->getFrom()->getNumber());
          break;
          }
    }
@@ -3932,7 +3904,6 @@ bool TR_DirectCallSite::findCallSiteTarget (TR_CallStack* callStack, TR_InlinerB
    static const char *disableFSDGuard = feGetEnv("TR_DisableFSDGuard");
    if (!disableHCRGuards2 && comp()->getHCRMode() != TR::none && !comp()->compileRelocatableCode() && !skipHCRGuardForCallee)
       {
-      traceMsg(comp(), "HERE, we are selecting HCRGuard\n");
       tempreceiverClass = _initialCalleeMethod->classOfMethod();
       guard = new (comp()->trHeapMemory()) TR_VirtualGuardSelection(TR_HCRGuard, TR_NonoverriddenTest);
       }
@@ -4716,20 +4687,6 @@ bool TR_InlinerBase::inlineCallTarget2(TR_CallStack * callStack, TR_CallTarget *
    TR_InlinerDelimiter delimiter(tracer(),"inlineCallTarget2");
    //printf("*****INLINERCALLSITE2: BEGIN for calltarget %p*****\n",calltarget);
    TR::ResolvedMethodSymbol * calleeSymbol = calltarget->_calleeSymbol;
-   {
-   TR::CFGNode *cfgNode = calleeSymbol->getFlowGraph()->getStartForReverseSnapshot();
-   TR::Block *startBlock = cfgNode->asBlock();
-   traceMsg(comp(),"entering into inlineCallTarget2 %s... start block ? %d\n", calleeSymbol->signature(comp()->trMemory()), startBlock->getNumber());
-   for (TR::ReversePostorderSnapshotBlockIterator blockIt (startBlock, TR::comp()); blockIt.currentBlock(); ++blockIt)
-      {
-
-        OMR::Block *block = blockIt.currentBlock();
-        int start = block->getBlockBCIndex();
-        int end = start + block->getBlockSize();
-        traceMsg(TR::comp(), "iterating here... basic block %d start = %d end = %d\n", block->getNumber(), start, end);
-
-      }
-   }
    TR::TreeTop * callNodeTreeTop = calltarget->_myCallSite->_callNodeTreeTop;
 
    TR::Node * parent = calltarget->_myCallSite->_parent;
@@ -4802,24 +4759,7 @@ bool TR_InlinerBase::inlineCallTarget2(TR_CallStack * callStack, TR_CallTarget *
       calleeSymbol->setUnsynchronised();
       }
 
-   TR_ASSERT(callerSymbol->getFlowGraph(), "still have a flow graph");
-   TR_ASSERT(calltarget->_calleeSymbol->getFlowGraph(), "still have a flow graph");
-   auto cfg = calltarget->_calleeSymbol->getFlowGraph();
    genILSucceeded = tryToGenerateILForMethod(calleeSymbol, callerSymbol, calltarget);
-   TR_ASSERT(callerSymbol->getFlowGraph(), "still have a flow graph");
-   TR_ASSERT(calltarget->_calleeSymbol->getFlowGraph(), "still have a flow graph");
-   {
-   TR::CFGNode *cfgNode = calleeSymbol->getFlowGraph()->getStartForReverseSnapshot();
-   TR::Block *startBlock = cfgNode->asBlock();
-   traceMsg(comp(),"before even succeeding to inline something into %s... start block ? %d\n", calleeSymbol->signature(comp()->trMemory()), startBlock->getNumber());
-   for (TR::ReversePostorderSnapshotBlockIterator blockIt (startBlock, TR::comp()); blockIt.currentBlock(); ++blockIt)
-   {
-        OMR::Block *block = blockIt.currentBlock();
-        int start = block->getBlockBCIndex();
-        int end = start + block->getBlockSize();
-        traceMsg(TR::comp(), "iterating here... basic block %d start = %d end = %d\n", block->getNumber(), start, end);
-   }
-   }
 
    if (wasSynchronized)
       calleeSymbol->setSynchronised();
@@ -4871,27 +4811,11 @@ bool TR_InlinerBase::inlineCallTarget2(TR_CallStack * callStack, TR_CallTarget *
       comp()->dumpMethodTrees("after ilGen while inlining", calleeSymbol);
       }
 
-   {
-   TR::CFGNode *cfgNode = calleeSymbol->getFlowGraph()->getStartForReverseSnapshot();
-   TR::Block *startBlock = cfgNode->asBlock();
-   traceMsg(comp(),"before succeeding to inline something into %s... start block ? %d\n", calleeSymbol->signature(comp()->trMemory()), startBlock->getNumber());
-   for (TR::ReversePostorderSnapshotBlockIterator blockIt (startBlock, TR::comp()); blockIt.currentBlock(); ++blockIt)
-      {
-
-        OMR::Block *block = blockIt.currentBlock();
-        int start = block->getBlockBCIndex();
-        int end = start + block->getBlockSize();
-        traceMsg(TR::comp(), "iterating here... basic block %d start = %d end = %d\n", block->getNumber(), start, end);
-
-      }
-   }
-
    TR_InnerPreexistenceInfo *innerPrexInfo = getUtil()->createInnerPrexInfo(comp(), calleeSymbol, callStack, callNodeTreeTop, callNode, guard->_kind);
    if (calleeSymbol->mayHaveInlineableCall())
       {
       debugTrace(tracer(),"** Target %p symbol %p may have inlineable calls signature %s\n", calltarget, calleeSymbol, tracer()->traceSignature(calleeSymbol));
 
-      TR_ASSERT(callStack->_methodSymbol->getFlowGraph(), "we have a null call graph");
       if (comp()->getOption(TR_DisableNewInliningInfrastructure) || !inlinefromgraph)
          inlineCallTargets(calleeSymbol, callStack, innerPrexInfo);
       else
@@ -4904,20 +4828,6 @@ bool TR_InlinerBase::inlineCallTarget2(TR_CallStack * callStack, TR_CallTarget *
          }
       }
 
-   {
-   TR::CFGNode *cfgNode = calleeSymbol->getFlowGraph()->getStart();
-   TR::Block *startBlock = cfgNode->asBlock();
-   traceMsg(comp(),"after succeeding to inline something into %s... start block ? %d\n", calleeSymbol->signature(comp()->trMemory()), startBlock->getNumber());
-   for (TR::ReversePostorderSnapshotBlockIterator blockIt (startBlock, TR::comp()); blockIt.currentBlock(); ++blockIt)
-      {
-
-        OMR::Block *block = blockIt.currentBlock();
-        int start = block->getBlockBCIndex();
-        int end = start + block->getBlockSize();
-        traceMsg(TR::comp(), "iterating here... basic block %d start = %d end = %d\n", block->getNumber(), start, end);
-
-      }
-   }
    getUtil()->requestAdditionalOptimizations(calltarget);
 
    if (comp()->getOption(TR_FullSpeedDebug) && !getPolicy()->mustBeInlinedEvenInDebug(calleeSymbol->getResolvedMethod(), callNodeTreeTop) && (!comp()->getOption(TR_EnableOSR) || comp()->getOption(TR_MimicInterpreterFrameShape)))
@@ -5056,14 +4966,11 @@ bool TR_InlinerBase::inlineCallTarget2(TR_CallStack * callStack, TR_CallTarget *
    //
 
    TR::Block * blockAfterTheCall = blockContainingTheCall->getNextBlock();
-   traceMsg(TR::comp(), "blockAfterTheCall %d\n", blockAfterTheCall ? blockAfterTheCall->getNumber() : -1);
    TR::TreeTop * treeTopAfterCall = callNodeTreeTop->getNextTreeTop();
    TR::TreeTop * prevTreeTop = callNodeTreeTop->getPrevTreeTop();
    TR::TreeTop * startOfInlinedCall = calleeSymbol->getFirstTreeTop()->getNextTreeTop();
    TR::Block * calleeFirstBlock = calleeSymbol->getFirstTreeTop()->getEnclosingBlock();
-   traceMsg(TR::comp(), "calleeFirstBlock %d\n", calleeFirstBlock ? calleeFirstBlock->getNumber() : -1);
    TR::Block * calleeLastBlock = calleeSymbol->getLastTreeTop()->getEnclosingBlock();
-   traceMsg(TR::comp(), "calleeLastBlock %d\n", calleeLastBlock ? calleeLastBlock->getNumber() : -1);
 
    if (pam.firstTempTreeTop())
       {
@@ -5110,8 +5017,6 @@ bool TR_InlinerBase::inlineCallTarget2(TR_CallStack * callStack, TR_CallTarget *
    // merge cfgs
    //
    callerCFG->setStructure(0);
-   // moving the callee end predecessors to caller end.
-   traceMsg(comp(),"move the callee end predecessors to the caller end\n");
    calleeCFG->getEnd()->movePredecessors(callerCFG->getEnd());
    //the goto we created for return to inlining might be in the blockcontaining the call
    //cannot remove the edge from the goto to its target
@@ -5120,8 +5025,6 @@ bool TR_InlinerBase::inlineCallTarget2(TR_CallStack * callStack, TR_CallTarget *
    if (lastCalleeBlock)
       {
       //copy the successors from the call block as long as they are not the goto target
-      traceMsg(comp(),"lastCalleeBlock->getNumber() %d\n", lastCalleeBlock->getNumber());
-      traceMsg(comp(),"copy the successors from the call block as long as they are not the goto target\n");
       for (auto e = blockContainingTheCall->getSuccessors().begin(); e != blockContainingTheCall->getSuccessors().end(); )
          {
          if ((*e)->getTo() != RTgotoTarget)
@@ -5132,27 +5035,12 @@ bool TR_InlinerBase::inlineCallTarget2(TR_CallStack * callStack, TR_CallTarget *
          else
         	 ++e;
          }
-      traceMsg(comp(),"done copying the successors from the call block as long as they are not the goto target\n");
 
       firstCalleeBlock->moveSuccessors(blockContainingTheCall);
 
       calleeCFG->removeEdge(calleeCFG->getStart(), firstCalleeBlock);
-      {
-      TR::CFGNode *cfgNode = calleeCFG->getStart();
-      TR::Block *startBlock = cfgNode->asBlock();
-      traceMsg(comp(),"start block ? %d\n", startBlock->getNumber());
-      for (TR::ReversePostorderSnapshotBlockIterator blockIt (startBlock, TR::comp()); blockIt.currentBlock(); ++blockIt)
-      {
-
-        OMR::Block *block = blockIt.currentBlock();
-        int start = block->getBlockBCIndex();
-        int end = start + block->getBlockSize();
-        traceMsg(TR::comp(), "iterating here where it is crashing removing node... basic block %d start = %d end = %d\n", block->getNumber(), start, end);
-
-      }
-      }
       calleeCFG->removeNode(calleeCFG->getStart());
-      calleeCFG->removeNode(calleeCFG->getEnd()); // are we removing something that is not the end?
+      calleeCFG->removeNode(calleeCFG->getEnd());
 
       // Add the nodes from the callee's cfg to the caller's cfg and
       // add any exception successors from the current block to
@@ -5164,7 +5052,6 @@ bool TR_InlinerBase::inlineCallTarget2(TR_CallStack * callStack, TR_CallTarget *
          {
          int32_t calleeNodeNumber = n->getNumber();
          callerCFG->addNode(n);
-         traceMsg(comp(),"\nAdding callee blocks into caller: callee block %p:%p:%d --> %d (caller block) ",n, n->asBlock(), calleeNodeNumber, n->getNumber());
          if (!n->asBlock()->isOSRCatchBlock() && !n->asBlock()->isOSRCodeBlock())
             callerCFG->copyExceptionSuccessors(blockContainingTheCall, n, succAndPredAreNotOSRBlocks);
          else
@@ -5186,9 +5073,6 @@ bool TR_InlinerBase::inlineCallTarget2(TR_CallStack * callStack, TR_CallTarget *
    bool disableTailRecursion = false;
    TR::TreeTop *induceOSRCallTree = NULL;
 
-   traceMsg(comp(), "Inlining with a virtual guard kind=%s type=%s\n",
-                              tracer()->getGuardKindString(calltarget->_guard),
-                              tracer()->getGuardTypeString(calltarget->_guard));
    if (guard->_kind != TR_NoGuard)
       {
       virtualGuard =

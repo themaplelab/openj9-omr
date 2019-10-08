@@ -1103,6 +1103,7 @@ TR::OptionTable OMR::Options::_jitOptions[] = {
    {"traceBC",                          "L\tdump bytecodes",                               SET_OPTION_BIT(TR_TraceBC), "P" },
    {"traceBCDCodeGen",                  "L\ttrace binary coded decimal code generations",  SET_TRACECG_BIT(TR_TraceCGBinaryCodedDecimal), "P"},
    {"traceBenefitInliner",              "L\ttrace benefit inliner",                        TR::Options::traceOptimization, benefitInliner, 0, "P"},
+   {"traceBenefitInlinerIDTGen",        "L\ttrace benefit inliner",                        SET_OPTION_BIT(TR_TraceBIIDTGen), "P" },
    {"traceBenefitInlinerProposal",      "L\ttrace benefit inliner",                        SET_OPTION_BIT(TR_TraceBIProposal), "P" },
    {"traceBin",                         "L\tdump binary instructions",                     SET_TRACECG_BIT(TR_TraceCGPostBinaryEncoding|TR_TraceCGMixedModeDisassembly), "P" },
    {"traceBlockFrequencyGeneration",    "L\ttrace block frequency generation",             SET_OPTION_BIT(TR_TraceBFGeneration), "P"},

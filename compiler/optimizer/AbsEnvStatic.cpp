@@ -98,6 +98,7 @@ AbstractState::merge(AbstractState &other, TR::ValuePropagation *vp)
    AbstractState copyOfOther(other);
    this->_array.merge(copyOfOther._array, this->_region, vp);
    this->_stack.merge(copyOfOther._stack, this->_region, vp);
+   if (!TR::comp()->trace(OMR::benefitInliner)) return;
    this->trace(vp);
 }
 
@@ -410,6 +411,7 @@ AbsEnvStatic::interpret(TR_J9ByteCode bc, TR_J9ByteCodeIterator &bci)
 void
 AbsEnvStatic::trace(const char* methodName)
   {
+  if (!TR::comp()->trace(OMR::benefitInliner)) return;
   if (methodName) traceMsg(TR::comp(), "method %s\n", methodName);
   this->getState().trace(this->getVP());
   }
@@ -2676,7 +2678,6 @@ AbsFrame::AbsFrame(TR::Region &region, IDT::Node *node)
 
 AbsEnvStatic* AbsEnvStatic::enterMethod(TR::Region& region, IDT::Node* node, AbsFrame* absFrame, TR::ResolvedMethodSymbol* rms)
 {
-  traceMsg(TR::comp(), "I entered the method\n");
   AbsEnvStatic *absEnv = new (region) AbsEnvStatic(region, node, absFrame);
   TR_ResolvedMethod *resolvedMethod = rms->getResolvedMethod();
   const auto numberOfParameters = resolvedMethod->numberOfParameters();
@@ -2804,10 +2805,13 @@ void AbsFrame::interpret(OMR::Block* block)
   for (TR_J9ByteCode bc = _bci.current(); bc != J9BCunknown && _bci.currentByteCodeIndex() < end; bc = _bci.next())
      {
      if (block->_absEnv)
-     block->_absEnv->interpret(bc, _bci);
-     else {
+        {
+        block->_absEnv->interpret(bc, _bci);
+        }
+     else if (comp->trace(OMR::benefitInliner))
+        {
         traceMsg(comp, "basic block has no absEnv\n");
-     }
+        }
      }
 }
 
@@ -2859,7 +2863,10 @@ AbsEnvStatic* AbsFrame::mergeAllPredecessors(OMR::Block *block) {
   TR::CFGEdgeList &predecessors = block->getPredecessors();
   AbsEnvStatic *absEnv = nullptr;
   bool first = true;
-  traceMsg(TR::comp(), "computing how merging strategy for basic block %d\n", block->getNumber());
+  if (TR::comp()->trace(OMR::benefitInliner))
+     {
+     traceMsg(TR::comp(), "computing how merging strategy for basic block %d\n", block->getNumber());
+     }
   for (auto i = predecessors.begin(), e = predecessors.end(); i != e; ++i)
   {
      auto *edge = *i;
@@ -2872,14 +2879,19 @@ AbsEnvStatic* AbsFrame::mergeAllPredecessors(OMR::Block *block) {
      TR_ASSERT(aBlock->_absEnv, "absEnv is null, i don't think this is possible");
      if (first) {
         first = false;
-        // copy the first one
-        traceMsg(TR::comp(), "copy basic block %d\n", aBlock->getNumber());
+        if (TR::comp()->trace(OMR::benefitInliner))
+           {
+           traceMsg(TR::comp(), "copy basic block %d\n", aBlock->getNumber());
+           }
         absEnv = new (this->getRegion()) AbsEnvStatic(*aBlock->_absEnv);
         absEnv->trace();
         continue;
      }
      // merge with the rest;
-     traceMsg(TR::comp(), "merge with basic block %d\n", aBlock->getNumber());
+     if (TR::comp()->trace(OMR::benefitInliner))
+        {
+        traceMsg(TR::comp(), "merge with basic block %d\n", aBlock->getNumber());
+        }
      absEnv->merge(*aBlock->_absEnv);
      absEnv->trace();
   }

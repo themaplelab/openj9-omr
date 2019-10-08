@@ -69,7 +69,8 @@ void
 IDT::printTrace() const
   {
   // TODO: fix this flag. We need to print to Verbose when Verbose is set not Trace.
-  if (comp()->trace(OMR::benefitInliner)) {
+  if (TR::comp()->getOption(TR_TraceBIIDTGen))
+    {
     const int candidates = howManyNodes() - 1;
     TR_VerboseLog::writeLineLocked(TR_Vlog_SIP, "#IDT: %d candidate methods to inline into %s",
       candidates,
@@ -228,7 +229,6 @@ IDT::Node::addChildIfNotExists(IDT* idt,
                          TR::ResolvedMethodSymbol* rms,
                          int benefit, TR_CallSite *callsite)
   {
-  benefit = 100;
   // 0 Children
   if (_children == nullptr)
     {
@@ -373,8 +373,10 @@ IDT::Node::copyChildrenFrom(const IDT::Node * other, Indices& someIndex)
    IDT::Node *childCopy = other->getOnlyChild();
    if (childCopy)
       {
-      if (comp()->trace(OMR::benefitInliner))
+      if (TR::comp()->getOption(TR_TraceBIIDTGen))
+         {
          traceMsg(TR::comp(), "copying %d into %d\n", childCopy->getCalleeIndex(), this->getCalleeIndex());
+         }
       IDT::Node *newChild = this->addChildIfNotExists(this->_head,
                          childCopy->_callsite_bci,
                          childCopy->_rms,
@@ -386,8 +388,10 @@ IDT::Node::copyChildrenFrom(const IDT::Node * other, Indices& someIndex)
    for (int i = 0; i < count; i++)
       {
       IDT::Node *childCopy = other->_children->at(i);
-      if (comp()->trace(OMR::benefitInliner))
+      if (TR::comp()->getOption(TR_TraceBIIDTGen))
+         {
          traceMsg(TR::comp(), "copying %d into %d\n", childCopy->getCalleeIndex(), this->getCalleeIndex());
+         }
       IDT::Node *newChild = this->addChildIfNotExists(this->_head,
                          childCopy->_callsite_bci,
                          childCopy->_rms,
@@ -603,6 +607,7 @@ IDT::Node::analyzeBasicBlock(OMR::Block *block, AbsEnvStatic* absEnv, unsigned i
 void
 IDT::Node::print()
 {
+  if (!TR::comp()->getOption(TR_TraceBIIDTGen)) return;
   traceMsg(TR::comp(), "IDT: name = %s\n", this->getName());
 }
 
@@ -663,8 +668,6 @@ IDT::Node::printByteCode()
    TR_J9ByteCodeIterator bci(resolvedMethodSymbol, resolvedMethod, fe, TR::comp());
    const char* signature1 = bci.methodSymbol()->signature(TR::comp()->trMemory());
    const char* signature2 = bci.method()->signature(TR::comp()->trMemory());
-   traceMsg(TR::comp(), "Printing bytecode information for method symbol %s\n", signature1);
-   traceMsg(TR::comp(), "Printing bytecode information for method %s\n", signature2);
    int end = resolvedMethod->maxBytecodeIndex();
    for (TR_J9ByteCode bc = bci.current(); bc != J9BCunknown && bci.currentByteCodeIndex() < end; bc = bci.next())
    {

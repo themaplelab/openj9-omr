@@ -24,13 +24,11 @@ void AbsFrameIDTConstructor::interpret()
      {
         OMR::Block *block = blockIt.currentBlock();
         if (first) {
-           traceMsg(TR::comp(), "we should have entered method\n");
            block->_absEnv = IDTConstructor::enterMethod(this->getRegion(), this->_node, this, this->getResolvedMethodSymbol());
            first = false;
            block->_absEnv->_block = block;
         }
         block->setVisitCount(0);
-        traceMsg(TR::comp(), "puuting block in queue\n");
         queue.push_back(block);
      }
 
@@ -71,7 +69,10 @@ AbsFrameIDTConstructor::getCallerIndex() const
 AbstractState&
 IDTConstructor::invokevirtual(AbstractState& absState, int bcIndex, int cpIndex)
 {
-  traceMsg(TR::comp(), "invoke virtual\n");
+  if (TR::comp()->getOption(TR_TraceBIIDTGen))
+     {
+     traceMsg(TR::comp(), "invoke virtual\n");
+     }
   AbsEnvStatic::invokevirtual(absState, bcIndex, cpIndex);
   TR_CallSite *callsite = this->findCallSiteTargets(this->getResolvedMethodSymbol(), bcIndex, cpIndex, TR::MethodSymbol::Kinds::Virtual, this->getBlock(), this->getFrame()->getCFG());
   this->inliner()->obtainIDT(this->getDeque(), this->getNode(), callsite, this->inliner()->budget(), cpIndex);
@@ -81,7 +82,6 @@ IDTConstructor::invokevirtual(AbstractState& absState, int bcIndex, int cpIndex)
 AbstractState&
 IDTConstructor::ifeq(AbstractState& absState, int branchOffset, int bytecodeIndex)
 {
-  traceMsg(TR::comp(), "ifeq\n");
   AbsEnvStatic::ifeq(absState, branchOffset, bytecodeIndex);
   // what is the argument position?
   this->addIfeq(bytecodeIndex, 1);
@@ -107,7 +107,10 @@ IDTConstructor::invokespecial(AbstractState& absState, int bcIndex, int cpIndex)
 AbstractState&
 IDTConstructor::invokestatic(AbstractState& absState, int bcIndex, int cpIndex)
 {
-  traceMsg(TR::comp(), "invoke static\n");
+  if (TR::comp()->getOption(TR_TraceBIIDTGen))
+     {
+     traceMsg(TR::comp(), "invoke static\n");
+     }
   AbsEnvStatic::invokestatic(absState, bcIndex, cpIndex);
   TR_CallSite* callsite = this->findCallSiteTargets(this->getResolvedMethodSymbol(), bcIndex, cpIndex, TR::MethodSymbol::Kinds::Static, this->getBlock(), this->getFrame()->getCFG());
   this->inliner()->obtainIDT(this->getDeque(), this->getNode(), callsite, this->inliner()->budget(), cpIndex);
@@ -123,10 +126,13 @@ IDTConstructor::getDeque()
 AbstractState&
 IDTConstructor::invokeinterface(AbstractState& absState, int bcIndex, int cpIndex)
 {
-  traceMsg(TR::comp(), "invoke interface\n");
+  if (TR::comp()->getOption(TR_TraceBIIDTGen))
+     {
+     traceMsg(TR::comp(), "invoke interface\n");
+     }
+  AbsEnvStatic::invokeinterface(absState, bcIndex, cpIndex);
   TR_CallSite* callsite = this->findCallSiteTargets(this->getResolvedMethodSymbol(), bcIndex, cpIndex, TR::MethodSymbol::Kinds::Interface, this->getBlock(), this->getFrame()->getCFG());
   this->inliner()->obtainIDT(this->getDeque(), this->getNode(), callsite, this->inliner()->budget(), cpIndex);
-  AbsEnvStatic::invokeinterface(absState, bcIndex, cpIndex);
   return absState;
 }
 
@@ -143,8 +149,10 @@ IDTConstructor::findCallSiteTargets(TR::ResolvedMethodSymbol *callerSymbol, int 
       if (symRef->isUnresolved() && !isInterface) 
          {
          //TODO: remove TR::comp()
-         if (TR::comp()->trace(OMR::benefitInliner))
+         if (TR::comp()->getOption(TR_TraceBIIDTGen))
+            {
             traceMsg(TR::comp(), "not considering: method is unresolved and is not interface\n");
+            }
          return NULL;
          }
 
@@ -198,7 +206,6 @@ IDTConstructor::findCallSiteTargets(TR::ResolvedMethodSymbol *callerSymbol, int 
 
 AbsEnvStatic* IDTConstructor::enterMethod(TR::Region& region, IDT::Node* node, AbsFrame* absFrame, TR::ResolvedMethodSymbol* rms)
 {
-  traceMsg(TR::comp(), "I entered the method\n");
   AbsEnvStatic *absEnv = new (region) IDTConstructor(region, node, absFrame);
   TR_ResolvedMethod *resolvedMethod = rms->getResolvedMethod();
   const auto numberOfParameters = resolvedMethod->numberOfParameters();
@@ -321,7 +328,10 @@ AbsEnvStatic* AbsFrameIDTConstructor::mergeAllPredecessors(OMR::Block *block) {
   TR::CFGEdgeList &predecessors = block->getPredecessors();
   IDTConstructor *absEnv = nullptr;
   bool first = true;
-  traceMsg(TR::comp(), "computing how merging strategy for basic block %d\n", block->getNumber());
+  if (TR::comp()->trace(OMR::benefitInliner))
+     {
+     traceMsg(TR::comp(), "computing how merging strategy for basic block %d\n", block->getNumber());
+     }
   for (auto i = predecessors.begin(), e = predecessors.end(); i != e; ++i)
   {
      auto *edge = *i;
@@ -335,13 +345,19 @@ AbsEnvStatic* AbsFrameIDTConstructor::mergeAllPredecessors(OMR::Block *block) {
      if (first) {
         first = false;
         // copy the first one
-        traceMsg(TR::comp(), "copy basic block %d\n", aBlock->getNumber());
+        if (TR::comp()->trace(OMR::benefitInliner))
+           {
+           traceMsg(TR::comp(), "copy basic block %d\n", aBlock->getNumber());
+           }
         absEnv = new (this->getRegion()) IDTConstructor(*aBlock->_absEnv);
         absEnv->trace();
         continue;
      }
      // merge with the rest;
-     traceMsg(TR::comp(), "merge with basic block %d\n", aBlock->getNumber());
+     if (TR::comp()->trace(OMR::benefitInliner))
+        {
+        traceMsg(TR::comp(), "merge with basic block %d\n", aBlock->getNumber());
+        }
      absEnv->merge(*aBlock->_absEnv);
      absEnv->trace();
   }
@@ -498,5 +514,6 @@ IDTConstructor::inliner()
 void
 AbsFrameIDTConstructor::traceMethodSummary()
 {
+   if (!TR::comp()->trace(OMR::benefitInliner)) return;
    this->_summary.trace();
 }
