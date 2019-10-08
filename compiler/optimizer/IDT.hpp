@@ -57,6 +57,7 @@ class IDT
     Node *getParent() const;
     int getCalleeIndex() const;
     unsigned int getCost() const;
+    unsigned int getRecursiveCost() const;
     unsigned int getBenefit() const;
     void setBenefit(unsigned int);
     void buildIndices(IDT::Node **indices);

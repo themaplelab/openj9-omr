@@ -69,6 +69,7 @@ class BenefitInliner: public BenefitInlinerBase
    {
    public:
    friend class BenefitInlinerWrapper;
+      void addEverything();
       BenefitInliner(TR::Optimizer *, TR::Optimization *, uint32_t);
       void initIDT(TR::ResolvedMethodSymbol *root, int);
       void analyzeIDT();

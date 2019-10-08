@@ -197,6 +197,19 @@ IDT::Node::getCost() const
   }
 
 unsigned int
+IDT::Node::getRecursiveCost() const
+  {
+  int children = this->getNumChildren();
+  int cost = this->getCost();
+  for (int i = 0; i < children; i++)
+     {
+     IDT::Node *child = this->getChild(i);
+     cost += child->getRecursiveCost();
+     }
+  return cost;
+  }
+
+unsigned int
 IDT::Node::getBenefit() const
   {
     return this->_benefit;

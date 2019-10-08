@@ -17,23 +17,11 @@
 #include "optimizer/InlinerPacking.hpp"
 #include "optimizer/AbsEnvStatic.hpp"
 #include "optimizer/IDTConstructor.hpp"
+#include "optimizer/InliningProposal.hpp"
 
 
 int32_t OMR::BenefitInlinerWrapper::perform()
    {
-   char * s = "{*IPC.*\|*PrintStream.write*\|*LegacyInterpreter.fastLoop*\|*StringUtil.appendFract*\|*Unsafe.copyMemory*}";
-   TR::SimpleRegex *regex = TR::SimpleRegex::create(s);
-   const char * signature = comp()->signature();
-   if (signature && regex && TR::SimpleRegex::match(regex, signature))
-      {
-      return 0;
-      }
-   char * s2 = "{*UnixNativeDispatcher.lstat0*}";
-   TR::SimpleRegex *regex2 = TR::SimpleRegex::create(s2);
-   if (signature && regex2 && TR::SimpleRegex::match(regex2, signature))
-      {
-      return 0;
-      }
    TR::ResolvedMethodSymbol * sym = comp()->getMethodSymbol();
    TR::CFG *prevCFG = sym->getFlowGraph();
    int32_t budget = this->getBudget(sym);
@@ -53,17 +41,31 @@ int32_t OMR::BenefitInlinerWrapper::perform()
       return 1; // No Need to analyze, since there is nothing to inline.
       }
 
-   inliner.abstractInterpreter();
-   inliner.analyzeIDT();
+   // if we have more budget than needed just add everytiong.
+   int recursiveCost = inliner._idt->getRoot()->getRecursiveCost();
+   bool canSkipAbstractInterpretation = recursiveCost < budget;
+   if (!canSkipAbstractInterpretation) {
+      inliner.abstractInterpreter();
+      inliner.analyzeIDT();
+   } else {
+      inliner.addEverything();
+      
+
+   }
    inliner._idt->getRoot()->getResolvedMethodSymbol()->setFlowGraph(inliner._rootRms);
-   // I am not sure whether I can inherit this method...
-   // Let's try it...
    inliner._currentNode = inliner._idt->getRoot();
-   inliner.debugTrees(sym);
-   inliner.performInlining(sym);
+
+
+   //inliner.debugTrees(sym);
+   //inliner.performInlining(sym);
    inliner.traceIDT();
    return 1;
    }
+
+void
+OMR::BenefitInliner::addEverything() {
+  _inliningProposal = new (this->_cfgRegion) InliningProposal(this, this->_idt, this->_idt->howManyNodes());
+}
 
 void
 OMR::BenefitInlinerBase::debugTrees(TR::ResolvedMethodSymbol *rms)
