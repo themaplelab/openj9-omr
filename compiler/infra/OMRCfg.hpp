@@ -154,6 +154,7 @@ class CFG
 
    TR::CFGNode *getStart() {return _pStart;}
    virtual TR::CFGNode *getStartForReverseSnapshot();
+   virtual TR::CFGNode *getEndForReverseSnapshot();
    TR::CFGNode *setStart(TR::CFGNode *p) {return (_pStart = p);}
 
    TR::CFGNode *getEnd() {return _pEnd;}
@@ -172,7 +173,7 @@ class CFG
    virtual bool isColdCall(TR_ByteCodeInfo &, TR_HasRandomGenerator *r);
    virtual bool isColdTarget(TR_ByteCodeInfo &, TR_CallTarget *, TR_HasRandomGenerator *r);
    virtual bool isColdTarget(TR_ByteCodeInfo &, float, TR_HasRandomGenerator *r);
-   virtual void computeMethodBranchProfileInfo(AbsEnvInlinerUtil *util, TR_CallTarget*, TR::ResolvedMethodSymbol*, int, TR::Block*);
+   virtual void computeMethodBranchProfileInfo(AbsEnvInlinerUtil *util, TR_CallTarget*, TR::ResolvedMethodSymbol*, int, TR::Block*, TR::CFG* cfg);
 
    int32_t getNumberOfNodes() {return _nodes.getSize();}
    int32_t getNextNodeNumber() {return _nextNodeNumber;}

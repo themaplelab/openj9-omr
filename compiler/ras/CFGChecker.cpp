@@ -340,7 +340,7 @@ bool TR_CFGChecker::areSuccessorsCorrect(int32_t i)
 	 {
          if (!(block->getSuccessors().size() == 1))
 	    {
-            if (_outFile) trfprintf(_outFile, "Number of successors of block [%d] having a goto at the exit is not equal to one\n", block->getNumber());
+            if (_outFile) trfprintf(_outFile, "Number of successors [%d] of block [%d] having a goto at the exit is not equal to one\n", block->getSuccessors().size(), block->getNumber());
             return false;
             }
          }

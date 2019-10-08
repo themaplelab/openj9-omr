@@ -11,7 +11,8 @@
 
 void AbsFrameIDTConstructor::interpret()
 {
-  TR::CFG* cfg = this->getResolvedMethodSymbol()->getFlowGraph();
+  TR::CFG* cfg = this->getCFG();
+  _target->_calleeSymbol->setFlowGraph(cfg);
   TR::CFGNode *cfgNode = cfg->getStartForReverseSnapshot();
   TR::Block *startBlock = cfgNode->asBlock();
 
@@ -23,11 +24,13 @@ void AbsFrameIDTConstructor::interpret()
      {
         OMR::Block *block = blockIt.currentBlock();
         if (first) {
+           traceMsg(TR::comp(), "we should have entered method\n");
            block->_absEnv = IDTConstructor::enterMethod(this->getRegion(), this->_node, this, this->getResolvedMethodSymbol());
            first = false;
            block->_absEnv->_block = block;
         }
         block->setVisitCount(0);
+        traceMsg(TR::comp(), "puuting block in queue\n");
         queue.push_back(block);
      }
 
@@ -70,7 +73,7 @@ IDTConstructor::invokevirtual(AbstractState& absState, int bcIndex, int cpIndex)
 {
   traceMsg(TR::comp(), "invoke virtual\n");
   AbsEnvStatic::invokevirtual(absState, bcIndex, cpIndex);
-  TR_CallSite *callsite = this->findCallSiteTargets(this->getResolvedMethodSymbol(), bcIndex, cpIndex, TR::MethodSymbol::Kinds::Virtual, this->getBlock());
+  TR_CallSite *callsite = this->findCallSiteTargets(this->getResolvedMethodSymbol(), bcIndex, cpIndex, TR::MethodSymbol::Kinds::Virtual, this->getBlock(), this->getFrame()->getCFG());
   this->inliner()->obtainIDT(this->getDeque(), this->getNode(), callsite, this->inliner()->budget(), cpIndex);
   return absState;
 }
@@ -96,7 +99,7 @@ IDTConstructor::invokespecial(AbstractState& absState, int bcIndex, int cpIndex)
 {
   traceMsg(TR::comp(), "invoke special\n");
   AbsEnvStatic::invokespecial(absState, bcIndex, cpIndex);
-  TR_CallSite *callsite = this->findCallSiteTargets(this->getResolvedMethodSymbol(), bcIndex, cpIndex, TR::MethodSymbol::Kinds::Special, this->getBlock());
+  TR_CallSite *callsite = this->findCallSiteTargets(this->getResolvedMethodSymbol(), bcIndex, cpIndex, TR::MethodSymbol::Kinds::Special, this->getBlock(), this->getFrame()->getCFG());
   this->inliner()->obtainIDT(this->getDeque(), this->getNode(), callsite, this->inliner()->budget(), cpIndex);
   return absState;
 }
@@ -106,7 +109,7 @@ IDTConstructor::invokestatic(AbstractState& absState, int bcIndex, int cpIndex)
 {
   traceMsg(TR::comp(), "invoke static\n");
   AbsEnvStatic::invokestatic(absState, bcIndex, cpIndex);
-  TR_CallSite* callsite = this->findCallSiteTargets(this->getResolvedMethodSymbol(), bcIndex, cpIndex, TR::MethodSymbol::Kinds::Static, this->getBlock());
+  TR_CallSite* callsite = this->findCallSiteTargets(this->getResolvedMethodSymbol(), bcIndex, cpIndex, TR::MethodSymbol::Kinds::Static, this->getBlock(), this->getFrame()->getCFG());
   this->inliner()->obtainIDT(this->getDeque(), this->getNode(), callsite, this->inliner()->budget(), cpIndex);
   return absState;
 }
@@ -122,14 +125,14 @@ IDTConstructor::invokeinterface(AbstractState& absState, int bcIndex, int cpInde
 {
   traceMsg(TR::comp(), "invoke interface\n");
   AbsEnvStatic::invokeinterface(absState, bcIndex, cpIndex);
-  TR_CallSite* callsite = this->findCallSiteTargets(this->getResolvedMethodSymbol(), bcIndex, cpIndex, TR::MethodSymbol::Kinds::Interface, this->getBlock());
+  TR_CallSite* callsite = this->findCallSiteTargets(this->getResolvedMethodSymbol(), bcIndex, cpIndex, TR::MethodSymbol::Kinds::Interface, this->getBlock(), this->getFrame()->getCFG());
   this->inliner()->obtainIDT(this->getDeque(), this->getNode(), callsite, this->inliner()->budget(), cpIndex);
   return absState;
 }
 
 
 TR_CallSite*
-IDTConstructor::findCallSiteTargets(TR::ResolvedMethodSymbol *callerSymbol, int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind, OMR::Block *block)
+IDTConstructor::findCallSiteTargets(TR::ResolvedMethodSymbol *callerSymbol, int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind, OMR::Block *block, TR::CFG * callerCFG)
 {
       TR_ByteCodeInfo *infoMem = new (getRegion()) TR_ByteCodeInfo();
       TR_ByteCodeInfo &info = *infoMem;
@@ -189,13 +192,14 @@ IDTConstructor::findCallSiteTargets(TR::ResolvedMethodSymbol *callerSymbol, int 
       //TODO: Sometimes these were not set, why?
       this->getCallStack()->_methodSymbol = this->getCallStack()->_methodSymbol ? this->getCallStack()->_methodSymbol : callerSymbol;
 
-      this->inliner()->applyPolicyToTargets(this->getCallStack(), callsite, block->self());
+      this->inliner()->applyPolicyToTargets(this->getCallStack(), callsite, block->self(), callerCFG);
       return callsite;
 }
 
 
 AbsEnvStatic* IDTConstructor::enterMethod(TR::Region& region, IDT::Node* node, AbsFrame* absFrame, TR::ResolvedMethodSymbol* rms)
 {
+  traceMsg(TR::comp(), "I entered the method\n");
   AbsEnvStatic *absEnv = new (region) IDTConstructor(region, node, absFrame);
   TR_ResolvedMethod *resolvedMethod = rms->getResolvedMethod();
   const auto numberOfParameters = resolvedMethod->numberOfParameters();
@@ -277,6 +281,8 @@ AbsEnvStatic* IDTConstructor::enterMethod(TR::Region& region, IDT::Node* node, A
 
 void
 AbsFrameIDTConstructor::factFlow(OMR::Block *block) {
+  if (block->getNumber() == 3) return;
+
   int start = block->getBlockBCIndex();
   if (start == 0) {
      return; // _absEnv should already be computed and stored there.
@@ -387,6 +393,38 @@ IDTConstructor::getCallSite(TR::MethodSymbol::Kinds kind,
       if (false) {
           return TR_CallSite::create(callNodeTreeTop, parent, callNode, receiverClass, symRef, initialCalleeMethod, comp, comp->trMemory(), heapAlloc, callerResolvedMethod, depth, allConsts);
       }
+
+      auto owningMethod = (TR_ResolvedJ9Method*) callerResolvedMethod;
+      bool unresolvedInCP;
+      if (kind == TR::MethodSymbol::Kinds::Virtual) {
+      TR_ResolvedMethod *method = owningMethod->getResolvedPossiblyPrivateVirtualMethod(
+         comp,
+         cpIndex,
+         /* ignoreRtResolve = */ false,
+         &unresolvedInCP);
+
+      bool opposite = !(method != NULL && method->isPrivate());
+      TR::SymbolReference * somesymref = NULL;
+      if (!opposite) {
+         somesymref = comp->getSymRefTab()->findOrCreateMethodSymbol(
+            this->getResolvedMethodSymbol()->getResolvedMethodIndex(),
+            cpIndex,
+            method,
+            TR::MethodSymbol::Special,
+           /* isUnresolvedInCP = */ false);
+      }
+      else {
+         somesymref = comp->getSymRefTab()->findOrCreateVirtualMethodSymbol(this->getResolvedMethodSymbol(), cpIndex);
+         if (!somesymref->isUnresolved()) {
+            method = somesymref->getSymbol()->castToResolvedMethodSymbol()->getResolvedMethod();
+         }
+      }
+      if (method) {
+        kind = somesymref->getSymbol()->isFinal() ||
+         method->isPrivate() ||
+         (debug("omitVirtualGuard") && !method->virtualMethodIsOverridden()) ? TR::MethodSymbol::Kinds::Static : kind;
+      }}
+
       
       if (initialCalleeMethod)
       {
@@ -395,6 +433,7 @@ IDTConstructor::getCallSite(TR::MethodSymbol::Kinds kind,
          initialCalleeMethod->isPrivate() ||
          (debug("omitVirtualGuard") && !initialCalleeMethod->virtualMethodIsOverridden()) ? TR::MethodSymbol::Kinds::Static : kind;
       }
+
       TR_CallSite *callsite = NULL;
       switch (kind) {
          case TR::MethodSymbol::Kinds::Virtual:

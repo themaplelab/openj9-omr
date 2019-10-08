@@ -295,7 +295,7 @@ AbsEnvStatic::interpret(TR_J9ByteCode bc, TR_J9ByteCodeIterator &bci)
      case J9BCineg: this->ineg(this->_absState); break;
      case J9BCinstanceof: this->instanceof(this->_absState, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
      // invokes...
-     //case J9BCinvokedynamic: this->invokedynamic(bci.currentByteCodeIndex(), bci.next2Bytes()); break;
+     case J9BCinvokedynamic: TR_ASSERT_FATAL(false, "TODO: model invoke dynamic"); break;
      case J9BCinvokeinterface: this->invokeinterface(this->_absState, bci.currentByteCodeIndex(), bci.next2Bytes()); break;
      case J9BCinvokespecial: this->invokespecial(this->_absState, bci.currentByteCodeIndex(), bci.next2Bytes()); break;
      case J9BCinvokestatic: this->invokestatic(this->_absState, bci.currentByteCodeIndex(), bci.next2Bytes()); break;
@@ -2663,6 +2663,7 @@ AbsEnvStatic::invoke(int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind) {
 
 AbsFrame::AbsFrame(TR::Region &region, IDT::Node *node)
   : _region(region)
+  , _target(node->getCallTarget())
   , _node(node)
   , _vp(node->getValuePropagation())
   , _rms(node->getResolvedMethodSymbol())
@@ -2673,6 +2674,7 @@ AbsFrame::AbsFrame(TR::Region &region, IDT::Node *node)
 
 AbsEnvStatic* AbsEnvStatic::enterMethod(TR::Region& region, IDT::Node* node, AbsFrame* absFrame, TR::ResolvedMethodSymbol* rms)
 {
+  traceMsg(TR::comp(), "I entered the method\n");
   AbsEnvStatic *absEnv = new (region) AbsEnvStatic(region, node, absFrame);
   TR_ResolvedMethod *resolvedMethod = rms->getResolvedMethod();
   const auto numberOfParameters = resolvedMethod->numberOfParameters();
@@ -2788,6 +2790,8 @@ void AbsFrame::interpret(OMR::Block* block)
   int start = block->getBlockBCIndex();
   int end = start + block->getBlockSize();
   if (start < 0 || end < 1) return;
+  // basic block 3 will always be an empty exit block...
+  if (block->getNumber() == 3) return;
   this->factFlow(block);
   _bci.setIndex(start);
   TR::Compilation *comp = TR::comp();
@@ -2799,6 +2803,9 @@ void AbsFrame::interpret(OMR::Block* block)
      {
      if (block->_absEnv)
      block->_absEnv->interpret(bc, _bci);
+     else {
+        traceMsg(comp, "basic block has no absEnv\n");
+     }
      }
 }
 
@@ -2875,4 +2882,10 @@ AbsEnvStatic* AbsFrame::mergeAllPredecessors(OMR::Block *block) {
      absEnv->trace();
   }
   return absEnv;
+}
+
+TR::CFG*
+AbsFrame::getCFG()
+{
+   return _target->_cfg;
 }

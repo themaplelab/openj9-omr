@@ -20,6 +20,7 @@ forwards_BitVectorImpl(const int cost_budget, PriorityPreorder& items, Growable_
 
       traceMsg(TR::comp(), "inliner packing algorithm row = %d, budget = %d\n", row, budget);
       IDT::Node* curr_item = items.get(row);
+      TR_ASSERT(curr_item->getCallTarget()->_calleeSymbol->getFlowGraph(), "we have a cfg");
       traceMsg(TR::comp(), "current item %s has benefit = %d\n", curr_item->getName(), curr_item->getBenefit());
       //TODO: encapsulate this in a clear method.
       curr_set.intersectInPlace(*table->_get(-1, -1), *table->_get(-1, -1));

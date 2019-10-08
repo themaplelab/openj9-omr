@@ -26,7 +26,7 @@ protected:
 private:
   void addIfeq(int, int);
   IDT::Indices *getDeque();
-  TR_CallSite* findCallSiteTargets(TR::ResolvedMethodSymbol *callerSymbol, int, int, TR::MethodSymbol::Kinds, OMR::Block *block);
+  TR_CallSite* findCallSiteTargets(TR::ResolvedMethodSymbol *callerSymbol, int, int, TR::MethodSymbol::Kinds, OMR::Block *block, TR::CFG* cfg = NULL);
   TR::SymbolReference* getSymbolReference(TR::ResolvedMethodSymbol *callerSymbol, int cpIndex, TR::MethodSymbol::Kinds kind);
   int getCallerIndex() const;
   TR_CallStack *getCallStack();

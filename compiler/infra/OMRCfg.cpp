@@ -144,6 +144,11 @@ OMR::CFG::addEdge(TR::CFGEdge *e)
          comp()->getDebug()->print(comp()->getOutFile(), _rootStructure, 6);
          }
       }
+
+   if (comp()->getOption(TR_TraceAddAndRemoveEdge))
+      {
+      traceMsg(comp(),"\nAdded edge numbers %d-->%d:\n", e->getFrom()->getNumber(), e->getTo()->getNumber());
+      }
    }
 
 
@@ -3325,7 +3330,7 @@ OMR::CFG::isColdTarget(TR_ByteCodeInfo &info, float frequencyAdjustment, TR_HasR
    }
 
 void
-OMR::CFG::computeMethodBranchProfileInfo(AbsEnvInlinerUtil *util, TR_CallTarget* calltarget, TR::ResolvedMethodSymbol* callerSymbol, int callerIndex, TR::Block *callBlock)
+OMR::CFG::computeMethodBranchProfileInfo(AbsEnvInlinerUtil *util, TR_CallTarget* calltarget, TR::ResolvedMethodSymbol* callerSymbol, int callerIndex, TR::Block *callBlock, TR::CFG* callerCfg)
    {
       TR::Block *cfgBlock = NULL;
 
@@ -3337,7 +3342,7 @@ OMR::CFG::computeMethodBranchProfileInfo(AbsEnvInlinerUtil *util, TR_CallTarget*
          cfgBlock = asBlock;
       }
 
-      util->computeMethodBranchProfileInfo2(cfgBlock, calltarget, callerSymbol, callerIndex, callBlock);
+      util->computeMethodBranchProfileInfo2(cfgBlock, calltarget, callerSymbol, callerIndex, callBlock, callerCfg);
    }
 
 TR::CFGNode *
@@ -3352,3 +3357,17 @@ OMR::CFG::getStartForReverseSnapshot()
       }
       return NULL;
    }
+
+TR::CFGNode *
+OMR::CFG::getEndForReverseSnapshot()
+  {
+   for (auto cfgNode = this->getFirstNode(); cfgNode; cfgNode = cfgNode->getNext())
+      {
+         auto asBlock = cfgNode->asBlock();
+         if (!asBlock) continue;
+         if (cfgNode->getNumber() == 3)
+         return cfgNode;
+      }
+      return NULL;
+
+  }

@@ -37,16 +37,17 @@ class AbsEnvInlinerUtil;
 class BenefitInlinerBase: public TR_InlinerBase 
    {
    protected:
+      void loopThroughIDT(IDT::Node*);
       void debugTrees(TR::ResolvedMethodSymbol*);
       void getSymbolAndFindInlineTargets(TR_CallStack *callStack, TR_CallSite *callsite, bool findNewTargets=true);
-      virtual bool supportsMultipleTargetInlining () { return false; }
       virtual inline void updateBenefitInliner();
       virtual inline void popBenefitInlinerInformation();
       virtual bool analyzeCallSite(TR_CallStack *, TR::TreeTop *, TR::Node *, TR::Node *);
       BenefitInlinerBase(TR::Optimizer *optimizer, TR::Optimization *optimization);
       TR::Region _cfgRegion;
    public:
-      virtual void applyPolicyToTargets(TR_CallStack *, TR_CallSite *, TR::Block *block=NULL);
+      virtual bool supportsMultipleTargetInlining () { return false; }
+      virtual void applyPolicyToTargets(TR_CallStack *, TR_CallSite *, TR::Block *block=NULL, TR::CFG* callerCFG=NULL);
       int _callerIndex;
       int _nodes;
       //void performInlining(TR::ResolvedMethodSymbol *);
@@ -98,7 +99,7 @@ class BenefitInliner: public BenefitInlinerBase
       TR_CallStack *_inliningCallStack;
       const uint32_t _budget;
 
-      TR_CallSite *findCallSiteTarget(TR::ResolvedMethodSymbol *resolvedMethodSymbol, int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind, TR::Block *block);
+      TR_CallSite *findCallSiteTarget(TR::ResolvedMethodSymbol *resolvedMethodSymbol, int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind, TR::Block *block, TR::CFG* cfg = NULL);
       void printTargets(TR::ResolvedMethodSymbol *resolvedMethodSymbol, int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind);
       void printInterfaceTargets(TR::ResolvedMethodSymbol *resolvedMethodSymbol, int bcIndex, int cpIndex);
       void printVirtualTargets(TR::ResolvedMethodSymbol *resolvedMethodSymbol, int bcIndex, int cpIndex);
@@ -132,7 +133,7 @@ class BenefitInliner: public BenefitInlinerBase
       friend class BenefitInliner;
       public:
       AbsEnvInlinerUtil(TR::Compilation *comp);
-      void computeMethodBranchProfileInfo2(TR::Block *, TR_CallTarget *, TR::ResolvedMethodSymbol*, int, TR::Block *);
+      void computeMethodBranchProfileInfo2(TR::Block *, TR_CallTarget *, TR::ResolvedMethodSymbol*, int, TR::Block *, TR::CFG *cfg);
    };
 }
 

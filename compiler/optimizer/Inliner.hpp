@@ -262,11 +262,11 @@ struct TR_VirtualGuardSelection
 class TR_InlinerBase: public TR_HasRandomGenerator
    {
    protected:
-      virtual bool supportsMultipleTargetInlining () { return false ; }
       virtual inline void updateBenefitInliner() { };
       virtual inline void popBenefitInlinerInformation() { };
 
    public:
+      virtual bool supportsMultipleTargetInlining () { return false ; }
       vcount_t getVisitCount() { return _visitCount;}
 
       void setPolicy(OMR_InlinerPolicy *policy){ _policy = policy; }

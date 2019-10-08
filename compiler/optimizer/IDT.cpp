@@ -227,6 +227,7 @@ IDT::Node::addChildIfNotExists(IDT* idt,
                          TR::ResolvedMethodSymbol* rms,
                          int benefit, TR_CallSite *callsite)
   {
+  benefit = 100;
   // 0 Children
   if (_children == nullptr)
     {
@@ -429,7 +430,7 @@ IDT::Node::isRoot() const
 TR::ResolvedMethodSymbol*
 IDT::Node::getResolvedMethodSymbol() const
   {
-      return this->_rms;
+      return !this->getCallTarget() ? this->_rms : this->getCallTarget()->_calleeSymbol;
   }
 
 int
@@ -625,8 +626,9 @@ IDT::Node::getChild(unsigned int childIndex) const
 }
 
 TR_CallTarget *
-IDT::Node::getCallTarget()
+IDT::Node::getCallTarget() const
 {
+  //this->_calltarget->_calleeSymbol->setFlowGraph(this->_calltarget->_cfg);
   return this->_calltarget;
 }
 
@@ -639,6 +641,7 @@ IDT::Node::setCallTarget(TR_CallTarget *calltarget)
 TR_CallStack*
 IDT::Node::getCallStack()
 {
+  this->_callStack->_methodSymbol->setFlowGraph(this->getCallTarget()->_cfg);
   return this->_callStack;
 }
 
@@ -646,4 +649,43 @@ void
 IDT::Node::setCallStack(TR_CallStack* callStack)
 {
   this->_callStack = callStack;
+}
+
+void
+IDT::Node::printByteCode()
+{
+   TR::ResolvedMethodSymbol *resolvedMethodSymbol = this->_rms;
+   TR_ResolvedJ9Method* resolvedMethod = static_cast<TR_ResolvedJ9Method*>(resolvedMethodSymbol->getResolvedMethod());
+   TR_J9VMBase *fe = static_cast<TR_J9VMBase*>(TR::comp()->fe());
+   TR_J9ByteCodeIterator bci(resolvedMethodSymbol, resolvedMethod, fe, TR::comp());
+   const char* signature1 = bci.methodSymbol()->signature(TR::comp()->trMemory());
+   const char* signature2 = bci.method()->signature(TR::comp()->trMemory());
+   traceMsg(TR::comp(), "Printing bytecode information for method symbol %s\n", signature1);
+   traceMsg(TR::comp(), "Printing bytecode information for method %s\n", signature2);
+   int end = resolvedMethod->maxBytecodeIndex();
+   for (TR_J9ByteCode bc = bci.current(); bc != J9BCunknown && bci.currentByteCodeIndex() < end; bc = bci.next())
+   {
+     bci.printByteCode();
+     IDT::Node *child = nullptr;
+     switch(bc)
+     {
+        case J9BCinvokestatic:
+        case J9BCinvokevirtual:
+        case J9BCinvokedynamic:
+        case J9BCinvokespecial:
+        case J9BCinvokeinterface:
+        // print name of target...
+           child = this->findChildWithBytecodeIndex(bci.currentByteCodeIndex());
+           if (!child) {
+              traceMsg(TR::comp(), "No child for bytecode index %d\n", bci.currentByteCodeIndex());
+              break;
+           }
+           traceMsg(TR::comp(), "CalleeSymbol signature %s\n", child->getCallTarget()->_calleeSymbol->signature(TR::comp()->trMemory()));
+           traceMsg(TR::comp(), "calleeMethod signature %s\n", child->getCallTarget()->_calleeMethod->signature(TR::comp()->trMemory()));
+        break;
+        default:
+        break;
+     }
+   }
+   traceMsg(TR::comp(), "\n");
 }

@@ -636,6 +636,7 @@ OMR::Block::removeFromCFG(TR::Compilation *c)
       for (TR::TreeTop *treeTop = _pEntry, *next; ; treeTop = next)
          {
          next = treeTop->getNextTreeTop();
+         //TR_ASSERT(_firstTreeTop == treeTop, "same...");
          TR::TransformUtil::removeTree(c, treeTop);
          if (treeTop == _pExit)
             break;

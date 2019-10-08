@@ -59,6 +59,7 @@ class IDT
     unsigned int getCost() const;
     unsigned int getRecursiveCost() const;
     unsigned int getBenefit() const;
+    void printByteCode();
     void setBenefit(unsigned int);
     void buildIndices(IDT::Node **indices);
     void enqueue_subordinates(IDT::NodePtrPriorityQueue *q) const;
@@ -83,7 +84,7 @@ class IDT
     bool isInProposal(InliningProposal *inliningProposal);
     //TODO: maybe get rid of this
     void setCallTarget(TR_CallTarget*);
-    TR_CallTarget *getCallTarget();
+    TR_CallTarget *getCallTarget() const;
     void setCallStack(TR_CallStack*);
     TR_CallStack* getCallStack();
     unsigned int getByteCodeIndex();

@@ -917,7 +917,9 @@ public:
   IDT::Node *_node;
   TR::ValuePropagation *_vp;
   TR_J9ByteCodeIterator _bci;
+  TR::CFG* getCFG();
 protected:
+  TR_CallTarget *_target;
   TR::Region &_region;
   TR::ResolvedMethodSymbol *_rms;
   void interpret(OMR::Block *); 
