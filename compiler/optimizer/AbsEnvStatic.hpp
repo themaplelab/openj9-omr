@@ -80,6 +80,7 @@ public:
   virtual void fcmpg(){};
   virtual void fconst0(){};
   virtual void fconst1(){};
+  virtual void fconst2(){};
   virtual void fdiv(){};
   virtual void fload(int){};
   virtual void fload0(){};
@@ -289,6 +290,7 @@ public:
   virtual void fcmpg(AbstractState&) = 0;
   virtual void fconst0(AbstractState&) = 0;
   virtual void fconst1(AbstractState&) = 0;
+  virtual void fconst2(AbstractState&) = 0;
   virtual void fdiv(AbstractState&) = 0;
   virtual void fload(AbstractState&, int) = 0;
   virtual void fload0(AbstractState&) = 0;
@@ -498,6 +500,7 @@ public:
   virtual AbstractState& fcmpg(AbstractState&) = 0;
   virtual AbstractState& fconst0(AbstractState&) = 0;
   virtual AbstractState& fconst1(AbstractState&) = 0;
+  virtual AbstractState& fconst2(AbstractState&) = 0;
   virtual AbstractState& fdiv(AbstractState&) = 0;
   virtual AbstractState& fload(AbstractState&, int) = 0;
   virtual AbstractState& fload0(AbstractState&) = 0;
@@ -745,6 +748,7 @@ protected:
   virtual AbstractState& fcmpg(AbstractState&);
   virtual AbstractState& fconst0(AbstractState&);
   virtual AbstractState& fconst1(AbstractState&);
+  virtual AbstractState& fconst2(AbstractState&);
   virtual AbstractState& fdiv(AbstractState&);
   virtual AbstractState& fload(AbstractState&, int);
   virtual AbstractState& fload0(AbstractState&);

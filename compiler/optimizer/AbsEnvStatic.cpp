@@ -228,6 +228,7 @@ AbsEnvStatic::interpret(TR_J9ByteCode bc, TR_J9ByteCodeIterator &bci)
      case J9BCfcmpg: this->fcmpg(this->_absState); break;
      case J9BCfconst0: this->fconst0(this->_absState); break;
      case J9BCfconst1: this->fconst1(this->_absState); break;
+     case J9BCfconst2: this->fconst2(this->_absState); break;
      case J9BCfdiv: this->fdiv(this->_absState); break;
      case J9BCfload: this->fload(this->_absState, bci.nextByte()); break;
      case J9BCfload0: this->fload0(this->_absState); break;
@@ -515,7 +516,8 @@ AbstractState&
 AbsEnvStatic::dastore(AbstractState &absState)
 {
   //TODO:
-  AbsValue *value = absState.pop();
+  AbsValue *value1 = absState.pop();
+  AbsValue *value2 = absState.pop();
   AbsValue *index = absState.pop();
   AbsValue *arrayRef = absState.pop();
   // if we have arrayRef, we know arrayRef is not null
@@ -2035,6 +2037,13 @@ AbsEnvStatic::fconst1(AbstractState &absState) {
 }
 
 AbstractState&
+AbsEnvStatic::fconst2(AbstractState &absState) {
+  AbsValue *result1 = this->getTopDataType(TR::Float);
+  absState.push(result1);
+  return absState;
+}
+
+AbstractState&
 AbsEnvStatic::dload(AbstractState &absState, int n) {
   aload(absState, n);
   aload(absState, n + 1);
@@ -2389,7 +2398,7 @@ AbstractState&
 AbsEnvStatic::putstatic(AbstractState& absState) {
   // WONTFIX we do not model the heap
   AbsValue *value1 = absState.pop();
-  if (!value1->_dt == TR::NoType) { // category type 2
+  if (value1->_dt == TR::NoType) { // category type 2
     AbsValue *value2 = absState.pop();
   }
   return absState;
