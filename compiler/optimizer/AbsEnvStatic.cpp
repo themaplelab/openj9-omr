@@ -300,6 +300,8 @@ AbsEnvStatic::interpret(TR_J9ByteCode bc, TR_J9ByteCodeIterator &bci)
      case J9BCinvokespecial: this->invokespecial(this->_absState, bci.currentByteCodeIndex(), bci.next2Bytes()); break;
      case J9BCinvokestatic: this->invokestatic(this->_absState, bci.currentByteCodeIndex(), bci.next2Bytes()); break;
      case J9BCinvokevirtual: this->invokevirtual(this->_absState, bci.currentByteCodeIndex(), bci.next2Bytes()); break;
+     case J9BCinvokespecialsplit: this->invokespecial(this->_absState, bci.currentByteCodeIndex(), bci.next2Bytes() | J9_SPECIAL_SPLIT_TABLE_INDEX_FLAG); break;
+     case J9BCinvokestaticsplit: this->invokestatic(this->_absState, bci.currentByteCodeIndex(), bci.next2Bytes() | J9_STATIC_SPLIT_TABLE_INDEX_FLAG); break;
      case J9BCior: this->ior(this->_absState); break;
      case J9BCirem: this->irem(this->_absState); break;
      //case J9BCireturn:
@@ -2607,9 +2609,6 @@ AbsEnvStatic::invoke(int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind) {
   TR::Method *method = comp->fej9()->createMethod(comp->trMemory(), callerResolvedMethod->containingClass(), cpIndex);
   // how many pops?
   uint32_t params = method->numberOfExplicitParameters();
-  int isStatic = kind == TR::MethodSymbol::Kinds::Static;
-  int numberOfImplicitParameters = isStatic ? 0 : 1;
-  if (numberOfImplicitParameters == 1) this->getState().pop();
   for (int i = 0; i < params; i++) {
     TR::DataType datatype = method->parmType(i);
     this->getState().pop();
@@ -2622,6 +2621,9 @@ AbsEnvStatic::invoke(int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind) {
         break;
     }
   }
+  int isStatic = kind == TR::MethodSymbol::Kinds::Static;
+  int numberOfImplicitParameters = isStatic ? 0 : 1;
+  if (numberOfImplicitParameters == 1) this->getState().pop();
 
   //pushes?
   if (method->returnTypeWidth() == 0) return;

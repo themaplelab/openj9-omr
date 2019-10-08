@@ -124,12 +124,11 @@ AbstractState&
 IDTConstructor::invokeinterface(AbstractState& absState, int bcIndex, int cpIndex)
 {
   traceMsg(TR::comp(), "invoke interface\n");
-  AbsEnvStatic::invokeinterface(absState, bcIndex, cpIndex);
   TR_CallSite* callsite = this->findCallSiteTargets(this->getResolvedMethodSymbol(), bcIndex, cpIndex, TR::MethodSymbol::Kinds::Interface, this->getBlock(), this->getFrame()->getCFG());
   this->inliner()->obtainIDT(this->getDeque(), this->getNode(), callsite, this->inliner()->budget(), cpIndex);
+  AbsEnvStatic::invokeinterface(absState, bcIndex, cpIndex);
   return absState;
 }
-
 
 TR_CallSite*
 IDTConstructor::findCallSiteTargets(TR::ResolvedMethodSymbol *callerSymbol, int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind, OMR::Block *block, TR::CFG * callerCFG)

@@ -87,11 +87,12 @@ IDT::Node::printNodeThenChildren(const IDT* idt, int callerIndex) const
   {
   if (this != idt->getRoot()) {
     const char *nodeName = getName(idt);
-    TR_VerboseLog::writeLineLocked(TR_Vlog_SIP, "#IDT: %d: %d inlinable @%d -> bcsz=%d %s, benefit = %u", 
+    TR_VerboseLog::writeLineLocked(TR_Vlog_SIP, "#IDT: %d: %d inlinable @%d -> bcsz=%d %s target %s, benefit = %u", 
       _idx,
       callerIndex,
       _callsite_bci,
       getBcSz(),
+      this->getCallTarget()->_calleeSymbol ? this->getCallTarget()->_calleeSymbol->signature(comp()->trMemory()) : "no callee symbol???",
       nodeName,
       this->getBenefit()
     );
@@ -374,10 +375,11 @@ IDT::Node::copyChildrenFrom(const IDT::Node * other, Indices& someIndex)
       {
       if (comp()->trace(OMR::benefitInliner))
          traceMsg(TR::comp(), "copying %d into %d\n", childCopy->getCalleeIndex(), this->getCalleeIndex());
-      this->addChildIfNotExists(this->_head,
+      IDT::Node *newChild = this->addChildIfNotExists(this->_head,
                          childCopy->_callsite_bci,
                          childCopy->_rms,
                          childCopy->_benefit, childCopy->_callSite);
+      newChild->setCallTarget(childCopy->getCallTarget());
       return;
       }
 
@@ -386,10 +388,11 @@ IDT::Node::copyChildrenFrom(const IDT::Node * other, Indices& someIndex)
       IDT::Node *childCopy = other->_children->at(i);
       if (comp()->trace(OMR::benefitInliner))
          traceMsg(TR::comp(), "copying %d into %d\n", childCopy->getCalleeIndex(), this->getCalleeIndex());
-      this->addChildIfNotExists(this->_head,
+      IDT::Node *newChild = this->addChildIfNotExists(this->_head,
                          childCopy->_callsite_bci,
                          childCopy->_rms,
                          childCopy->_benefit, childCopy->_callSite);
+      newChild->setCallTarget(childCopy->getCallTarget());
       return;
       }
    }

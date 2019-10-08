@@ -22,6 +22,7 @@ protected:
   virtual AbstractState& invokespecial(AbstractState&, int, int);
   virtual AbstractState& invokestatic(AbstractState&, int, int);
   virtual AbstractState& invokeinterface(AbstractState&, int, int);
+  //virtual AbstractState& invokeinterface2(AbstractState&, int, int);
   virtual AbstractState& ifeq(AbstractState&, int, int);
 private:
   void addIfeq(int, int);
