@@ -31,7 +31,7 @@ InliningProposal::InliningProposal(InliningProposal &proposal, OMR::BenefitInlin
 void
 InliningProposal::print()
 {
-   if (true)
+   if (TR::comp()->getOption(TR_TraceBIProposal))
    { // make a flag for printing inlining proposals
      traceMsg(TR::comp(), "Printing bit vector with nodes\n");
      if (!_nodes)

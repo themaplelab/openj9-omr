@@ -45,13 +45,13 @@ int32_t OMR::BenefitInlinerWrapper::perform()
    int recursiveCost = inliner._idt->getRoot()->getRecursiveCost();
    bool canSkipAbstractInterpretation = recursiveCost < budget;
    if (!canSkipAbstractInterpretation) {
-      inliner.abstractInterpreter();
-      inliner.analyzeIDT();
+      //inliner.abstractInterpreter();
+      //inliner.analyzeIDT();
    } else {
-      inliner.addEverything();
-      
-
+      //inliner.addEverything();
    }
+
+   inliner.addEverything();
    inliner._idt->getRoot()->getResolvedMethodSymbol()->setFlowGraph(inliner._rootRms);
    inliner._currentNode = inliner._idt->getRoot();
 
@@ -65,7 +65,22 @@ int32_t OMR::BenefitInlinerWrapper::perform()
 void
 OMR::BenefitInliner::addEverything() {
   _inliningProposal = new (this->_cfgRegion) InliningProposal(this, this->_idt, this->_idt->howManyNodes());
+  this->addEverythingRecursively(this->_idt->getRoot());
+  this->_inliningProposal->print();
 }
+
+void
+OMR::BenefitInliner::addEverythingRecursively(IDT::Node *node)
+   {
+   TR_ASSERT(_inliningProposal, "we don't have an inlining proposal\n");
+   _inliningProposal->pushBack(node);
+   int children = node->getNumChildren();
+   for (int i = 0; i < children; i++)
+      {
+      IDT::Node *child = node->getChild(i);
+      this->addEverythingRecursively(child);
+      }
+   }
 
 void
 OMR::BenefitInlinerBase::debugTrees(TR::ResolvedMethodSymbol *rms)

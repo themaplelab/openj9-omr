@@ -2812,6 +2812,7 @@ AbsValue* AbsEnvStatic::getClassConstraint(TR_OpaqueClassBlock *opaqueClass, TR:
   }
 
 void AbsFrame::factFlow(OMR::Block *block) {
+
   int start = block->getBlockBCIndex();
   if (start == 0) {
      return; // _absEnv should already be computed and stored there.

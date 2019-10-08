@@ -3333,7 +3333,7 @@ OMR::CFG::computeMethodBranchProfileInfo(AbsEnvInlinerUtil *util, TR_CallTarget*
       {
          auto asBlock = cfgNode->asBlock();
          if (!asBlock) continue;
-         if (cfgNode->getNumber() == 2)
+         if (cfgNode->getNumber() == 4)
          cfgBlock = asBlock;
       }
 
@@ -3347,7 +3347,7 @@ OMR::CFG::getStartForReverseSnapshot()
       {
          auto asBlock = cfgNode->asBlock();
          if (!asBlock) continue;
-         if (cfgNode->getNumber() == 2)
+         if (cfgNode->getNumber() == 4)
          return cfgNode;
       }
       return NULL;
