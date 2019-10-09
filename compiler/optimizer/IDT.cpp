@@ -484,7 +484,7 @@ IDT::Node::findChildWithBytecodeIndex(int bcIndex)
           child = ((_children->at(i)));
     }
   //TR_ASSERT_FATAL(false, "we shouldn't be here");
-  return nullptr;
+  return child;
   }
 
 const char *

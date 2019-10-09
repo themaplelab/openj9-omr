@@ -42,7 +42,7 @@ class BenefitInlinerBase: public TR_InlinerBase
       void getSymbolAndFindInlineTargets(TR_CallStack *callStack, TR_CallSite *callsite, bool findNewTargets=true);
       virtual inline void updateBenefitInliner();
       virtual inline void popBenefitInlinerInformation();
-      virtual bool analyzeCallSite(TR_CallStack *, TR::TreeTop *, TR::Node *, TR::Node *);
+      virtual bool analyzeCallSite(TR_CallStack *, TR::TreeTop *, TR::Node *, TR::Node *, TR_CallTarget*);
       BenefitInlinerBase(TR::Optimizer *optimizer, TR::Optimization *optimization);
       TR::Region _cfgRegion;
    public:

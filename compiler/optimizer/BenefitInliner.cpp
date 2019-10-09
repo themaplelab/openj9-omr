@@ -37,31 +37,26 @@ int32_t OMR::BenefitInlinerWrapper::perform()
 
    inliner.obtainIDT(inliner._idt->getRoot(), budget);
    inliner.traceIDT();
-   inliner._idt->getRoot()->getResolvedMethodSymbol()->setFlowGraph(inliner._rootRms);
 
    if (inliner._idt->howManyNodes() == 1) 
       {
+      inliner._idt->getRoot()->getResolvedMethodSymbol()->setFlowGraph(inliner._rootRms);
       return 1;
       }
 
-   inliner.addEverything();
-   inliner._currentNode = inliner._idt->getRoot();
-   inliner.performInlining(sym);
-
-/*
    int recursiveCost = inliner._idt->getRoot()->getRecursiveCost();
    bool canSkipAbstractInterpretation = recursiveCost < budget;
    if (!canSkipAbstractInterpretation) {
-      //inliner.abstractInterpreter();
-      //inliner.analyzeIDT();
+      inliner.abstractInterpreter();
+      inliner.analyzeIDT();
    } else {
-      //inliner.addEverything();
+      inliner.addEverything();
    }
 
+   inliner._idt->getRoot()->getResolvedMethodSymbol()->setFlowGraph(inliner._rootRms);
+   inliner._currentNode = inliner._idt->getRoot();
+   inliner.performInlining(sym);
 
-
-   //inliner.debugTrees(sym);
-*/
    return 1;
    }
 
@@ -117,7 +112,7 @@ OMR::BenefitInlinerBase::debugTrees(TR::ResolvedMethodSymbol *rms)
 
 
 bool
-OMR::BenefitInlinerBase::inlineCallTargets(TR::ResolvedMethodSymbol *rms, TR_CallStack *callStack, TR_InnerPreexistenceInfo *info)
+OMR::BenefitInlinerBase::inlineCallTargets(TR::ResolvedMethodSymbol *rms, TR_CallStack *prevCallStack, TR_InnerPreexistenceInfo *info)
 {
    // inputs : IDT = all possible inlining candidates
    // TR::InliningProposal results = candidates selected for inlining
@@ -130,37 +125,41 @@ OMR::BenefitInlinerBase::inlineCallTargets(TR::ResolvedMethodSymbol *rms, TR_Cal
    }
 
    traceMsg(TR::comp(), "inlining into %s\n", this->_currentNode->getName());
+   TR_ASSERT(!prevCallStack || prevCallStack->_methodSymbol->getFlowGraph(), "we have a null call graph");
 
-   TR_ASSERT(!callStack || callStack->_methodSymbol->getFlowGraph(), "we have a null call graph");
-   bool inlined = this->usedSavedInformation(rms, callStack, info, this->_currentNode);
+   TR_CallStack callStack(comp(), rms, rms->getResolvedMethod(), prevCallStack, 1500, true);
+   if (info)
+      callStack._innerPrexInfo = info;
+
+   bool inlined = this->usedSavedInformation(rms, &callStack, info, this->_currentNode);
    return inlined;
 }
 
 bool
-OMR::BenefitInlinerBase::analyzeCallSite(
-   TR_CallStack * callStack, TR::TreeTop * callNodeTreeTop, TR::Node * parent, TR::Node * callNode)
+OMR::BenefitInlinerBase::analyzeCallSite(TR_CallStack * callStack, TR::TreeTop * callNodeTreeTop, TR::Node * parent, TR::Node * callNode, TR_CallTarget *calltargetToInline)
    {
-/*
    TR_InlinerDelimiter delimiter(tracer(),"TR_DumbInliner::analyzeCallSite");
 
-   TR::MethodSymbol *calleeSymbol = symRef->getSymbol()->castToMethodSymbol();
-*/
-
    TR::SymbolReference *symRef = callNode->getSymbolReference();
+   TR::MethodSymbol *calleeSymbol = symRef->getSymbol()->castToMethodSymbol();
+
    TR_CallSite *callsite = TR_CallSite::create(callNodeTreeTop, parent, callNode,
                                                (TR_OpaqueClassBlock*) 0, symRef, (TR_ResolvedMethod*) 0,
                                                comp(), trMemory() , stackAlloc);
-
    getSymbolAndFindInlineTargets(callStack,callsite);
+
    if (!callsite->numTargets())
       return false;
+
    bool success = false;
    for(int32_t i=0;i<callsite->numTargets();i++)
-   {
-      TR_CallTarget *calltarget2 = callsite->getTarget(i);
-      success |= inlineCallTarget(callStack, calltarget2, false, NULL, &callNodeTreeTop);
-   }
+      {
+      TR_CallTarget *calltarget = callsite->getTarget(i);
+      if (!calltarget->_calleeMethod->isSameMethod(calltargetToInline->_calleeMethod)) continue;
+      if (calltarget->_alreadyInlined) continue;
 
+      success |= inlineCallTarget(callStack, calltarget, false);
+      }
    return success;
    }
 
@@ -168,6 +167,7 @@ bool
 OMR::BenefitInlinerBase::usedSavedInformation(TR::ResolvedMethodSymbol *rms, TR_CallStack *callStack, TR_InnerPreexistenceInfo *info, IDT::Node *idtNode)
 {
       bool inlined = false;
+      uint32_t inlineCount = 0;
       for (TR::TreeTop * tt = rms->getFirstTreeTop(); tt; tt = tt->getNextTreeTop())
          {
          _inliningAsWeWalk = false;
@@ -177,9 +177,10 @@ OMR::BenefitInlinerBase::usedSavedInformation(TR::ResolvedMethodSymbol *rms, TR_
          TR::Node * node = parent->getChild(0);
          if (!node->getOpCode().isCall()) continue;
 
+         if (node->getVisitCount() == _visitCount) continue;
+
          // is this call site in the IDT?
          TR_ByteCodeInfo &bcInfo = node->getByteCodeInfo();
-         traceMsg(TR::comp(), "bytecodeIndex %d\n", bcInfo.getByteCodeIndex());
          IDT::Node *child = idtNode->findChildWithBytecodeIndex(bcInfo.getByteCodeIndex());
          if (!child) continue;
 
@@ -187,7 +188,36 @@ OMR::BenefitInlinerBase::usedSavedInformation(TR::ResolvedMethodSymbol *rms, TR_
          bool shouldBeInlined = child->isInProposal(this->_inliningProposal);
          if (!shouldBeInlined) continue;
 
+         if (TR::comp()->trace(OMR::benefitInliner))
+             {
+             traceMsg(TR::comp(), "inlining node %d %s\n", child->getCalleeIndex(), child->getName());
+             }
+
+         IDT::Node *prevChild = this->_currentChild;
+         this->_currentChild = child;
+         bool success = analyzeCallSite(callStack, tt, parent, node, child->getCallTarget());
+         if (success)
+             {
+             inlineCount++;
+#define MAX_INLINE_COUNT 1000
+               if (inlineCount >= MAX_INLINE_COUNT)
+                  {
+                  if (comp()->trace(OMR::inlining))
+                     traceMsg(comp(), "inliner: stopping inlining as max inline count of %d reached\n", MAX_INLINE_COUNT);
+                  break;
+                  }
+#undef MAX_INLINE_COUNT
+             node->setVisitCount(_visitCount);
+             }
+         if (TR::comp()->trace(OMR::benefitInliner))
+             {
+             traceMsg(TR::comp(), "success ? %s\n", success ? "true" : "false");
+             }
+
+         this->_currentChild = prevChild;
+
          }
+    callStack->commit();
     return inlined;
 }
 
@@ -256,8 +286,8 @@ OMR::BenefitInlinerBase::getSymbolAndFindInlineTargets(TR_CallStack *callStack, 
 
    if (findNewTargets)
       {
-      //callsite->findCallSiteTarget(callStack, this);
-      //applyPolicyToTargets(callStack, callsite);
+      callsite->findCallSiteTarget(callStack, this);
+      TR_InlinerBase::applyPolicyToTargets(callStack, callsite);
       }
 
    if(tracer()->debugLevel())
@@ -454,8 +484,6 @@ OMR::BenefitInliner::obtainIDT(IDT::Node *node, int32_t budget)
          cfg = cfgGen->generateCFG(calltarget, NULL, this->_cfgRegion);
          cfg->computeInitialBlockFrequencyBasedOnExternalProfiler(comp());
          uint32_t firstBlockFreq = cfg->getInitialBlockFrequency();
-         int32_t blockFreq = 6;
-         float freqScaleFactor = 0.0;
          cfg->setFrequencies();
          resolvedMethodSymbol->setFlowGraph(cfg);
          node->setCallTarget(calltarget);
@@ -1140,7 +1168,6 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
          bool allowInliningColdTargets = false;
          TR::ResolvedMethodSymbol *caller = callStack->_methodSymbol;
          TR::CFG *cfg = callerCFG;
-/*
          TR_ASSERT_FATAL(cfg, "cfg is null");
          if (!allowInliningColdCallSites && cfg->isColdCall(callsite->_bcInfo, this))
             {
@@ -1167,7 +1194,6 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
             continue;
             }
 
-*/
          // TODO: This was sometimes not set, why?
          //calltarget->_calleeSymbol = calltarget->_calleeSymbol ? calltarget->_calleeSymbol : calltarget->_calleeMethod->findOrCreateJittedMethodSymbol(this->comp());
          if (!calltarget->_calleeSymbol)
