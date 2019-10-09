@@ -435,6 +435,8 @@ OMR::BenefitInliner::obtainIDT(IDT::Indices *Deque, IDT::Node *currentNode, TR_C
       {
       TR_CallTarget *callTarget = callsite->getTarget(i);
       TR::ResolvedMethodSymbol * resolvedMethodSymbol = TR::ResolvedMethodSymbol::create(comp()->trHeapMemory(), callTarget->_calleeMethod, comp());
+
+      if (currentNode->budget() - callTarget->_calleeMethod->maxBytecodeIndex() < 0) continue;
       IDT::Node *node = currentNode->addChildIfNotExists(this->_idt, callsite->_byteCodeIndex, resolvedMethodSymbol, callTarget->_callRatio, callsite);
       if (node) {
          node->setCallStack(this->_inliningCallStack);
@@ -1163,7 +1165,6 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
          bool allowInliningColdTargets = false;
          TR::ResolvedMethodSymbol *caller = callStack->_methodSymbol;
          TR::CFG *cfg = callerCFG;
-/*
          TR_ASSERT_FATAL(cfg, "cfg is null");
          if (!allowInliningColdCallSites && cfg->isColdCall(callsite->_bcInfo, this))
             {
@@ -1189,7 +1190,6 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
             i--;
             continue;
             }
-*/
          // TODO: This was sometimes not set, why?
          //calltarget->_calleeSymbol = calltarget->_calleeSymbol ? calltarget->_calleeSymbol : calltarget->_calleeMethod->findOrCreateJittedMethodSymbol(this->comp());
          if (!calltarget->_calleeSymbol)
