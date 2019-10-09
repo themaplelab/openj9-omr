@@ -434,13 +434,7 @@ OMR::BenefitInliner::obtainIDT(IDT::Indices *Deque, IDT::Node *currentNode, TR_C
    for (int i = 0; i < callsite->numTargets(); i++)
       {
       TR_CallTarget *callTarget = callsite->getTarget(i);
-      // ok this line is crucial!
-      TR::ResolvedMethodSymbol * resolvedMethodSymbol = callTarget->_calleeMethod->findOrCreateJittedMethodSymbol(comp());
-      // should we just do this?
-      //callTarget->_calleeSymbol = resolvedMethodSymbol;
-      //callTarget->_calleeSymbol->setFlowGraph(callTarget->_cfg);
-
-      // should we contruct the cfg for callTarget->_calleeSymbol ?
+      TR::ResolvedMethodSymbol * resolvedMethodSymbol = TR::ResolvedMethodSymbol::create(comp()->trHeapMemory(), callTarget->_calleeMethod, comp());
       IDT::Node *node = currentNode->addChildIfNotExists(this->_idt, callsite->_byteCodeIndex, resolvedMethodSymbol, callTarget->_callRatio, callsite);
       if (node) {
          node->setCallStack(this->_inliningCallStack);
@@ -516,7 +510,8 @@ OMR::BenefitInliner::obtainIDT(IDT::Node *node, int32_t budget)
       IDT::Node *node2 = Deque.front();
       Deque.pop_front();
       TR_ASSERT(node2 && node2->_callSite, "call site is null");
-      if (!comp()->incInlineDepth(node2->getResolvedMethodSymbol(), node2->_callSite->_bcInfo, node2->_callSite->_cpIndex, NULL, !node2->_callSite->isIndirectCall(), 0)) continue;
+      TR::ResolvedMethodSymbol * resolvedMethodSymbol = TR::ResolvedMethodSymbol::create(comp()->trHeapMemory(), node2->getCallTarget()->_calleeMethod, comp());
+      if (!comp()->incInlineDepth(resolvedMethodSymbol, node2->_callSite->_bcInfo, node2->_callSite->_cpIndex, NULL, !node2->_callSite->isIndirectCall(), 0)) continue;
       this->_callerIndex++;
       this->obtainIDT(node2, node2->budget());
       this->_callerIndex--;
@@ -1168,6 +1163,7 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
          bool allowInliningColdTargets = false;
          TR::ResolvedMethodSymbol *caller = callStack->_methodSymbol;
          TR::CFG *cfg = callerCFG;
+/*
          TR_ASSERT_FATAL(cfg, "cfg is null");
          if (!allowInliningColdCallSites && cfg->isColdCall(callsite->_bcInfo, this))
             {
@@ -1193,7 +1189,7 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
             i--;
             continue;
             }
-
+*/
          // TODO: This was sometimes not set, why?
          //calltarget->_calleeSymbol = calltarget->_calleeSymbol ? calltarget->_calleeSymbol : calltarget->_calleeMethod->findOrCreateJittedMethodSymbol(this->comp());
          if (!calltarget->_calleeSymbol)

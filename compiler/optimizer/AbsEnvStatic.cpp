@@ -696,7 +696,7 @@ AbsEnvStatic::checkcast(AbstractState &absState, int cpIndex, int bytecodeIndex)
     return absState;
     }
 
-  TR_ResolvedMethod* method = this->getResolvedMethodSymbol()->getResolvedMethod();
+  TR_ResolvedMethod *method = this->getFrame()->_bci.method();
   // TODO: can we do this some other way? I don't want to pass TR::comp();
   TR_OpaqueClassBlock* type = method->getClassFromConstantPool(TR::comp(), cpIndex);
   TR::VPConstraint *typeConstraint = NULL;
@@ -796,7 +796,7 @@ AbsEnvStatic::getstatic(AbstractState &absState, int cpIndex) {
    bool isPrivate;
    bool isUnresolvedInVP;
    bool isFinal;
-   bool isResolved = this->getResolvedMethodSymbol()->getResolvedMethod()->staticAttributes(TR::comp(),
+   bool isResolved = this->getFrame()->_bci.method()->staticAttributes(TR::comp(),
          cpIndex,
          &staticAddress,
          &type,
@@ -826,7 +826,7 @@ AbsEnvStatic::getfield(AbstractState &absState, int cpIndex) {
    bool isPrivate;
    bool isUnresolvedInVP;
    bool isFinal;
-   bool isResolved = this->getResolvedMethodSymbol()->getResolvedMethod()->fieldAttributes(TR::comp(),
+   bool isResolved = this->getFrame()->_bci.method()->fieldAttributes(TR::comp(),
          cpIndex,
          &fieldOffset,
          &type,
@@ -880,7 +880,7 @@ AbsEnvStatic::instanceof(AbstractState &absState, int cpIndex, int byteCodeIndex
      return absState;
      }
 
-  TR_ResolvedMethod* method = this->getResolvedMethodSymbol()->getResolvedMethod();
+  TR_ResolvedMethod *method = this->getFrame()->_bci.method();
   TR_OpaqueClassBlock *block = method->getClassFromConstantPool(TR::comp(), cpIndex);
   if (!block)
      {
@@ -2410,7 +2410,7 @@ AbsEnvStatic::putstatic(AbstractState& absState) {
 
 void
 AbsEnvStatic::ldcInt32(int cpIndex) {
-  int32_t value =  this->getResolvedMethodSymbol()->getResolvedMethod()->intConstant(cpIndex); 
+  auto value = this->getFrame()->_bci.method()->intConstant(cpIndex);
   TR::VPIntConst *constraint = TR::VPIntConst::create(this->getVP(), value);
   AbsValue *result = new (getRegion()) AbsValue(constraint, TR::Int32);
   this->getState().push(result);
@@ -2418,7 +2418,7 @@ AbsEnvStatic::ldcInt32(int cpIndex) {
 
 void
 AbsEnvStatic::ldcInt64(int cpIndex) {
-   auto value =  this->getResolvedMethodSymbol()->getResolvedMethod()->longConstant(cpIndex); 
+  auto value = this->getFrame()->_bci.method()->intConstant(cpIndex);
    TR::VPLongConst *constraint = TR::VPLongConst::create(this->getVP(), value);
    AbsValue *result = new (getRegion()) AbsValue(constraint, TR::Int64);
    this->getState().push(result);
@@ -2442,7 +2442,7 @@ AbsEnvStatic::ldcDouble() {
 
 void
 AbsEnvStatic::ldcAddress(int cpIndex) {
-  bool isString = this->getResolvedMethodSymbol()->getResolvedMethod()->isStringConstant(cpIndex);
+  bool isString = this->getFrame()->_bci.method()->isStringConstant(cpIndex);
   if (isString) { ldcString(cpIndex); return; }
   //TODO: non string case
   AbsValue *result = this->getTopDataType(TR::Address);
@@ -2453,7 +2453,9 @@ void
 AbsEnvStatic::ldcString(int cpIndex) {
    // TODO: we might need the resolved method symbol here
    // TODO: aAbstractState& _rms    
-   TR::SymbolReference *symRef = TR::comp()->getSymRefTab()->findOrCreateStringSymbol(this->getResolvedMethodSymbol(), cpIndex);
+   TR_ResolvedMethod *callerResolvedMethod = this->getFrame()->_bci.method();
+   auto callerResolvedMethodSymbol = TR::ResolvedMethodSymbol::create(TR::comp()->trHeapMemory(), callerResolvedMethod, TR::comp());
+   TR::SymbolReference *symRef = TR::comp()->getSymRefTab()->findOrCreateStringSymbol(callerResolvedMethodSymbol, cpIndex);
    if (symRef->isUnresolved())
         {
         AbsValue *result = this->getTopDataType(TR::Address);
@@ -2474,7 +2476,7 @@ AbsEnvStatic::ldcw(AbstractState &absState, int cpIndex)
 
 AbstractState&
 AbsEnvStatic::ldc(AbstractState& absState, int cpIndex) {
-   TR::DataType datatype = this->getResolvedMethodSymbol()->getResolvedMethod()->getLDCType(cpIndex);
+   TR::DataType datatype = this->getFrame()->_bci.method()->getLDCType(cpIndex);
    switch(datatype) {
      case TR::Int32: this->ldcInt32(cpIndex); break;
      case TR::Int64: this->ldcInt64(cpIndex); break;
@@ -2590,8 +2592,8 @@ AbsEnvStatic::invokeinterface(AbstractState& absState, int bcIndex, int cpIndex)
 
 void
 AbsEnvStatic::invoke(int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind) {
-  auto callerResolvedMethodSymbol = this->getResolvedMethodSymbol();
-  auto callerResolvedMethod = callerResolvedMethodSymbol->getResolvedMethod();
+  TR_ResolvedMethod *callerResolvedMethod = this->getFrame()->_bci.method();
+  auto callerResolvedMethodSymbol = TR::ResolvedMethodSymbol::create(TR::comp()->trHeapMemory(), callerResolvedMethod, TR::comp());
   TR::Compilation *comp = TR::comp();
   TR::SymbolReference *symRef;
   switch(kind) {
@@ -2671,7 +2673,7 @@ AbsFrame::AbsFrame(TR::Region &region, IDT::Node *node)
   , _node(node)
   , _vp(node->getValuePropagation())
   , _rms(node->getResolvedMethodSymbol())
-  , _bci(node->getResolvedMethodSymbol(), static_cast<TR_ResolvedJ9Method*>(node->getResolvedMethodSymbol()->getResolvedMethod()), static_cast<TR_J9VMBase*>(TR::comp()->fe()), TR::comp())
+  , _bci(node->getResolvedMethodSymbol(), static_cast<TR_ResolvedJ9Method*>(node->getCallTarget()->_calleeMethod), static_cast<TR_J9VMBase*>(TR::comp()->fe()), TR::comp())
 {
 }
 
@@ -2760,7 +2762,7 @@ AbsEnvStatic* AbsEnvStatic::enterMethod(TR::Region& region, IDT::Node* node, Abs
 
 void AbsFrame::interpret()
 {
-  TR::CFG* cfg = this->getResolvedMethodSymbol()->getFlowGraph();
+  TR::CFG* cfg = this->getCFG();
   TR::CFGNode *cfgNode = cfg->getStartForReverseSnapshot();
   TR::Block *startBlock = cfgNode->asBlock();
 
@@ -2772,7 +2774,9 @@ void AbsFrame::interpret()
      {
         OMR::Block *block = blockIt.currentBlock();
         if (first) {
-           block->_absEnv = AbsEnvStatic::enterMethod(this->getRegion(), this->_node, this, this->getResolvedMethodSymbol());
+           TR_ResolvedMethod *callerResolvedMethod = this->_bci.method();
+           auto callerResolvedMethodSymbol = TR::ResolvedMethodSymbol::create(TR::comp()->trHeapMemory(), callerResolvedMethod, TR::comp());
+           block->_absEnv = AbsEnvStatic::enterMethod(this->getRegion(), this->_node, this, callerResolvedMethodSymbol);
            block->_absEnv->_block = block;
            first = false;
         }
