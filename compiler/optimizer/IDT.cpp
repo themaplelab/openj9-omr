@@ -72,9 +72,10 @@ IDT::printTrace() const
   if (TR::comp()->getOption(TR_TraceBIIDTGen))
     {
     const int candidates = howManyNodes() - 1;
-    TR_VerboseLog::writeLineLocked(TR_Vlog_SIP, "#IDT: %d candidate methods to inline into %s",
+    TR_VerboseLog::writeLineLocked(TR_Vlog_SIP, "#IDT: %d candidate methods to inline into %s with a budget %d",
       candidates,
-      getRoot()->getName(this)
+      getRoot()->getName(this),
+      getRoot()->budget()
     );
     if (candidates <= 0) {
        return;
@@ -88,14 +89,15 @@ IDT::Node::printNodeThenChildren(const IDT* idt, int callerIndex) const
   {
   if (this != idt->getRoot()) {
     const char *nodeName = getName(idt);
-    TR_VerboseLog::writeLineLocked(TR_Vlog_SIP, "#IDT: %d: %d inlinable @%d -> bcsz=%d %s target %s, benefit = %u", 
+    TR_VerboseLog::writeLineLocked(TR_Vlog_SIP, "#IDT: %d: %d inlinable @%d -> bcsz=%d %s target %s, benefit = %d, budget = %d", 
       _idx,
       callerIndex,
       _callsite_bci,
       getBcSz(),
       this->getCallTarget()->_calleeSymbol ? this->getCallTarget()->_calleeSymbol->signature(comp()->trMemory()) : "no callee symbol???",
       nodeName,
-      this->getBenefit()
+      this->getBenefit(),
+      this->budget()
     );
   }
   
@@ -122,7 +124,7 @@ IDT::Node::printNodeThenChildren(const IDT* idt, int callerIndex) const
 uint32_t
 IDT::Node::getBcSz() const 
   {
-  return _rms->getResolvedMethod()->maxBytecodeIndex();
+  return this->getCallTarget()->_calleeMethod->maxBytecodeIndex();
   }
 
 IDT::Node*
@@ -195,7 +197,7 @@ IDT::Node::getCalleeIndex() const
 unsigned int
 IDT::Node::getCost() const
   {
-    return this->getBcSz();
+    return this->isRoot() ? 1 : this->getBcSz();
   }
 
 unsigned int
@@ -227,7 +229,7 @@ IDT::Node*
 IDT::Node::addChildIfNotExists(IDT* idt,
                          int32_t callsite_bci,
                          TR::ResolvedMethodSymbol* rms,
-                         int benefit, TR_CallSite *callsite)
+                         unsigned int benefit, TR_CallSite *callsite)
   {
   // 0 Children
   if (_children == nullptr)

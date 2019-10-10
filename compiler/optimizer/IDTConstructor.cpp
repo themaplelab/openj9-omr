@@ -333,6 +333,35 @@ AbsFrameIDTConstructor::factFlow(OMR::Block *block) {
   }
 
   // what happens if nothing has been interpreted? For this abstract interpretation it doesn't really matter.
+  traceMsg(TR::comp(), "we do not have predecessors\n");
+  TR::CFGEdgeList &predecessors = block->getPredecessors();
+  for (auto i = predecessors.begin(), e = predecessors.end(); i != e; ++i)
+     {
+     auto *edge = *i;
+     TR::Block *aBlock = edge->getFrom()->asBlock();
+     TR::Block *check = edge->getTo()->asBlock();
+     if (check != block)
+        {
+        traceMsg(TR::comp(), "failsCheck\n");
+        continue;
+        }
+     if (!aBlock->_absEnv)
+        {
+        traceMsg(TR::comp(), "does not have absEnv\n");
+        continue;
+        }
+
+     traceMsg(TR::comp(), "am i entering here in  loop?\n");
+     AbsEnvStatic *oldAbsEnv = aBlock->_absEnv;
+     // how many 
+     AbsEnvStatic *absEnv = new (this->getRegion()) IDTConstructor(*oldAbsEnv);
+     traceMsg(TR::comp(), "exiting IDTConstructor\n");
+     aBlock->_absEnv->zeroOut(absEnv);
+     block->_absEnv = absEnv;
+     block->_absEnv->_block = block;
+     return;
+     }
+   traceMsg(TR::comp(), "predecessors found nothing\n");
 }
 
 AbsEnvStatic* AbsFrameIDTConstructor::mergeAllPredecessors(OMR::Block *block) {

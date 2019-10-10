@@ -48,7 +48,9 @@ AbstractState::getStackSize() const
 TR::Region&
 AbsEnvStatic::getRegion() const
 {
-  return this->_absFrame->getRegion();
+  TR::Region & region = this->_absFrame->getRegion();
+  TR_ASSERT(&region != NULL, "region is null");
+  return region;
 }
 
 TR::ResolvedMethodSymbol*
@@ -81,6 +83,28 @@ AbsEnvStatic::AbsEnvStatic(TR::Region &region, IDT::Node *node, AbsFrame* absFra
   _absFrame(absFrame),
   _block(nullptr)
 {
+   TR_ASSERT(&(region) != NULL, "we have a null region\n");
+}
+
+void
+AbsEnvStatic::zeroOut(AbsEnvStatic *other)
+{
+  this->trace("tracing this block\n");
+  AbstractState &absState = this->getState();
+  TR::Region &region = other->getRegion();
+  size_t stackSize = absState.getStackSize();
+  for (size_t i = 0; i < stackSize; i++)
+     {
+     other->pushNull();
+     }
+
+  size_t arraySize = absState.getArraySize();
+  for (size_t i = 0; i < arraySize; i++)
+     {
+     AbsValue *nullValue = new (region) AbsValue(NULL, TR::Address);
+     other->getState().at(i, nullValue);
+     }
+  other->trace("tracing other block\n");
 }
 
 AbsEnvStatic::AbsEnvStatic(AbsEnvStatic &other) :
@@ -139,7 +163,8 @@ AbsValue*
 AbsEnvStatic::getTopDataType(TR::DataType dt)
   {
   // TODO: Don't allocate new memory and always return the same set of values
-  return new (getRegion()) AbsValue(NULL, dt);
+  TR::Region &region = this->getRegion();
+  return new (region) AbsValue(NULL, dt);
   }
 
 
@@ -2799,7 +2824,9 @@ void AbsFrame::interpret(OMR::Block* block)
   if (start < 0 || end < 1) return;
   // basic block 3 will always be an empty exit block...
   if (block->getNumber() == 3) return;
+  traceMsg(TR::comp(), "about to enter fact flow\n");
   this->factFlow(block);
+  traceMsg(TR::comp(), "we should be on AbsFrame::interpret\n");
   _bci.setIndex(start);
   TR::Compilation *comp = TR::comp();
   if (comp->trace(OMR::benefitInliner))
@@ -2829,6 +2856,7 @@ AbsValue* AbsEnvStatic::getClassConstraint(TR_OpaqueClassBlock *opaqueClass, TR:
   }
 
 void AbsFrame::factFlow(OMR::Block *block) {
+  if (block->getNumber() == 3) return;
 
   int start = block->getBlockBCIndex();
   if (start == 0) {
@@ -2855,12 +2883,47 @@ void AbsFrame::factFlow(OMR::Block *block) {
     return;
   }
 
-  // multiple predecessors...
+  // multiple predecessors...all interpreted
   if (block->hasAbstractInterpretedAllPredecessors()) {
      block->_absEnv = this->mergeAllPredecessors(block);
      block->_absEnv->_block = block;
      return;
   }
+
+
+  // we have not interpreted all predecessors...
+  // look for a predecessor that has been interpreted
+  traceMsg(TR::comp(), "we do not have predecessors\n");
+  TR::CFGEdgeList &predecessors = block->getPredecessors();
+  for (auto i = predecessors.begin(), e = predecessors.end(); i != e; ++i)
+     {
+     auto *edge = *i;
+     TR::Block *aBlock = edge->getFrom()->asBlock();
+     TR::Block *check = edge->getTo()->asBlock();
+     if (check != block)
+        {
+        traceMsg(TR::comp(), "failsCheck\n");
+        continue;
+        }
+     if (!aBlock->_absEnv)
+        {
+        traceMsg(TR::comp(), "does not have absEnv\n");
+        continue;
+        }
+
+     traceMsg(TR::comp(), "we have a predecessor\n");
+     AbsEnvStatic *oldAbsEnv = aBlock->_absEnv;
+     TR_ASSERT(&(oldAbsEnv->getFrame()->getRegion()) != NULL, "our region is null!\n");
+     // how many 
+     oldAbsEnv->trace();
+     AbsEnvStatic *absEnv = new (this->getRegion()) AbsEnvStatic(*oldAbsEnv);
+     TR_ASSERT(&(oldAbsEnv->getFrame()->getRegion()) != NULL, "our region is null!\n");
+     aBlock->_absEnv->zeroOut(absEnv);
+     block->_absEnv = absEnv;
+     block->_absEnv->_block = block;
+     return;
+     }
+   traceMsg(TR::comp(), "predecessors found nothing\n");
 }
 
 AbsEnvStatic* AbsFrame::mergeAllPredecessors(OMR::Block *block) {

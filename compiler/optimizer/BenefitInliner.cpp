@@ -38,6 +38,7 @@ int32_t OMR::BenefitInlinerWrapper::perform()
    inliner.obtainIDT(inliner._idt->getRoot(), budget);
    inliner.traceIDT();
 
+   inliner._idt->getRoot()->getResolvedMethodSymbol()->setFlowGraph(inliner._rootRms);
    if (inliner._idt->howManyNodes() == 1) 
       {
       inliner._idt->getRoot()->getResolvedMethodSymbol()->setFlowGraph(inliner._rootRms);
@@ -47,13 +48,15 @@ int32_t OMR::BenefitInlinerWrapper::perform()
    int recursiveCost = inliner._idt->getRoot()->getRecursiveCost();
    bool canSkipAbstractInterpretation = recursiveCost < budget;
    if (!canSkipAbstractInterpretation) {
-      inliner.abstractInterpreter();
+      //inliner.abstractInterpreter();
       inliner.analyzeIDT();
    } else {
       inliner.addEverything();
    }
 
+/*
    inliner._idt->getRoot()->getResolvedMethodSymbol()->setFlowGraph(inliner._rootRms);
+*/
    inliner._currentNode = inliner._idt->getRoot();
    inliner.performInlining(sym);
 
@@ -436,7 +439,11 @@ OMR::BenefitInliner::obtainIDT(IDT::Indices *Deque, IDT::Node *currentNode, TR_C
       TR_CallTarget *callTarget = callsite->getTarget(i);
       TR::ResolvedMethodSymbol * resolvedMethodSymbol = TR::ResolvedMethodSymbol::create(comp()->trHeapMemory(), callTarget->_calleeMethod, comp());
 
-      if (currentNode->budget() - callTarget->_calleeMethod->maxBytecodeIndex() < 0) continue;
+      int budgetForChild = currentNode->budget() - callTarget->_calleeMethod->maxBytecodeIndex();
+      
+      bool hasEnoughBudget = 0 < budgetForChild;
+      if (!hasEnoughBudget) continue;
+
       IDT::Node *node = currentNode->addChildIfNotExists(this->_idt, callsite->_byteCodeIndex, resolvedMethodSymbol, callTarget->_callRatio, callsite);
       if (node) {
          node->setCallStack(this->_inliningCallStack);
@@ -447,7 +454,7 @@ OMR::BenefitInliner::obtainIDT(IDT::Indices *Deque, IDT::Node *currentNode, TR_C
       }
       if (node && comp()->trace(OMR::benefitInliner))
          {
-         traceMsg(TR::comp(), "adding %d %s into %d %s\n", node->getCalleeIndex(), node->getName(), currentNode->getCalleeIndex(), currentNode->getName());
+         traceMsg(TR::comp(), "adding %d %s into %d %s budget for child %d\n", node->getCalleeIndex(), node->getName(), currentNode->getCalleeIndex(), currentNode->getName(), budgetForChild);
          trfflush(comp()->getOutFile());
          callTarget = node->getCallTarget();
          traceMsg(comp(), "with guard kind=%s and type=%s\n",
@@ -540,6 +547,7 @@ OMR::BenefitInliner::obtainIDT(IDT::Indices &Deque, IDT::Node *node, int32_t bud
          // At this moment, the method visited by node has already been visited by the method in ms.
          // So, ideally we would like to create avoid all the iteration and just create nodes.
          // We add the children from ms to Deque and Children in Node.
+         if ((node->budget() - node->getCost()) < 0) return false;
          node->copyChildrenFrom(ms, Deque);
          return false;
          }

@@ -652,6 +652,7 @@ public:
   AbsValue* pop();
   void merge(AbstractState &, TR::ValuePropagation*);
   size_t getStackSize() const;
+  size_t getArraySize() const { return _array.size(); }
   void trace(TR::ValuePropagation*);
 private:
   TR::Region &_region;
@@ -668,18 +669,19 @@ public:
   void trace(const char* methodName = NULL);
   void merge(AbsEnvStatic&);
   void interpret(TR_J9ByteCode, TR_J9ByteCodeIterator &);
+  void zeroOut(AbsEnvStatic *other);
   AbstractState &getState() { return this->_absState; }
   AbsFrame* getFrame() { return this->_absFrame; }
   static AbsEnvStatic *enterMethod(TR::Region&region, IDT::Node* node, AbsFrame* absFrame, TR::ResolvedMethodSymbol*);
   OMR::Block *getBlock() { return this->_block; }
   OMR::Block *_block;
+  IDT::Node *getNode() const;
 protected:
   AbsFrame* _absFrame;
   AbstractState _absState;
   TR::Region &getRegion() const;
   TR::ResolvedMethodSymbol *getResolvedMethodSymbol() const;
   TR::ValuePropagation *getVP() const;
-  IDT::Node *getNode() const;
   static AbsValue* getClassConstraint(TR_OpaqueClassBlock *, TR::ValuePropagation*, TR::Region&);
 
   virtual AbstractState& aaload(AbstractState&);
