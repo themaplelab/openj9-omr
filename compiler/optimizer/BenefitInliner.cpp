@@ -1179,7 +1179,11 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
          TR::ResolvedMethodSymbol *caller = callStack->_methodSymbol;
          TR::CFG *cfg = callerCFG;
          TR_ASSERT_FATAL(cfg, "cfg is null");
-         if (!allowInliningColdCallSites && cfg->isColdCall(callsite->_bcInfo, this))
+         //int frequency1 = comp()->convertNonDeterministicInput(comp()->fej9()->getIProfilerCallCount(callsite->_bcInfo, comp()), MAX_BLOCK_COUNT + MAX_COLD_BLOCK_COUNT, randomGenerator(), 0);
+         int frequency2 = comp()->convertNonDeterministicInput(callblock->getFrequency(), MAX_BLOCK_COUNT + MAX_COLD_BLOCK_COUNT, randomGenerator(), 0);
+         bool isColdCall = cfg->isColdCall(callsite->_bcInfo, this);
+         bool isCold = (isColdCall &&  (frequency2 <= MAX_COLD_BLOCK_COUNT));
+         if (!allowInliningColdCallSites && isCold)
             {
             if (comp()->getOption(TR_TraceBIIDTGen))
                 {
@@ -1192,6 +1196,7 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
             }
 
 
+/*
          if (!allowInliningColdTargets && cfg->isColdTarget(callsite->_bcInfo, calltarget, this))
             {
             if (comp()->getOption(TR_TraceBIIDTGen))
@@ -1203,6 +1208,7 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
             i--;
             continue;
             }
+*/
          // TODO: This was sometimes not set, why?
          //calltarget->_calleeSymbol = calltarget->_calleeSymbol ? calltarget->_calleeSymbol : calltarget->_calleeMethod->findOrCreateJittedMethodSymbol(this->comp());
          if (!calltarget->_calleeSymbol)

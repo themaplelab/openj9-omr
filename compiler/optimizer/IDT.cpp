@@ -233,6 +233,8 @@ IDT::Node::addChildIfNotExists(IDT* idt,
                          TR::ResolvedMethodSymbol* rms,
                          unsigned int benefit, TR_CallSite *callsite, float callRatioCallerCallee)
   {
+  // don't add things that we do are 1/25th as good as the root
+  if (this->_callRatioRootCallee * callRatioCallerCallee * 100 < 25) return nullptr;
   // 0 Children
   if (_children == nullptr)
     {
@@ -385,7 +387,8 @@ IDT::Node::copyChildrenFrom(const IDT::Node * other, Indices& someIndex)
                          childCopy->_callsite_bci,
                          childCopy->_rms,
                          childCopy->_benefit, childCopy->_callSite, childCopy->_callRatioCallerCallee);
-      newChild->setCallTarget(childCopy->getCallTarget());
+      if (newChild)
+         newChild->setCallTarget(childCopy->getCallTarget());
       return;
       }
 
@@ -400,9 +403,10 @@ IDT::Node::copyChildrenFrom(const IDT::Node * other, Indices& someIndex)
                          childCopy->_callsite_bci,
                          childCopy->_rms,
                          childCopy->_benefit, childCopy->_callSite, childCopy->_callRatioCallerCallee);
-      newChild->setCallTarget(childCopy->getCallTarget());
-      return;
+      if (newChild)
+         newChild->setCallTarget(childCopy->getCallTarget());
       }
+      return;
    }
 
 void
