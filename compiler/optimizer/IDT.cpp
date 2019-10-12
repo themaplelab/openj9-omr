@@ -12,7 +12,7 @@
 
 
 
-IDT::Node::Node(IDT* idt, int idx, int32_t callsite_bci, TR::ResolvedMethodSymbol* rms, IDT::Node *parent, unsigned int benefit, int budget, TR_CallSite *callsite):
+IDT::Node::Node(IDT* idt, int idx, int32_t callsite_bci, TR::ResolvedMethodSymbol* rms, IDT::Node *parent, unsigned int benefit, int budget, TR_CallSite *callsite, float callRatioCallerCallee):
   _head(idt),
   _idx(idx),
   _benefit(benefit),
@@ -23,7 +23,9 @@ IDT::Node::Node(IDT* idt, int idx, int32_t callsite_bci, TR::ResolvedMethodSymbo
   _budget(budget),
   _callSite(callsite),
   _calltarget(nullptr),
-  _callStack(nullptr)
+  _callStack(nullptr),
+  _callRatioCallerCallee(callRatioCallerCallee),
+  _callRatioRootCallee(parent ? parent->_callRatioRootCallee * callRatioCallerCallee : 1)
   {}
 
 /*
@@ -46,7 +48,7 @@ IDT::IDT(TR_InlinerBase* inliner, TR::Region &mem, TR::ResolvedMethodSymbol* rms
   _vp(nullptr),
   _inliner(inliner),
   _max_idx(-1),
-  _root(new (_mem) IDT::Node(this, nextIdx(), -1, rms, nullptr, 1, budget, nullptr)),
+  _root(new (_mem) IDT::Node(this, nextIdx(), -1, rms, nullptr, 1, budget, nullptr, 1)),
   _current(_root)
   {
   }
@@ -216,7 +218,7 @@ IDT::Node::getRecursiveCost() const
 unsigned int
 IDT::Node::getBenefit() const
   {
-    return this->_benefit;
+    return this->_callRatioRootCallee * 100 + 1;
   }
 
 void
@@ -229,12 +231,12 @@ IDT::Node*
 IDT::Node::addChildIfNotExists(IDT* idt,
                          int32_t callsite_bci,
                          TR::ResolvedMethodSymbol* rms,
-                         unsigned int benefit, TR_CallSite *callsite)
+                         unsigned int benefit, TR_CallSite *callsite, float callRatioCallerCallee)
   {
   // 0 Children
   if (_children == nullptr)
     {
-    IDT::Node* created = new (idt->_mem) IDT::Node(idt, idt->nextIdx(), callsite_bci, rms, this, benefit, this->budget() - rms->getResolvedMethod()->maxBytecodeIndex(), callsite);
+    IDT::Node* created = new (idt->_mem) IDT::Node(idt, idt->nextIdx(), callsite_bci, rms, this, benefit, this->budget() - rms->getResolvedMethod()->maxBytecodeIndex(), callsite, callRatioCallerCallee);
     setOnlyChild(created);
     this->_head->_indices = nullptr;
     return created;
@@ -266,7 +268,7 @@ IDT::Node::addChildIfNotExists(IDT* idt,
       }
     }
 
-  IDT::Node *newChild = new (this->_head->getMemoryRegion()) IDT::Node(idt, idt->nextIdx(), callsite_bci, rms, this, benefit, this->budget() - rms->getResolvedMethod()->maxBytecodeIndex(), callsite);
+  IDT::Node *newChild = new (this->_head->getMemoryRegion()) IDT::Node(idt, idt->nextIdx(), callsite_bci, rms, this, benefit, this->budget() - rms->getResolvedMethod()->maxBytecodeIndex(), callsite, callRatioCallerCallee);
   TR_ASSERT_FATAL(newChild, "storing a null child");
   this->_children->push_back(newChild);
   TR_ASSERT(_children->size() > 1, "something wrong");
@@ -382,7 +384,7 @@ IDT::Node::copyChildrenFrom(const IDT::Node * other, Indices& someIndex)
       IDT::Node *newChild = this->addChildIfNotExists(this->_head,
                          childCopy->_callsite_bci,
                          childCopy->_rms,
-                         childCopy->_benefit, childCopy->_callSite);
+                         childCopy->_benefit, childCopy->_callSite, childCopy->_callRatioCallerCallee);
       newChild->setCallTarget(childCopy->getCallTarget());
       return;
       }
@@ -397,7 +399,7 @@ IDT::Node::copyChildrenFrom(const IDT::Node * other, Indices& someIndex)
       IDT::Node *newChild = this->addChildIfNotExists(this->_head,
                          childCopy->_callsite_bci,
                          childCopy->_rms,
-                         childCopy->_benefit, childCopy->_callSite);
+                         childCopy->_benefit, childCopy->_callSite, childCopy->_callRatioCallerCallee);
       newChild->setCallTarget(childCopy->getCallTarget());
       return;
       }

@@ -3273,15 +3273,24 @@ OMR::CFG::getInternalRegion()
 int
 OMR::CFG::getStartBlockFrequency()
    {
-      //TODO: no linear search.
-      for (auto cfgNode = this->getFirstNode(); cfgNode; cfgNode = cfgNode->getNext())
-      {
-         auto asBlock = cfgNode->asBlock();
-         if (!asBlock) continue;
-         if (cfgNode->getNumber() == 4)
-         return asBlock->getFrequency();
-      }
-      return 0;
+       //TODO: no linear search.
+      TR::Block *block = nullptr;
+       for (auto cfgNode = this->getFirstNode(); cfgNode; cfgNode = cfgNode->getNext())
+       {
+         block = cfgNode->asBlock();
+         if (!block) continue;
+         if (cfgNode->getNumber() == 3)
+         break;
+       }
+      if (!block) return 6;
+ 
+       int addFrequenciesOfExits = 0;
+       for (auto e = block->getPredecessors().begin(); e != block->getPredecessors().end(); ++e)
+        {
+             addFrequenciesOfExits += (*e)->getFrom()->asBlock()->getFrequency();
+        }
+ 
+      return addFrequenciesOfExits;
    }
 
 TR::Block*

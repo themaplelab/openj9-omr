@@ -47,10 +47,10 @@ class IDT
   class Node
     {
     public:
-    Node(IDT* idt, int idx, int32_t callsite_bci, TR::ResolvedMethodSymbol* rms, Node *parent, int unsigned benefit, int budget, TR_CallSite*);
+    Node(IDT* idt, int idx, int32_t callsite_bci, TR::ResolvedMethodSymbol* rms, Node *parent, int unsigned benefit, int budget, TR_CallSite*, float);
     Node(const Node&) = delete;
     unsigned int howManyDescendantsIncludingMe() const;
-    Node* addChildIfNotExists(IDT* idt, int32_t callsite_bci, TR::ResolvedMethodSymbol* rms, unsigned int benefit, TR_CallSite*);
+    Node* addChildIfNotExists(IDT* idt, int32_t callsite_bci, TR::ResolvedMethodSymbol* rms, unsigned int benefit, TR_CallSite*, float);
     const char* getName(const IDT* idt) const;
     const char* getName() const;
     void printNodeThenChildren(const IDT* idt, int callerIndex) const;
@@ -101,6 +101,8 @@ class IDT
     unsigned int _benefit;
     TR::ResolvedMethodSymbol* _rms;
     int _budget;
+    float _callRatioCallerCallee;
+    float _callRatioRootCallee;
     
 
     bool nodeSimilar(int32_t callsite_bci, TR::ResolvedMethodSymbol* rms) const;

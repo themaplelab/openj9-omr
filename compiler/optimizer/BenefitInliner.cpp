@@ -38,13 +38,13 @@ int32_t OMR::BenefitInlinerWrapper::perform()
    inliner.obtainIDT(inliner._idt->getRoot(), budget);
    inliner.traceIDT();
 
-   inliner._idt->getRoot()->getResolvedMethodSymbol()->setFlowGraph(inliner._rootRms);
    if (inliner._idt->howManyNodes() == 1) 
       {
       inliner._idt->getRoot()->getResolvedMethodSymbol()->setFlowGraph(inliner._rootRms);
       return 1;
       }
 
+   inliner._idt->getRoot()->getResolvedMethodSymbol()->setFlowGraph(inliner._rootRms);
    int recursiveCost = inliner._idt->getRoot()->getRecursiveCost();
    bool canSkipAbstractInterpretation = recursiveCost < budget;
    if (!canSkipAbstractInterpretation) {
@@ -444,7 +444,7 @@ OMR::BenefitInliner::obtainIDT(IDT::Indices *Deque, IDT::Node *currentNode, TR_C
       bool hasEnoughBudget = 0 < budgetForChild;
       if (!hasEnoughBudget) continue;
 
-      IDT::Node *node = currentNode->addChildIfNotExists(this->_idt, callsite->_byteCodeIndex, resolvedMethodSymbol, callTarget->_callRatio, callsite);
+      IDT::Node *node = currentNode->addChildIfNotExists(this->_idt, callsite->_byteCodeIndex, resolvedMethodSymbol, 100, callsite, callTarget->_callRatioCallerCallee);
       if (node) {
          node->setCallStack(this->_inliningCallStack);
          node->setCallTarget(callTarget);
@@ -486,14 +486,21 @@ OMR::BenefitInliner::obtainIDT(IDT::Node *node, int32_t budget)
          TR_J9EstimateCodeSize *cfgGen = (TR_J9EstimateCodeSize *)TR_EstimateCodeSize::get(this, this->tracer(), 0);
          cfg = cfgGen->generateCFG(calltarget, NULL, this->_cfgRegion);
          cfg->computeInitialBlockFrequencyBasedOnExternalProfiler(comp());
-         uint32_t firstBlockFreq = cfg->getInitialBlockFrequency();
+         //cfg->setBlockFrequenciesBasedOnInterpreterProfiler();
+         //uint32_t firstBlockFreq = cfg->getInitialBlockFrequency();
+         //traceMsg(TR::comp(), "initialBlockFrequency = %d\n", firstBlockFreq);
          cfg->setFrequencies();
+         traceMsg(TR::comp(), "cfg->getStartBlockFrequency() = %d\n", cfg->getStartBlockFrequency());
          resolvedMethodSymbol->setFlowGraph(cfg);
+         cfg->getStartForReverseSnapshot()->setFrequency(cfg->getStartBlockFrequency());
          node->setCallTarget(calltarget);
+         comp()->getDebug()->print(comp()->getOutFile(), cfg);
          } 
       else 
          {
          cfg = resolvedMethodSymbol->getFlowGraph();
+         cfg->getStartForReverseSnapshot()->setFrequency(cfg->getStartBlockFrequency());
+         comp()->getDebug()->print(comp()->getOutFile(), cfg);
          }
 
 
@@ -1174,6 +1181,7 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
          TR::ResolvedMethodSymbol *caller = callStack->_methodSymbol;
          TR::CFG *cfg = callerCFG;
          TR_ASSERT_FATAL(cfg, "cfg is null");
+/*
          if (!allowInliningColdCallSites && cfg->isColdCall(callsite->_bcInfo, this))
             {
             if (comp()->getOption(TR_TraceBIIDTGen))
@@ -1198,6 +1206,7 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
             i--;
             continue;
             }
+*/
          // TODO: This was sometimes not set, why?
          //calltarget->_calleeSymbol = calltarget->_calleeSymbol ? calltarget->_calleeSymbol : calltarget->_calleeMethod->findOrCreateJittedMethodSymbol(this->comp());
          if (!calltarget->_calleeSymbol)
@@ -1239,7 +1248,8 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
             i--;
             continue;
             }
-         calltarget->_callRatio = 100 * ((float)callblock->getFrequency() / (float) cfg->getStartBlockFrequency()) + 1;
+         // the + 1 is to make sure that this in non zero.
+         calltarget->_callRatioCallerCallee = ((float)callblock->getFrequency() / (float) cfg->getStartBlockFrequency());
       }
 
    return;
@@ -1287,7 +1297,6 @@ OMR::AbsEnvInlinerUtil::computeMethodBranchProfileInfo2(TR::Block *cfgBlock, TR_
          if (comp()->getOption(TR_TraceBFGeneration))
             {
             traceMsg(comp(), "Setting initial block count for a call with index %d to be %d, call factor %f where block %d (%p) and blockFreq = %d\n", cfgBlock->getEntry()->getNode()->getInlinedSiteIndex(), firstBlockFreq, freqScaleFactor, callblock->getNumber(), callblock, blockFreq);
-            traceMsg(comp(), "first block freq %d and initial block freq %d\n", callerSymbol->getFirstTreeTop()->getNode()->getBlock()->getFrequency(), callerCFG->getInitialBlockFrequency());
             }
          }
       }
