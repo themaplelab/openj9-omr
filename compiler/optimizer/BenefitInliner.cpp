@@ -494,13 +494,11 @@ OMR::BenefitInliner::obtainIDT(IDT::Node *node, int32_t budget)
          resolvedMethodSymbol->setFlowGraph(cfg);
          cfg->getStartForReverseSnapshot()->setFrequency(cfg->getStartBlockFrequency());
          node->setCallTarget(calltarget);
-         comp()->getDebug()->print(comp()->getOutFile(), cfg);
          } 
       else 
          {
          cfg = resolvedMethodSymbol->getFlowGraph();
          cfg->getStartForReverseSnapshot()->setFrequency(cfg->getStartBlockFrequency());
-         comp()->getDebug()->print(comp()->getOutFile(), cfg);
          }
 
 
@@ -1181,7 +1179,6 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
          TR::ResolvedMethodSymbol *caller = callStack->_methodSymbol;
          TR::CFG *cfg = callerCFG;
          TR_ASSERT_FATAL(cfg, "cfg is null");
-/*
          if (!allowInliningColdCallSites && cfg->isColdCall(callsite->_bcInfo, this))
             {
             if (comp()->getOption(TR_TraceBIIDTGen))
@@ -1206,7 +1203,6 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
             i--;
             continue;
             }
-*/
          // TODO: This was sometimes not set, why?
          //calltarget->_calleeSymbol = calltarget->_calleeSymbol ? calltarget->_calleeSymbol : calltarget->_calleeMethod->findOrCreateJittedMethodSymbol(this->comp());
          if (!calltarget->_calleeSymbol)
