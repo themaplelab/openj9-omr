@@ -70,18 +70,13 @@ class BenefitInliner: public BenefitInlinerBase
       const uint32_t _budget;
       inline const uint32_t budget() const;
       TR_CallSite *findCallSiteTarget(TR::ResolvedMethodSymbol *resolvedMethodSymbol, int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind, TR_ByteCodeInfo &info, TR::Block *block);
-      void printTargets(TR::ResolvedMethodSymbol *resolvedMethodSymbol, int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind);
-      void printInterfaceTargets(TR::ResolvedMethodSymbol *resolvedMethodSymbol, int bcIndex, int cpIndex);
-      void printVirtualTargets(TR::ResolvedMethodSymbol *resolvedMethodSymbol, int bcIndex, int cpIndex);
-      void printStaticTargets(TR::ResolvedMethodSymbol *resolvedMethodSymbol, int bcIndex, int cpIndex);
-      void printSpecialTargets(TR::ResolvedMethodSymbol *resolvedMethodSymbol, int bcIndex, int cpIndex);
       TR::SymbolReference* getSymbolReference(TR::ResolvedMethodSymbol *callerSymbol, int cpIndex, TR::MethodSymbol::Kinds kind);
       TR_CallSite * getCallSite(TR::MethodSymbol::Kinds kind,
                                     TR_ResolvedMethod *callerResolvedMethod,
                                     TR::TreeTop *callNodeTreeTop,
                                     TR::Node *parent,
                                     TR::Node *callNode,
-                                    TR_Method * interfaceMethod,
+                                    TR::Method * interfaceMethod,
                                     TR_OpaqueClassBlock *receiverClass,
                                     int32_t vftSlot,
                                     int32_t cpIndex,
@@ -95,16 +90,6 @@ class BenefitInliner: public BenefitInlinerBase
                                     bool allConsts=false);
    };
 
-   class ByteCodeCFG : public TR::CFG
-   {
-   public:
-
-   ByteCodeCFG(TR::Compilation *c, TR::ResolvedMethodSymbol *m) : TR::CFG(c, m) {};
-
-   virtual int getStartBlockFrequency();
-   virtual TR::CFGNode *getStartForReverseSnapshot();
-   };
-
    class AbsEnvInlinerUtil : public TR_J9InlinerUtil
    {
       friend class TR_InlinerBase;
@@ -112,7 +97,6 @@ class BenefitInliner: public BenefitInlinerBase
       friend class BenefitInliner;
       public:
       AbsEnvInlinerUtil(TR::Compilation *comp);
-      void computeMethodBranchProfileInfo2(TR::Block *, TR_CallTarget *, TR::ResolvedMethodSymbol*, int, TR::Block *);
    };
 }
 

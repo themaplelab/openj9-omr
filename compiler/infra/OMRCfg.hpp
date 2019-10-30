@@ -166,14 +166,6 @@ class CFG
    TR::CFGNode *getFirstNode() {return _nodes.getFirst();}
    TR_LinkHead1<TR::CFGNode> & getNodes() {return _nodes;}
 
-   virtual int getStartBlockFrequency();
-   virtual TR::Block *getCfgNodeWithByteCodeIndex(int bcIndex);
-   virtual int getBCInfoFrequency(TR_ByteCodeInfo &, TR_HasRandomGenerator *r);
-   virtual bool isColdCall(TR_ByteCodeInfo &, TR_HasRandomGenerator *r);
-   virtual bool isColdTarget(TR_ByteCodeInfo &, TR_CallTarget *, TR_HasRandomGenerator *r);
-   virtual bool isColdTarget(TR_ByteCodeInfo &, float, TR_HasRandomGenerator *r);
-   virtual void computeMethodBranchProfileInfo(AbsEnvInlinerUtil *util, TR_CallTarget*, TR::ResolvedMethodSymbol*, int, TR::Block*);
-
    int32_t getNumberOfNodes() {return _nodes.getSize();}
    int32_t getNextNodeNumber() {return _nextNodeNumber;}
    void setNextNodeNumber(int32_t n) {_nextNodeNumber = n;}
