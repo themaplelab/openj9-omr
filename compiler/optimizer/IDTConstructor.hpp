@@ -17,6 +17,7 @@ public:
   IDTConstructor(AbsEnvStatic&);
   static AbsEnvStatic *enterMethod(TR::Region&region, IDT::Node* node, AbsFrame* absFrame, TR::ResolvedMethodSymbol*);
   TR::Region& getCallSitesRegion();
+  virtual bool loadFromIDT() { return false; }
 protected:
   virtual AbstractState& invokevirtual(AbstractState&, int, int);
   virtual AbstractState& invokespecial(AbstractState&, int, int);

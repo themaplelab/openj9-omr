@@ -178,9 +178,9 @@ void
 AbsEnvStatic::interpret(TR_J9ByteCode bc, TR_J9ByteCodeIterator &bci)
   {
   TR::Compilation *comp = TR::comp();
-  if (comp->trace(OMR::benefitInliner)) {
+  if (TR::comp()->getOption(TR_TraceAbstractInterpretation))
+  {
      bci.printByteCode();
-     traceMsg(comp, "has size of = %d\n", bci.size(bc));
   }
 
   switch(bc)
@@ -2587,36 +2587,36 @@ AbsEnvStatic::newarray(AbstractState& absState, int atype) {
 
 AbstractState&
 AbsEnvStatic::invokevirtual(AbstractState& absState, int bcIndex, int cpIndex) {
-  invoke(bcIndex, cpIndex, TR::MethodSymbol::Kinds::Virtual);
+  invoke(bcIndex, cpIndex, TR::MethodSymbol::Kinds::Virtual, this->loadFromIDT());
   return absState;
 }
 
 AbstractState&
 AbsEnvStatic::invokestatic(AbstractState& absState, int bcIndex, int cpIndex) {
-  invoke(bcIndex, cpIndex, TR::MethodSymbol::Kinds::Static);
+  invoke(bcIndex, cpIndex, TR::MethodSymbol::Kinds::Static, this->loadFromIDT());
   return absState;
 }
 
 AbstractState&
 AbsEnvStatic::invokespecial(AbstractState& absState, int bcIndex, int cpIndex) {
-  invoke(bcIndex, cpIndex, TR::MethodSymbol::Kinds::Special);
+  invoke(bcIndex, cpIndex, TR::MethodSymbol::Kinds::Special, this->loadFromIDT());
   return absState;
 }
 
 AbstractState&
 AbsEnvStatic::invokedynamic(AbstractState& absState, int bcIndex, int cpIndex) {
-  invoke(bcIndex, cpIndex, TR::MethodSymbol::Kinds::ComputedVirtual);
+  invoke(bcIndex, cpIndex, TR::MethodSymbol::Kinds::ComputedVirtual, this->loadFromIDT());
   return absState;
 }
 
 AbstractState&
 AbsEnvStatic::invokeinterface(AbstractState& absState, int bcIndex, int cpIndex) {
-  invoke(bcIndex, cpIndex, TR::MethodSymbol::Kinds::Interface);
+  invoke(bcIndex, cpIndex, TR::MethodSymbol::Kinds::Interface, this->loadFromIDT());
   return absState;
 }
 
 void
-AbsEnvStatic::invoke(int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind) {
+AbsEnvStatic::invoke(int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind, bool loadFromIDT) {
   TR_ResolvedMethod *callerResolvedMethod = this->getFrame()->_bci.method();
   auto callerResolvedMethodSymbol = TR::ResolvedMethodSymbol::create(TR::comp()->trHeapMemory(), callerResolvedMethod, TR::comp());
   TR::Compilation *comp = TR::comp();
@@ -2636,23 +2636,55 @@ AbsEnvStatic::invoke(int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind) {
     break;
   }
   TR::Method *method = comp->fej9()->createMethod(comp->trMemory(), callerResolvedMethod->containingClass(), cpIndex);
+  if (TR::comp()->getOption(TR_TraceAbstractInterpretation)) {
+    traceMsg(TR::comp(), "\n%s:%d:%s callsite invariants for %s\n", __FILE__, __LINE__, __func__, method->signature(TR::comp()->trMemory()));
+  }
+  if (loadFromIDT && TR::comp()->getOption(TR_TraceAbstractInterpretation)) {
+    IDT::Node * callee = this->getNode()->findChildWithBytecodeIndex(bcIndex);
+    if (callee) traceMsg(TR::comp(), "\n%s:%d:%s callsite invariants for (FROM IDT) %s\n", __FILE__, __LINE__, __func__, callee->getName());
+    if (!callee) goto withoutCallee;
+
+    // TODO: can I place these on the stack?
+    AbsFrame absFrame(this->getRegion(), callee);
+    absFrame.interpret(this, kind);
+  
+    //TODO: What I need to do is to create a new AbsEnvStatic with the contents of operand stack as the variable array.
+    // how many pops?
+  
+    return;
+  }
+withoutCallee:
   // how many pops?
   uint32_t params = method->numberOfExplicitParameters();
+  AbsValue *absValue = NULL;
   for (int i = 0; i < params; i++) {
+    absValue = this->getState().pop();
+    AbsValue *absValue2 = NULL;
     TR::DataType datatype = method->parmType(i);
-    this->getState().pop();
     switch (datatype) {
       case TR::Double:
       case TR::Int64:
-        this->getState().pop();
+        absValue2 = this->getState().pop();
         break;
       default:
         break;
     }
+    if (TR::comp()->getOption(TR_TraceAbstractInterpretation))
+    {
+      traceMsg(TR::comp(), "\n%s:%d:%s \n", __FILE__, __LINE__, __func__);
+      if (absValue) absValue->print(this->getVP());
+      if (absValue2) absValue2->print(this->getVP());
+    }
   }
   int isStatic = kind == TR::MethodSymbol::Kinds::Static;
   int numberOfImplicitParameters = isStatic ? 0 : 1;
-  if (numberOfImplicitParameters == 1) this->getState().pop();
+  if (numberOfImplicitParameters == 1) absValue = this->getState().pop();
+
+  if (TR::comp()->getOption(TR_TraceAbstractInterpretation))
+  {
+      traceMsg(TR::comp(), "\n%s:%d:%s \n", __FILE__, __LINE__, __func__);
+      if (absValue) absValue->print(this->getVP());
+  }
 
   //pushes?
   if (method->returnTypeWidth() == 0) return;
@@ -2705,6 +2737,9 @@ AbsFrame::AbsFrame(TR::Region &region, IDT::Node *node)
 
 AbsEnvStatic* AbsEnvStatic::enterMethod(TR::Region& region, IDT::Node* node, AbsFrame* absFrame, TR::ResolvedMethodSymbol* rms)
 {
+  if (TR::comp()->getOption(TR_TraceAbstractInterpretation)) {
+    traceMsg(TR::comp(), "%s:%d:%s\n", __FILE__, __LINE__, __func__);
+  }
   AbsEnvStatic *absEnv = new (region) AbsEnvStatic(region, node, absFrame);
   TR_ResolvedMethod *resolvedMethod = rms->getResolvedMethod();
   const auto numberOfParameters = resolvedMethod->numberOfParameters();
@@ -2784,9 +2819,140 @@ AbsEnvStatic* AbsEnvStatic::enterMethod(TR::Region& region, IDT::Node* node, Abs
   return absEnv;
 }
 
+void
+AbsFrame::interpret(AbsEnvStatic *absEnvStatic, TR::MethodSymbol::Kinds kind)
+{
+  if (TR::comp()->getOption(TR_TraceAbstractInterpretation)) {
+    traceMsg(TR::comp(), "%s:%d:%s interpreting getting state from other state\n", __FILE__, __LINE__, __func__, this->_node->getName());
+  }
+
+  auto method = this->_node->getResolvedMethodSymbol()->getResolvedMethod();
+  uint32_t params = method->numberOfExplicitParameters();
+  if (TR::comp()->getOption(TR_TraceAbstractInterpretation)) {
+    traceMsg(TR::comp(), "%s:%d:%s number of explicit parameters %d \n", __FILE__, __LINE__, __func__, params);
+  }
+
+  int isStatic = kind == TR::MethodSymbol::Kinds::Static;
+  int numberOfImplicitParameters = isStatic ? 0 : 1;
+
+  AbsValue *absValue = NULL;
+  int totalParameters = numberOfImplicitParameters + params;
+  AbsValue *paramsArray[totalParameters];
+  for (int i = 0; i < params; i++) {
+    absValue = absEnvStatic->getState().pop();
+    AbsValue *absValue2 = NULL;
+    TR::DataType datatype = method->parmType(i);
+    switch (datatype) {
+      case TR::Double:
+      case TR::Int64:
+        absValue2 = absEnvStatic->getState().pop();
+        break;
+      default:
+        break;
+    }
+    if (TR::comp()->getOption(TR_TraceAbstractInterpretation))
+    {
+      traceMsg(TR::comp(), "\n%s:%d:%s \n", __FILE__, __LINE__, __func__);
+      if (absValue) absValue->print(absEnvStatic->getVP());
+      if (absValue2) absValue2->print(absEnvStatic->getVP());
+    }
+
+    //TODO do we need absValue or absValue2 for Double and Int64?
+    paramsArray[totalParameters - i - 1] = absValue2 ? absValue2 : absValue;
+  }
+
+  if (numberOfImplicitParameters == 1) absValue = absEnvStatic->getState().pop();
+  paramsArray[0] = absValue;
+
+
+  if (TR::comp()->getOption(TR_TraceAbstractInterpretation))
+  {
+      traceMsg(TR::comp(), "\n%s:%d:%s \n", __FILE__, __LINE__, __func__);
+      if (absValue) absValue->print(absEnvStatic->getVP());
+
+  }
+
+  AbsEnvStatic innerAbsEnvStatic(this->getRegion(), this->_node, this);
+
+  if (TR::comp()->getOption(TR_TraceAbstractInterpretation))
+  {
+     traceMsg(TR::comp(), "\n%s:%d:%s what variables are being placed in the local variable array?\n", __FILE__, __LINE__, __func__);
+     for (int i = 0, j = 0; i < totalParameters; i++, j++)
+     {
+     if (paramsArray[i]) paramsArray[i]->print(absEnvStatic->getVP());
+     //this->aloadn
+     innerAbsEnvStatic.getState().at(j, paramsArray[i]);
+     if (paramsArray[i]->isType2()) innerAbsEnvStatic.getState().at(++j, new (this->getRegion()) AbsValue(NULL, TR::NoType));
+     }
+  }
+
+  if (TR::comp()->getOption(TR_TraceAbstractInterpretation)) {
+    traceMsg(TR::comp(), "%s:%d:%s interpreting %s\n", __FILE__, __LINE__, __func__, this->_node->getName());
+  }
+  TR::CFG* cfg = this->getCFG();
+  TR::CFGNode *cfgNode = cfg->getStartForReverseSnapshot();
+  TR::Block *startBlock = cfgNode->asBlock();
+
+  // TODO: maybe instead of region try trCurrentStackRegion
+  TR::list<OMR::Block*, TR::Region&> queue(this->getRegion());
+  //TODO: get rid of TR::comp()
+  for (TR::ReversePostorderSnapshotBlockIterator blockIt (startBlock, TR::comp()); blockIt.currentBlock(); ++blockIt)
+     {
+        OMR::Block *block = blockIt.currentBlock();
+        block->_absEnv = NULL;
+        block->setVisitCount(0);
+        queue.push_back(block);
+     }
+
+  while (!queue.empty()) {
+    OMR::Block *block = queue.front();
+    queue.pop_front();
+    interpret(block);
+  }
+  
+
+  //pushes?
+  if (method->returnTypeWidth() == 0) return;
+
+  //how many pushes?
+  TR::DataType datatype = method->returnType();
+  switch(datatype) {
+      case TR::Float:
+      case TR::Int32:
+      case TR::Int16:
+      case TR::Int8:
+      case TR::Address:
+        {
+        AbsValue *result = absEnvStatic->getTopDataType(datatype);
+        absEnvStatic->getState().push(result);
+        }
+        break;
+      case TR::Double:
+      case TR::Int64:
+        {
+        AbsValue *result = absEnvStatic->getTopDataType(datatype);
+        absEnvStatic->getState().push(result);
+        AbsValue *result2 = absEnvStatic->getTopDataType(TR::NoType);
+        absEnvStatic->getState().push(result2);
+        }
+        break;
+      default:
+        {
+        //TODO: 
+        AbsValue *result = absEnvStatic->getTopDataType(TR::Address);
+        absEnvStatic->getState().push(result);
+        }
+        break;
+  }
+  return;
+}
+
 
 void AbsFrame::interpret()
 {
+  if (TR::comp()->getOption(TR_TraceAbstractInterpretation)) {
+    traceMsg(TR::comp(), "%s:%d:%s interpreting %s\n", __FILE__, __LINE__, __func__, this->_node->getName());
+  }
   TR::CFG* cfg = this->getCFG();
   TR::CFGNode *cfgNode = cfg->getStartForReverseSnapshot();
   TR::Block *startBlock = cfgNode->asBlock();
@@ -2798,6 +2964,7 @@ void AbsFrame::interpret()
   for (TR::ReversePostorderSnapshotBlockIterator blockIt (startBlock, TR::comp()); blockIt.currentBlock(); ++blockIt)
      {
         OMR::Block *block = blockIt.currentBlock();
+        block->_absEnv = NULL;
         if (first) {
            TR_ResolvedMethod *callerResolvedMethod = this->_bci.method();
            auto callerResolvedMethodSymbol = TR::ResolvedMethodSymbol::create(TR::comp()->trHeapMemory(), callerResolvedMethod, TR::comp());
@@ -2819,14 +2986,15 @@ void AbsFrame::interpret()
 
 void AbsFrame::interpret(OMR::Block* block)
 {
+  if (TR::comp()->getOption(TR_TraceAbstractInterpretation)) {
+    traceMsg(TR::comp(), "%s:%d:%s\n", __FILE__, __LINE__, __func__);
+  }
   int start = block->getBlockBCIndex();
   int end = start + block->getBlockSize();
   if (start < 0 || end < 1) return;
   // basic block 3 will always be an empty exit block...
   if (block->getNumber() == 3) return;
-  traceMsg(TR::comp(), "about to enter fact flow\n");
   this->factFlow(block);
-  traceMsg(TR::comp(), "we should be on AbsFrame::interpret\n");
   _bci.setIndex(start);
   TR::Compilation *comp = TR::comp();
   if (comp->trace(OMR::benefitInliner))
@@ -2856,6 +3024,10 @@ AbsValue* AbsEnvStatic::getClassConstraint(TR_OpaqueClassBlock *opaqueClass, TR:
   }
 
 void AbsFrame::factFlow(OMR::Block *block) {
+  if (TR::comp()->getOption(TR_TraceAbstractInterpretation)) {
+    traceMsg(TR::comp(), "%s:%d:%s\n", __FILE__, __LINE__, __func__);
+  }
+
   if (block->getNumber() == 3) return;
 
   int start = block->getBlockBCIndex();
@@ -2866,6 +3038,10 @@ void AbsFrame::factFlow(OMR::Block *block) {
   // has no predecessors (apparently can happen... maybe dead code?)
   if (block->getPredecessors().size() == 0) {
     return;
+  }
+
+  if (TR::comp()->getOption(TR_TraceAbstractInterpretation)) {
+    traceMsg(TR::comp(), "%s:%d:%s block has null absEnv ? %s\n", __FILE__, __LINE__, __func__, block->_absEnv == NULL ? "TRUE" : "FALSE");
   }
 
   // this can happen I think if we have a loop that has some CFG inside. So its better to just return without assigning anything

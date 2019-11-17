@@ -676,12 +676,14 @@ public:
   OMR::Block *getBlock() { return this->_block; }
   OMR::Block *_block;
   IDT::Node *getNode() const;
+  virtual bool loadFromIDT() { return true; }
+  TR::ValuePropagation *getVP() const;
+  AbsValue* getTopDataType(TR::DataType);
 protected:
   AbsFrame* _absFrame;
   AbstractState _absState;
   TR::Region &getRegion() const;
   TR::ResolvedMethodSymbol *getResolvedMethodSymbol() const;
-  TR::ValuePropagation *getVP() const;
   static AbsValue* getClassConstraint(TR_OpaqueClassBlock *, TR::ValuePropagation*, TR::Region&);
 
   virtual AbstractState& aaload(AbstractState&);
@@ -892,7 +894,7 @@ protected:
 private:
 
   // abstract interpreter helper
-  void invoke(int, int, TR::MethodSymbol::Kinds);
+  void invoke(int, int, TR::MethodSymbol::Kinds, bool loadFromIDT=false);
   void aloadn(AbstractState&, int);
   void pushConstInt(AbstractState&, int);
   void pushNull();
@@ -903,7 +905,6 @@ private:
   void ldcInt64(int); 
   void ldcFloat();
   void ldcDouble();
-  AbsValue* getTopDataType(TR::DataType);
 };
 
 
@@ -920,6 +921,7 @@ public:
   TR::ValuePropagation *_vp;
   TR_J9ByteCodeIterator _bci;
   TR::CFG* getCFG();
+  void interpret(AbsEnvStatic *absEnvStatic, TR::MethodSymbol::Kinds kind);
 protected:
   TR_CallTarget *_target;
   TR::Region &_region;

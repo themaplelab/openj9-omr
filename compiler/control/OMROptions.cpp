@@ -1089,6 +1089,7 @@ TR::OptionTable OMR::Options::_jitOptions[] = {
 
    {"tocSize=", "C<nnn>\tnumber of KiloBytes allocated for table of constants",
       TR::Options::setStaticNumeric, (intptrj_t)&OMR::Options::_tocSizeInKB, 0, "P%d (KB)", NOT_IN_SUBSET},
+   {"traceAbstractInterpretation",      "L\ttrace benefit inliner",                        SET_OPTION_BIT(TR_TraceAbstractInterpretation), "P" },
    {"traceAddAndRemoveEdge",            "L\ttrace edge addition and removal",              SET_OPTION_BIT(TR_TraceAddAndRemoveEdge), "P" },
    {"traceAliases",                     "L\ttrace alias set generation",                   SET_OPTION_BIT(TR_TraceAliases), "P" },
    {"traceAllocationSinking",           "L\ttrace allocation sinking",                     TR::Options::traceOptimization, allocationSinking, 0, "P"},

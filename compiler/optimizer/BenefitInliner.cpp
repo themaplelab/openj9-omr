@@ -48,7 +48,15 @@ int32_t OMR::BenefitInlinerWrapper::perform()
    int recursiveCost = inliner._idt->getRoot()->getRecursiveCost();
    bool canSkipAbstractInterpretation = recursiveCost < budget;
    if (!canSkipAbstractInterpretation) {
-      //inliner.abstractInterpreter();
+       if (TR::comp()->getOption(TR_TraceAbstractInterpretation))
+       {
+       traceMsg(TR::comp(), "STARTXXX: about to start abstract interpretation\n");
+       }
+      inliner.abstractInterpreter();
+       if (TR::comp()->getOption(TR_TraceAbstractInterpretation))
+       {
+       traceMsg(TR::comp(), "ENDXXX: about to end abstract interpretation\n");
+       }
       inliner.analyzeIDT();
    } else {
       inliner.addEverything();

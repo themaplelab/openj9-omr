@@ -477,6 +477,7 @@ IDT::Node::getByteCodeIndex()
 IDT::Node*
 IDT::Node::findChildWithBytecodeIndex(int bcIndex)
   {
+    traceMsg(TR::comp(), "%s:%d:%s\n", __FILE__, __LINE__, __func__);
     //TODO: not linear search
     int size = this->getNumChildren();
     if (size == 0) return nullptr;
