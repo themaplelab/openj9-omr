@@ -1237,22 +1237,6 @@ TR::VPClassType *TR::VPClassType::create(OMR::ValuePropagation *vp, const char *
 
 TR::VPResolvedClass *TR::VPResolvedClass::create(OMR::ValuePropagation *vp, TR_OpaqueClassBlock *klass)
    {
-   // If the class is final, we really want to make this a fixed class
-   //
-   if (!TR::VPConstraint::isSpecialClass((uintptrj_t)klass) && TR::Compiler->cls.isClassFinal(vp->comp(), klass))
-      {
-      if (TR::Compiler->cls.isClassArray(vp->comp(), klass))
-         {
-         // An array class is fixed if the base class for the array is final
-         //
-         TR_OpaqueClassBlock * baseClass = vp->fe()->getLeafComponentClassFromArrayClass(klass);
-         if (baseClass && TR::Compiler->cls.isClassFinal(vp->comp(), baseClass))
-            return TR::VPFixedClass::create(vp, klass);
-         }
-      else
-         return TR::VPFixedClass::create(vp, klass);
-      }
-
    // If the constraint does not already exist, create it
    //
    int32_t hash = (int32_t)((((uintptrj_t)klass) >> 2) % VP_HASH_TABLE_SIZE);

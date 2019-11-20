@@ -522,10 +522,12 @@ OMR::BenefitInliner::obtainIDT(IDT::Node *node, int32_t budget)
       constructor.interpret();
       }
 
-   if (comp()->trace(OMR::benefitInliner))
+   if (TR::comp()->getOption(TR_TraceAbstractInterpretation))
       {
       constructor.traceMethodSummary();
       }
+
+   
 
    while (!Deque.empty())
       {

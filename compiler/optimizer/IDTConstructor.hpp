@@ -25,8 +25,20 @@ protected:
   virtual AbstractState& invokeinterface(AbstractState&, int, int);
   //virtual AbstractState& invokeinterface2(AbstractState&, int, int);
   virtual AbstractState& ifeq(AbstractState&, int, int);
+  virtual AbstractState& ifne(AbstractState&, int, int);
+  virtual AbstractState& ifge(AbstractState&, int, int);
+  virtual AbstractState& ifgt(AbstractState&, int, int);
+  virtual AbstractState& iflt(AbstractState&, int, int);
+  virtual AbstractState& ifle(AbstractState&, int, int);
+  virtual AbstractState& ifnonnull(AbstractState&, int, int);
+  virtual AbstractState& ifnull(AbstractState&, int, int);
 private:
   void addIfeq(int, int);
+  void addIflt(int, int);
+  void addIfne(int, int);
+  void addIfgt(int, int);
+  void addIfge(int, int);
+  void addIfle(int, int);
   IDT::Indices *getDeque();
   TR_CallSite* findCallSiteTargets(TR::ResolvedMethodSymbol *callerSymbol, int, int, TR::MethodSymbol::Kinds, OMR::Block *block, TR::CFG* cfg = NULL);
   TR::SymbolReference* getSymbolReference(TR::ResolvedMethodSymbol *callerSymbol, int cpIndex, TR::MethodSymbol::Kinds kind);

@@ -33,8 +33,10 @@ AbsVarArrayStatic::merge(const AbsVarArrayStatic &array, TR::Region &regionAbsEn
         else if (self && other) {
           AbsValue *merge = self->merge(other, regionAbsEnv, vp);
           this->at(i, merge);
-        } else {
-          this->at(i, nullptr);
+        } else if (self) {
+          this->at(i, self);
+        } else if (other) {
+          this->at(i, other);
         }
      }
   }

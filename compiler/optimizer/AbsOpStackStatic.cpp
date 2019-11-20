@@ -67,6 +67,7 @@ AbsOpStackStatic::merge(const AbsOpStackStatic &stack, TR::Region &regionForAbsV
 void
 AbsOpStackStatic::push(AbsValue *value)
   {
+  TR_ASSERT(value, "null value");
   _stack.push(value);
   //_stack.push_back(value);
   }

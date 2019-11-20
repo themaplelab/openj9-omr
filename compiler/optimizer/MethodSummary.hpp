@@ -34,6 +34,66 @@ class BranchFolding : public PotentialOptimization
    virtual void trace(TR::ValuePropagation *vp); 
    };
 
+class BranchIfEqFolding : public BranchFolding
+  {
+  public:
+   BranchIfEqFolding(int bytecode_idx, AbsValue *constraint, int argPos) :
+      BranchFolding(bytecode_idx, constraint, argPos)
+   {};
+   static const char *name;
+   virtual void trace(TR::ValuePropagation *vp); 
+  };
+
+class BranchIfNeFolding : public BranchFolding
+  {
+  public:
+   BranchIfNeFolding(int bytecode_idx, AbsValue *constraint, int argPos) :
+      BranchFolding(bytecode_idx, constraint, argPos)
+   {};
+   static const char *name;
+   virtual void trace(TR::ValuePropagation *vp); 
+  };
+
+class BranchIfGtFolding : public BranchFolding
+  {
+  public:
+   BranchIfGtFolding(int bytecode_idx, AbsValue *constraint, int argPos) :
+      BranchFolding(bytecode_idx, constraint, argPos)
+   {};
+   static const char *name;
+   virtual void trace(TR::ValuePropagation *vp); 
+  };
+
+class BranchIfGeFolding : public BranchFolding
+  {
+  public:
+   BranchIfGeFolding(int bytecode_idx, AbsValue *constraint, int argPos) :
+      BranchFolding(bytecode_idx, constraint, argPos)
+   {};
+   static const char *name;
+   virtual void trace(TR::ValuePropagation *vp); 
+  };
+
+class BranchIfLtFolding : public BranchFolding
+  {
+  public:
+   BranchIfLtFolding(int bytecode_idx, AbsValue *constraint, int argPos) :
+      BranchFolding(bytecode_idx, constraint, argPos)
+   {};
+   static const char *name;
+   virtual void trace(TR::ValuePropagation *vp); 
+  };
+
+class BranchIfLeFolding : public BranchFolding
+  {
+  public:
+   BranchIfLeFolding(int bytecode_idx, AbsValue *constraint, int argPos) :
+      BranchFolding(bytecode_idx, constraint, argPos)
+   {};
+   static const char *name;
+   virtual void trace(TR::ValuePropagation *vp); 
+  };
+
 class NullCheckFolding : public PotentialOptimization
    {
    public:
@@ -69,8 +129,19 @@ class MethodSummaryExtension
 public:
    MethodSummaryExtension(TR::Region &, TR::ValuePropagation *);
    void addIfeq(int, int);
+   void addIfne(int, int);
+   void addIfgt(int, int);
+   void addIfge(int, int);
+   void addIfle(int, int);
+   void addIflt(int, int);
    void addNullCheckFolding(int, AbsValue*, int);
    void addBranchFolding(int, AbsValue*, int);
+   void addBranchIfNeFolding(int, AbsValue*, int);
+   void addBranchIfEqFolding(int, AbsValue*, int);
+   void addBranchIfGtFolding(int, AbsValue*, int);
+   void addBranchIfGeFolding(int, AbsValue*, int);
+   void addBranchIfLeFolding(int, AbsValue*, int);
+   void addBranchIfLtFolding(int, AbsValue*, int);
    void addInstanceOfFolding(int, AbsValue*, int);
    void addCheckCastFolding(int, AbsValue*, int);
    void trace();

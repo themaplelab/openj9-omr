@@ -650,6 +650,7 @@ public:
   AbsValue *at(unsigned int);
   void push(AbsValue *);
   AbsValue* pop();
+  AbsValue *top();
   void merge(AbstractState &, TR::ValuePropagation*);
   size_t getStackSize() const;
   size_t getArraySize() const { return _array.size(); }
@@ -684,7 +685,8 @@ protected:
   AbstractState _absState;
   TR::Region &getRegion() const;
   TR::ResolvedMethodSymbol *getResolvedMethodSymbol() const;
-  static AbsValue* getClassConstraint(TR_OpaqueClassBlock *, TR::ValuePropagation*, TR::Region&);
+  static AbsValue* getClassConstraint(TR_OpaqueClassBlock *, TR::ValuePropagation*, TR::Region&, TR::VPClassPresence *presence = NULL, TR::VPArrayInfo *info = NULL);
+  static AbsValue* getClassConstraintResolved(TR_OpaqueClassBlock *, TR::ValuePropagation*, TR::Region&, TR::VPClassPresence *presence = NULL, TR::VPArrayInfo *info = NULL);
 
   virtual AbstractState& aaload(AbstractState&);
   virtual AbstractState& aastore(AbstractState&);

@@ -14,7 +14,6 @@ class AbsOpStackStatic
 {
 public:
   AbsOpStackStatic(TR::Region & region, unsigned int maxSize);
-  //AbsOpStackStatic(AbsOpStackStatic&, TR::Region &);
   AbsOpStackStatic(const AbsOpStackStatic&, TR::Region &);
   AbsOpStackStatic(const AbsOpStackStatic&) = delete; // we need a region...
 
@@ -27,7 +26,6 @@ public:
   AbsValue* top();
 
 private:
-  //typedef TR::deque<AbsValue*, TR::Region&> ConstraintStack;
   typedef TR::deque<AbsValue*, TR::Region&> StackContainer;
   typedef std::stack<AbsValue*, StackContainer> ConstraintStack;
   

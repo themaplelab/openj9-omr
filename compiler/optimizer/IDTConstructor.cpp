@@ -86,9 +86,128 @@ IDTConstructor::invokevirtual(AbstractState& absState, int bcIndex, int cpIndex)
 AbstractState&
 IDTConstructor::ifeq(AbstractState& absState, int branchOffset, int bytecodeIndex)
 {
-  AbsEnvStatic::ifeq(absState, branchOffset, bytecodeIndex);
+  AbsValue *absValue = absState.top();
+  if (TR::comp()->getOption(TR_TraceBIIDTGen))
+     {
+     traceMsg(TR::comp(), "ifeq: absValue->_param %d\n", absValue->_param);
+     }
   // what is the argument position?
-  this->addIfeq(bytecodeIndex, 1);
+  if (absValue->_param < 0) goto normal;
+  this->addIfeq(bytecodeIndex, absValue->_param);
+normal:
+  AbsEnvStatic::ifeq(absState, branchOffset, bytecodeIndex);
+  return absState;
+}
+
+AbstractState&
+IDTConstructor::ifne(AbstractState& absState, int branchOffset, int bytecodeIndex)
+{
+  AbsValue *absValue = absState.top();
+  if (TR::comp()->getOption(TR_TraceBIIDTGen))
+     {
+     traceMsg(TR::comp(), "ifeq: absValue->_param %d\n", absValue->_param);
+     }
+  // what is the argument position?
+  if (absValue->_param < 0) goto normal;
+  this->addIfne(bytecodeIndex, absValue->_param);
+normal:
+  AbsEnvStatic::ifne(absState, branchOffset, bytecodeIndex);
+  return absState;
+}
+
+AbstractState&
+IDTConstructor::ifge(AbstractState& absState, int branchOffset, int bytecodeIndex)
+{
+  AbsValue *absValue = absState.top();
+  if (TR::comp()->getOption(TR_TraceBIIDTGen))
+     {
+     traceMsg(TR::comp(), "ifeq: absValue->_param %d\n", absValue->_param);
+     }
+  // what is the argument position?
+  if (absValue->_param < 0) goto normal;
+  this->addIfge(bytecodeIndex, absValue->_param);
+normal:
+  AbsEnvStatic::ifge(absState, branchOffset, bytecodeIndex);
+  return absState;
+}
+
+AbstractState&
+IDTConstructor::ifgt(AbstractState& absState, int branchOffset, int bytecodeIndex)
+{
+  AbsValue *absValue = absState.top();
+  if (TR::comp()->getOption(TR_TraceBIIDTGen))
+     {
+     traceMsg(TR::comp(), "ifeq: absValue->_param %d\n", absValue->_param);
+     }
+  // what is the argument position?
+  if (absValue->_param < 0) goto normal;
+  this->addIfgt(bytecodeIndex, absValue->_param);
+normal:
+  AbsEnvStatic::ifgt(absState, branchOffset, bytecodeIndex);
+  return absState;
+
+}
+AbstractState&
+IDTConstructor::ifle(AbstractState& absState, int branchOffset, int bytecodeIndex)
+{
+  AbsValue *absValue = absState.top();
+  // what is the argument position?
+  if (TR::comp()->getOption(TR_TraceBIIDTGen))
+     {
+     traceMsg(TR::comp(), "ifeq: absValue->_param %d\n", absValue->_param);
+     }
+  if (absValue->_param < 0) goto normal;
+  this->addIfle(bytecodeIndex, absValue->_param);
+normal:
+  AbsEnvStatic::ifle(absState, branchOffset, bytecodeIndex);
+  return absState;
+}
+
+AbstractState&
+IDTConstructor::iflt(AbstractState& absState, int branchOffset, int bytecodeIndex)
+{
+  AbsValue *absValue = absState.top();
+  // what is the argument position?
+  if (TR::comp()->getOption(TR_TraceBIIDTGen))
+     {
+     traceMsg(TR::comp(), "ifeq: absValue->_param %d\n", absValue->_param);
+     }
+  if (absValue->_param < 0) goto normal;
+  this->addIflt(bytecodeIndex, absValue->_param);
+normal:
+  AbsEnvStatic::iflt(absState, branchOffset, bytecodeIndex);
+  return absState;
+}
+
+AbstractState&
+IDTConstructor::ifnonnull(AbstractState& absState, int branchOffset, int bytecodeIndex)
+{
+  AbsValue *absValue = absState.top();
+  // what is the argument position?
+  if (TR::comp()->getOption(TR_TraceBIIDTGen))
+     {
+     traceMsg(TR::comp(), "ifeq: absValue->_param %d\n", absValue->_param);
+     }
+  if (absValue->_param < 0) goto normal;
+  this->addIfeq(bytecodeIndex, absValue->_param);
+normal:
+  AbsEnvStatic::ifnonnull(absState, branchOffset, bytecodeIndex);
+  return absState;
+}
+
+AbstractState&
+IDTConstructor::ifnull(AbstractState& absState, int branchOffset, int bytecodeIndex)
+{
+  AbsValue *absValue = absState.top();
+  // what is the argument position?
+  if (TR::comp()->getOption(TR_TraceBIIDTGen))
+     {
+     traceMsg(TR::comp(), "ifeq: absValue->_param %d\n", absValue->_param);
+     }
+  if (absValue->_param < 0) goto normal;
+  this->addIfeq(bytecodeIndex, absValue->_param);
+normal:
+  AbsEnvStatic::ifnull(absState, branchOffset, bytecodeIndex);
   return absState;
 }
 
@@ -96,6 +215,36 @@ void
 IDTConstructor::addIfeq(int bcIndex, int argPos)
 {
   return static_cast<AbsFrameIDTConstructor*>(this->_absFrame)->_summary.addIfeq(bcIndex, argPos);
+}
+
+void
+IDTConstructor::addIfne(int bcIndex, int argPos)
+{
+  return static_cast<AbsFrameIDTConstructor*>(this->_absFrame)->_summary.addIfne(bcIndex, argPos);
+}
+
+void
+IDTConstructor::addIfgt(int bcIndex, int argPos)
+{
+  return static_cast<AbsFrameIDTConstructor*>(this->_absFrame)->_summary.addIfgt(bcIndex, argPos);
+}
+
+void
+IDTConstructor::addIfge(int bcIndex, int argPos)
+{
+  return static_cast<AbsFrameIDTConstructor*>(this->_absFrame)->_summary.addIfge(bcIndex, argPos);
+}
+
+void
+IDTConstructor::addIflt(int bcIndex, int argPos)
+{
+  return static_cast<AbsFrameIDTConstructor*>(this->_absFrame)->_summary.addIflt(bcIndex, argPos);
+}
+
+void
+IDTConstructor::addIfle(int bcIndex, int argPos)
+{
+  return static_cast<AbsFrameIDTConstructor*>(this->_absFrame)->_summary.addIfle(bcIndex, argPos);
 }
 
 AbstractState&
@@ -239,36 +388,64 @@ AbsEnvStatic* IDTConstructor::enterMethod(TR::Region& region, IDT::Node* node, A
      TR::DataType dataType = parameter->getDataType();
      switch (dataType) {
         case TR::Int8:
-          absEnv->getState().at(i, new (region) AbsValue(NULL, TR::Int32));
+          {
+          AbsValue *absvalue = new (region) AbsValue(NULL, TR::Int32);
+          absvalue->_param = i;
+          absEnv->getState().at(i, absvalue);
+          }
           continue;
         break;
 
         case TR::Int16:
-          absEnv->getState().at(i, new (region) AbsValue(NULL, TR::Int32));
+          {
+          AbsValue *absvalue = new (region) AbsValue(NULL, TR::Int32);
+          absvalue->_param = i;
+          absEnv->getState().at(i, absvalue);
+          }
           continue;
         break;
 
         case TR::Int32:
-          absEnv->getState().at(i, new (region) AbsValue(NULL, TR::Int32));
+          {
+          AbsValue *absvalue = new (region) AbsValue(NULL, TR::Int32);
+          absvalue->_param = i;
+          absEnv->getState().at(i, absvalue);
+          }
           continue;
         break;
 
         case TR::Int64:
-          absEnv->getState().at(i, new (region) AbsValue(NULL, TR::Int64));
+          {
+          AbsValue *absvalue = new (region) AbsValue(NULL, TR::Int64);
+          absvalue->_param = i;
+          absEnv->getState().at(i, absvalue);
+          absvalue = new (region) AbsValue(NULL, TR::NoType);
+          absvalue->_param = i;
           i = i+1;
-          absEnv->getState().at(i, new (region) AbsValue(NULL, TR::NoType));
+          absEnv->getState().at(i, absvalue);
+          }
           continue;
         break;
 
         case TR::Float:
-          absEnv->getState().at(i, new (region) AbsValue(NULL, TR::Float));
+          {
+          AbsValue *absvalue = new (region) AbsValue(NULL, TR::Float);
+          absvalue->_param = i;
+          absEnv->getState().at(i, absvalue);
+          }
           continue;
         break;
 
         case TR::Double:
-          absEnv->getState().at(i, new (region) AbsValue(NULL, TR::Double));
+          {
+          AbsValue *absvalue = new (region) AbsValue(NULL, TR::Double);
+          absvalue->_param = i;
+          absEnv->getState().at(i, absvalue);
+          absvalue = new (region) AbsValue(NULL, TR::NoType);
+          absvalue->_param = i;
           i = i+1;
-          absEnv->getState().at(i, new (region) AbsValue(NULL, TR::NoType));
+          absEnv->getState().at(i, absvalue);
+          }
         continue;
         break;
 
@@ -279,18 +456,23 @@ AbsEnvStatic* IDTConstructor::enterMethod(TR::Region& region, IDT::Node* node, A
      const bool isClass = parameter->isClass();
      if (!isClass)
        {
-       absEnv->getState().at(i, new (region) AbsValue(NULL, TR::Address));
+       AbsValue *absvalue = new (region) AbsValue(NULL, TR::Address);
+       absvalue->_param = i;
+       absEnv->getState().at(i, absvalue);
        continue;
        }
 
      TR_OpaqueClassBlock *parameterClass = parameter->getOpaqueClass();
      if (!parameterClass)
        {
-       absEnv->getState().at(i, new (region) AbsValue(NULL, TR::Address));
+       AbsValue *absvalue = new (region) AbsValue(NULL, TR::Address);
+       absvalue->_param = i;
+       absEnv->getState().at(i, absvalue);
        continue;
        }
 
       AbsValue* value = AbsEnvStatic::getClassConstraint(parameterClass, absFrame->getValuePropagation(), region);
+      value->_param = i;
       absEnv->getState().at(i, value);
      }
   return absEnv;
@@ -555,6 +737,5 @@ IDTConstructor::inliner()
 void
 AbsFrameIDTConstructor::traceMethodSummary()
 {
-   if (!TR::comp()->trace(OMR::benefitInliner)) return;
    this->_summary.trace();
 }

@@ -93,16 +93,25 @@ AbsEnvStatic::zeroOut(AbsEnvStatic *other)
   AbstractState &absState = this->getState();
   TR::Region &region = other->getRegion();
   size_t stackSize = absState.getStackSize();
+  AbsValue *array[stackSize];
   for (size_t i = 0; i < stackSize; i++)
      {
-     other->pushNull();
+     array[stackSize - i - 1] = absState.pop();
+     }
+  
+  for (size_t i = 0; i < stackSize; i++)
+     {
+     AbsValue *a = array[i];
+     other->getState().push(this->getTopDataType(a ? array[i]->_dt : TR::Address));
+     absState.push(array[i]);
      }
 
   size_t arraySize = absState.getArraySize();
   for (size_t i = 0; i < arraySize; i++)
      {
-     AbsValue *nullValue = new (region) AbsValue(NULL, TR::Address);
-     other->getState().at(i, nullValue);
+     AbsValue *a = absState.at(i);
+     AbsValue *value1 = this->getTopDataType(a ? absState.at(i)->_dt : TR::Address);
+     other->getState().at(i, value1);
      }
   other->trace("tracing other block\n");
 }
@@ -139,6 +148,12 @@ AbstractState::pop()
   this->_stack.pop();
   return absValue;
   }
+
+AbsValue*
+AbstractState::top()
+{
+  return this->_stack.top();
+}
 
 void
 AbstractState::push(AbsValue *absValue)
@@ -464,7 +479,8 @@ AbsEnvStatic::caload(AbstractState& absState)
 {
   AbsValue *index = absState.pop();
   AbsValue *arrayRef = absState.pop();
-  this->pushNull();
+  AbsValue *value1 = this->getTopDataType(TR::Int32);
+  absState.push(value1);
   return absState;
 }
 
@@ -474,7 +490,8 @@ AbsEnvStatic::faload(AbstractState & absState)
   {
   AbsValue *index = absState.pop();
   AbsValue *arrayRef = absState.pop();
-  this->pushNull();
+  AbsValue *value1 = this->getTopDataType(TR::Float);
+  absState.push(value1);
   return absState;
   }
 
@@ -483,7 +500,8 @@ AbsEnvStatic::iaload(AbstractState & absState)
   {
   AbsValue *index = absState.pop();
   AbsValue *arrayRef = absState.pop();
-  this->pushNull();
+  AbsValue *value1 = this->getTopDataType(TR::Int32);
+  absState.push(value1);
   return absState;
   }
 
@@ -492,7 +510,8 @@ AbsEnvStatic::saload(AbstractState & absState)
   {
   AbsValue *index = absState.pop();
   AbsValue *arrayRef = absState.pop();
-  this->pushNull();
+  AbsValue *value1 = this->getTopDataType(TR::Int32);
+  absState.push(value1);
   return absState;
   }
 
@@ -501,7 +520,18 @@ AbsEnvStatic::aaload(AbstractState & absState)
   {
   AbsValue *index = absState.pop();
   AbsValue *arrayRef = absState.pop();
-  this->pushNull();
+  if (!arrayRef || !arrayRef->_vp) {
+    AbsValue *value1 = this->getTopDataType(TR::Address);
+    absState.push(value1);
+    return absState;
+  }
+
+  if (TR::comp()->getOption(TR_TraceAbstractInterpretation)) {
+        traceMsg(TR::comp(), "\n%s:%d:%s aaload... look here! \n", __FILE__, __LINE__, __func__);
+  }
+
+  arrayRef->print(this->getVP());
+  absState.push(arrayRef);
   return absState;
   }
 
@@ -714,6 +744,12 @@ AbsEnvStatic::baload(AbstractState &absState) {
 AbstractState&
 AbsEnvStatic::checkcast(AbstractState &absState, int cpIndex, int bytecodeIndex) {
   AbsValue *absValue = absState.pop();
+  if (!absValue)
+    {
+    AbsValue *value1 = this->getTopDataType(TR::Address);
+    absState.push(absValue);
+    return absState;
+    }
   TR::VPConstraint *objectRef = absValue->_vp;
   if (!objectRef)
     {
@@ -832,13 +868,41 @@ AbsEnvStatic::getstatic(AbstractState &absState, int cpIndex) {
          &isUnresolvedInVP,
          false); //needsAOTValidation
 
-   AbsValue *value1 = this->getTopDataType(type);
-   //TODO: if datatype is address... then we can probably find the class and get a tighter bound
-   absState.push(value1);
-   if (!value1->isType2()) { return absState; }
-  AbsValue *value2= this->getTopDataType(TR::NoType);
-  absState.push(value2);
-  return absState;
+   if (!isResolved || isUnresolvedInVP || type != TR::Address) {
+     if (TR::comp()->getOption(TR_TraceAbstractInterpretation)) {
+        traceMsg(TR::comp(), "\n%s:%d:%s Not an address \n", __FILE__, __LINE__, __func__);
+     }
+     AbsValue *value1 = this->getTopDataType(type);
+     absState.push(value1);
+     if (!value1->isType2()) { return absState; }
+     AbsValue *value2= this->getTopDataType(TR::NoType);
+     absState.push(value2);
+     return absState;
+   }
+
+
+   // This is definitely an address...
+   TR::SymbolReference * symRef = TR::comp()->getSymRefTab()->findStaticSymbol(this->getFrame()->_bci.method(), cpIndex, type);
+   //if (!symRef || symRef->isUnresolved()) {
+     if (TR::comp()->getOption(TR_TraceAbstractInterpretation)) {
+        traceMsg(TR::comp(), "\n%s:%d:%s symref not found\n", __FILE__, __LINE__, __func__);
+     }
+     AbsValue *value1 = this->getTopDataType(type);
+     absState.push(value1);
+     return absState;
+   //}
+
+   if (TR::comp()->getOption(TR_TraceAbstractInterpretation)) {
+        traceMsg(TR::comp(), "\n%s:%d:%s symref is resolved...\n", __FILE__, __LINE__, __func__);
+   }
+
+   TR_OpaqueClassBlock * feClass = this->getFrame()->_bci.method()->classOfStatic(cpIndex);
+   TR::VPClassType *constraint = TR::VPResolvedClass::create(this->getVP(), feClass);
+   TR::VPConstraint *classConstraint = TR::VPClass::create(this->getVP(), constraint, NULL, NULL, NULL, NULL);
+   AbsValue *result = new (getRegion()) AbsValue(classConstraint, TR::Address);
+   absState.push(result);
+   return absState;
+
 }
 
 
@@ -861,8 +925,14 @@ AbsEnvStatic::getfield(AbstractState &absState, int cpIndex) {
          false, // isStore
          &isUnresolvedInVP,
          false); //needsAOTValidation
+   /*if (type == TR::Address) {
+     TR_ResolvedMethod *method = this->getFrame()->_bci.method();
+     TR_OpaqueClassBlock* type = method->getClassFromConstantPool(TR::comp(), cpIndex);
+     AbsValue* value = AbsEnvStatic::getClassConstraint(type, this->getFrame()->getValuePropagation(), this->getRegion());
+     absState.push(value);
+     return absState;
+   }*/
    AbsValue *value1 = this->getTopDataType(type);
-   //TODO: if datatype is address... then we can probably find the class and get a tighter bound
    absState.push(value1);
    if (!value1->isType2()) { return absState; }
    AbsValue *value2= this->getTopDataType(TR::NoType);
@@ -2470,8 +2540,14 @@ AbsEnvStatic::ldcAddress(int cpIndex) {
   bool isString = this->getFrame()->_bci.method()->isStringConstant(cpIndex);
   if (isString) { ldcString(cpIndex); return; }
   //TODO: non string case
-  AbsValue *result = this->getTopDataType(TR::Address);
-  this->getState().push(result);
+  TR_ResolvedMethod *method = this->getFrame()->_bci.method();
+  TR_OpaqueClassBlock* type = method->getClassFromConstantPool(TR::comp(), cpIndex);
+  AbsValue* value = AbsEnvStatic::getClassConstraint(type, this->getFrame()->getValuePropagation(), this->getRegion(), NULL, NULL);
+  if (TR::comp()->getOption(TR_TraceAbstractInterpretation)) {
+        traceMsg(TR::comp(), "\n%s:%d:%s ldcAddress... look here! \n", __FILE__, __LINE__, __func__);
+        if(value) value->print(this->getFrame()->getValuePropagation());
+  }
+  this->getState().push(value);
 }
 
 void
@@ -2483,12 +2559,18 @@ AbsEnvStatic::ldcString(int cpIndex) {
    TR::SymbolReference *symRef = TR::comp()->getSymRefTab()->findOrCreateStringSymbol(callerResolvedMethodSymbol, cpIndex);
    if (symRef->isUnresolved())
         {
-        AbsValue *result = this->getTopDataType(TR::Address);
-        this->getState().push(result);
+        TR_ResolvedMethod *method = this->getFrame()->_bci.method();
+        TR_OpaqueClassBlock* type = method->getClassFromConstantPool(TR::comp(), cpIndex);
+        AbsValue* value = AbsEnvStatic::getClassConstraint(type, this->getFrame()->getValuePropagation(), this->getRegion(), NULL, NULL);
+        this->getState().push(value);
         return;
         }
    TR::VPConstraint *constraint = TR::VPConstString::create(this->getVP(), symRef);
    AbsValue *result = new (getRegion()) AbsValue(constraint, TR::Address);
+  if (TR::comp()->getOption(TR_TraceAbstractInterpretation)) {
+        traceMsg(TR::comp(), "\n%s:%d:%s ldcStringSuccess!... look here! \n", __FILE__, __LINE__, __func__);
+        if(result) result->print(this->getFrame()->getValuePropagation());
+  }
    this->getState().push(result);
 }
 
@@ -2511,8 +2593,7 @@ AbsEnvStatic::ldc(AbstractState& absState, int cpIndex) {
      default: {
        //TODO: arrays and what nots.
        AbsValue *result = this->getTopDataType(TR::Address);
-      absState.push(result);
-      
+       absState.push(result);
      } break;
    }
   return absState;
@@ -2552,10 +2633,23 @@ AbsEnvStatic::athrow(AbstractState& absState)
 
 AbstractState&
 AbsEnvStatic::anewarray(AbstractState& absState, int cpIndex) {
-  //TODO: actually make an array
+  TR_ResolvedMethod *method = this->getFrame()->_bci.method();
+  TR_OpaqueClassBlock* type = method->getClassFromConstantPool(TR::comp(), cpIndex);
+  TR::VPNonNullObject *nonnull = TR::VPNonNullObject::create(this->getFrame()->getValuePropagation());
   AbsValue *count = absState.pop();
-  AbsValue *result = this->getTopDataType(TR::Address);
-  absState.push(result);
+
+  if (count->_vp && count->_vp->asIntConstraint()) {
+    TR::VPArrayInfo *info = TR::VPArrayInfo::create(this->getFrame()->getValuePropagation(),  ((TR::VPIntConstraint*)count->_vp)->getLow(), ((TR::VPIntConstraint*)count->_vp)->getHigh(), 4);
+    AbsValue* value = AbsEnvStatic::getClassConstraint(type, this->getFrame()->getValuePropagation(), this->getRegion(), nonnull, info);
+    if(value) value->print(this->getFrame()->getValuePropagation());
+    absState.push(value);
+    return absState;
+  }
+
+    TR::VPArrayInfo *info = TR::VPArrayInfo::create(this->getFrame()->getValuePropagation(),  0, INT_MAX, 4);
+    AbsValue* value = AbsEnvStatic::getClassConstraint(type, this->getFrame()->getValuePropagation(), this->getRegion(), nonnull, info);
+    if(value) value->print(this->getFrame()->getValuePropagation());
+    absState.push(value);
   return absState;
 }
 
@@ -2571,8 +2665,15 @@ AbsEnvStatic::arraylength(AbstractState& absState) {
 AbstractState&
 AbsEnvStatic::_new(AbstractState& absState, int cpIndex) {
   //TODO: actually look at the semantics
-  AbsValue *result = this->getTopDataType(TR::Address);
-  absState.push(result);
+  TR_ResolvedMethod *method = this->getFrame()->_bci.method();
+  TR_OpaqueClassBlock* type = method->getClassFromConstantPool(TR::comp(), cpIndex);
+  TR::VPNonNullObject *nonnull = TR::VPNonNullObject::create(this->getFrame()->getValuePropagation());
+  AbsValue* value = AbsEnvStatic::getClassConstraint(type, this->getFrame()->getValuePropagation(), this->getRegion(), nonnull, NULL);
+  if (TR::comp()->getOption(TR_TraceAbstractInterpretation)) {
+        traceMsg(TR::comp(), "\n%s:%d:%s _new... look here! \n", __FILE__, __LINE__, __func__);
+        if(value) value->print(this->getFrame()->getValuePropagation());
+  }
+  absState.push(value);
   return absState;
 }
 
@@ -2680,7 +2781,7 @@ withoutCallee:
   int numberOfImplicitParameters = isStatic ? 0 : 1;
   if (numberOfImplicitParameters == 1) absValue = this->getState().pop();
 
-  if (TR::comp()->getOption(TR_TraceAbstractInterpretation))
+  if (TR::comp()->getOption(TR_TraceAbstractInterpretation) && !isStatic)
   {
       traceMsg(TR::comp(), "\n%s:%d:%s \n", __FILE__, __LINE__, __func__);
       if (absValue) absValue->print(this->getVP());
@@ -2760,36 +2861,49 @@ AbsEnvStatic* AbsEnvStatic::enterMethod(TR::Region& region, IDT::Node* node, Abs
      {
      auto parameter = parameterIterator;
      TR::DataType dataType = parameter->getDataType();
+     AbsValue *temp;
      switch (dataType) {
         case TR::Int8:
-          absEnv->getState().at(i, new (region) AbsValue(NULL, TR::Int32));
+          temp = new (region) AbsValue(NULL, TR::Int32);
+          temp->_param = i;
+          absEnv->getState().at(i, temp);
           continue;
         break;
 
         case TR::Int16:
-          absEnv->getState().at(i, new (region) AbsValue(NULL, TR::Int32));
+          temp = new (region) AbsValue(NULL, TR::Int32);
+          temp->_param = i;
+          absEnv->getState().at(i, temp);
           continue;
         break;
 
         case TR::Int32:
-          absEnv->getState().at(i, new (region) AbsValue(NULL, TR::Int32));
+          temp = new (region) AbsValue(NULL, dataType);
+          temp->_param = i;
+          absEnv->getState().at(i, temp);
           continue;
         break;
 
         case TR::Int64:
-          absEnv->getState().at(i, new (region) AbsValue(NULL, TR::Int64));
+          temp = new (region) AbsValue(NULL, dataType);
+          temp->_param = i;
+          absEnv->getState().at(i, temp);
           i = i+1;
           absEnv->getState().at(i, new (region) AbsValue(NULL, TR::NoType));
           continue;
         break;
 
         case TR::Float:
-          absEnv->getState().at(i, new (region) AbsValue(NULL, TR::Float));
+          temp = new (region) AbsValue(NULL, dataType);
+          temp->_param = i;
+          absEnv->getState().at(i, temp);
           continue;
         break;
 
         case TR::Double:
-          absEnv->getState().at(i, new (region) AbsValue(NULL, TR::Double));
+          temp = new (region) AbsValue(NULL, dataType);
+          temp->_param = i;
+          absEnv->getState().at(i, temp);
           i = i+1;
           absEnv->getState().at(i, new (region) AbsValue(NULL, TR::NoType));
         continue;
@@ -2802,18 +2916,25 @@ AbsEnvStatic* AbsEnvStatic::enterMethod(TR::Region& region, IDT::Node* node, Abs
      const bool isClass = parameter->isClass();
      if (!isClass)
        {
-       absEnv->getState().at(i, new (region) AbsValue(NULL, TR::Address));
+          temp = new (region) AbsValue(NULL, TR::Address);
+          temp->_param = i;
+          absEnv->getState().at(i, temp);
+       //absEnv->getState().at(i, new (region) AbsValue(NULL, TR::Address));
        continue;
        }
 
      TR_OpaqueClassBlock *parameterClass = parameter->getOpaqueClass();
      if (!parameterClass)
        {
-       absEnv->getState().at(i, new (region) AbsValue(NULL, TR::Address));
+          temp = new (region) AbsValue(NULL, TR::Address);
+          temp->_param = i;
+          absEnv->getState().at(i, temp);
+       //absEnv->getState().at(i, new (region) AbsValue(NULL, TR::Address));
        continue;
        }
 
       AbsValue* value = AbsEnvStatic::getClassConstraint(parameterClass, absFrame->getValuePropagation(), region);
+      value->_param = i;
       absEnv->getState().at(i, value);
      }
   return absEnv;
@@ -2881,6 +3002,7 @@ AbsFrame::interpret(AbsEnvStatic *absEnvStatic, TR::MethodSymbol::Kinds kind)
      {
      if (paramsArray[i]) paramsArray[i]->print(absEnvStatic->getVP());
      //this->aloadn
+     if (paramsArray[i]) paramsArray[i]->_param = i;
      innerAbsEnvStatic.getState().at(j, paramsArray[i]);
      if (paramsArray[i]->isType2()) innerAbsEnvStatic.getState().at(++j, new (this->getRegion()) AbsValue(NULL, TR::NoType));
      }
@@ -3014,12 +3136,23 @@ void AbsFrame::interpret(OMR::Block* block)
      }
 }
 
-AbsValue* AbsEnvStatic::getClassConstraint(TR_OpaqueClassBlock *opaqueClass, TR::ValuePropagation *vp, TR::Region &region)
+
+AbsValue*
+AbsEnvStatic::getClassConstraintResolved(TR_OpaqueClassBlock *opaqueClass, TR::ValuePropagation *vp, TR::Region &region, TR::VPClassPresence *presence, TR::VPArrayInfo *info)
+{
+  if (!opaqueClass) return new (region) AbsValue(NULL, TR::Address);
+
+  TR::VPClassType *resolvedClass = TR::VPResolvedClass::create(vp, opaqueClass);
+  TR::VPConstraint *classConstraint = TR::VPClass::create(vp, resolvedClass, presence, NULL, info, NULL);
+  return new (region) AbsValue (classConstraint, TR::Address);
+}
+
+AbsValue* AbsEnvStatic::getClassConstraint(TR_OpaqueClassBlock *opaqueClass, TR::ValuePropagation *vp, TR::Region &region, TR::VPClassPresence *presence, TR::VPArrayInfo *info)
   {
-  if (!opaqueClass) return NULL;
+  if (!opaqueClass) return new (region) AbsValue(NULL, TR::Address);
 
   TR::VPClassType *fixedClass = TR::VPFixedClass::create(vp, opaqueClass);
-  TR::VPConstraint *classConstraint = TR::VPClass::create(vp, fixedClass, NULL, NULL, NULL, NULL);
+  TR::VPConstraint *classConstraint = TR::VPClass::create(vp, fixedClass, presence, NULL, info, NULL);
   return new (region) AbsValue (classConstraint, TR::Address);
   }
 
