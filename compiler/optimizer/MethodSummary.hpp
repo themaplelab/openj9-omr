@@ -1,7 +1,5 @@
 #pragma once
 
-#include "compiler/optimizer/AbsVarArray.hpp"
-#include "compiler/optimizer/IDT.hpp"
 #include "compile/Compilation.hpp"
 #include "compiler/optimizer/VPConstraint.hpp"
 #include "optimizer/GlobalValuePropagation.hpp"
@@ -153,7 +151,7 @@ private:
    };
 
 
-
+/*
 
 class MethodSummaryRow {
 public:
@@ -215,3 +213,4 @@ private:
   List<MethodSummaryRow> _methodSummaryNew;
   int _index;
 };
+*/

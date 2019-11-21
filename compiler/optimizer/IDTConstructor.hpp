@@ -32,13 +32,17 @@ protected:
   virtual AbstractState& ifle(AbstractState&, int, int);
   virtual AbstractState& ifnonnull(AbstractState&, int, int);
   virtual AbstractState& ifnull(AbstractState&, int, int);
+  virtual AbstractState& instanceof(AbstractState&, int, int);
 private:
+  void addInstanceof(int, int, AbsValue *);
   void addIfeq(int, int);
   void addIflt(int, int);
   void addIfne(int, int);
   void addIfgt(int, int);
   void addIfge(int, int);
   void addIfle(int, int);
+  void addIfNonNull(int, int, AbsValue *absValue);
+  void addIfNull(int, int, AbsValue *absValue);
   IDT::Indices *getDeque();
   TR_CallSite* findCallSiteTargets(TR::ResolvedMethodSymbol *callerSymbol, int, int, TR::MethodSymbol::Kinds, OMR::Block *block, TR::CFG* cfg = NULL);
   TR::SymbolReference* getSymbolReference(TR::ResolvedMethodSymbol *callerSymbol, int cpIndex, TR::MethodSymbol::Kinds kind);
@@ -68,12 +72,12 @@ private:
 class AbsFrameIDTConstructor : public AbsFrame
 {
 public:
-   AbsFrameIDTConstructor(TR::Region &region, IDT::Node *node, int callerIndex, TR_CallStack* callStack, OMR::BenefitInliner* inliner);
-   virtual void interpret();
-   TR::Region &getCallSitesRegion();
-   TR_CallStack* getCallStack();
-   IDT::Node *getNode();
-  MethodSummaryExtension _summary;
+  AbsFrameIDTConstructor(TR::Region &region, IDT::Node *node, int callerIndex, TR_CallStack* callStack, OMR::BenefitInliner* inliner);
+  virtual void interpret();
+  TR::Region &getCallSitesRegion();
+  TR_CallStack* getCallStack();
+  IDT::Node *getNode();
+  MethodSummaryExtension *_summary;
   void traceMethodSummary();
 protected:
   OMR::BenefitInliner* _inliner;

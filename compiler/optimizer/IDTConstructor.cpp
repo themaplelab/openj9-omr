@@ -1,5 +1,6 @@
 #include "compiler/optimizer/IDTConstructor.hpp"
 
+#include "compiler/optimizer/ValuePropagation.hpp"
 #include "compiler/il/OMRBlock.hpp"
 #include "il/Block.hpp"
 #include "il/OMRBlock_inlines.hpp"
@@ -80,6 +81,37 @@ IDTConstructor::invokevirtual(AbstractState& absState, int bcIndex, int cpIndex)
   TR::ResolvedMethodSymbol *rms = TR::ResolvedMethodSymbol::create(TR::comp()->trHeapMemory(), method, TR::comp());
   TR_CallSite *callsite = this->findCallSiteTargets(rms, bcIndex, cpIndex, TR::MethodSymbol::Kinds::Virtual, this->getBlock(), this->getFrame()->getCFG());
   this->inliner()->obtainIDT(this->getDeque(), this->getNode(), callsite, this->inliner()->budget(), cpIndex);
+  return absState;
+}
+
+AbstractState&
+IDTConstructor::instanceof(AbstractState& absState, int cpIndex, int bytecodeIndex)
+{
+  if (TR::comp()->getOption(TR_TraceAbstractInterpretation))
+     {
+     traceMsg(TR::comp(), "ZZZ: instanceof \n");
+     }
+
+  AbsValue *absValueOriginal = absState.top();
+  if (absValueOriginal->_param >= 0) {
+
+  AbsEnvStatic::instanceof(absState, cpIndex, bytecodeIndex);
+  TR_ResolvedMethod *method = this->getFrame()->_bci.method();
+  TR_OpaqueClassBlock *block = method->getClassFromConstantPool(TR::comp(), cpIndex);
+
+  // we don't know what we are testing for so just return...
+  if (!block) { return absState; }
+
+  TR::VPClassType *fixedClass = TR::VPFixedClass::create(this->getVP(), block);
+  TR::VPNonNullObject *nonnull = TR::VPNonNullObject::create(this->getFrame()->getValuePropagation());
+  TR::VPNullObject *null = TR::VPNullObject::create(this->getFrame()->getValuePropagation());
+  TR::VPConstraint *typeConstraint= TR::VPClass::create(this->getVP(), fixedClass, nonnull, NULL, NULL, NULL);
+  AbsValue *absValue = new (getRegion()) AbsValue(typeConstraint, TR::Address);
+  AbsValue *absValue2 = new (getRegion()) AbsValue(null, TR::Address);
+  this->addInstanceof(bytecodeIndex, absValueOriginal->_param, absValue);
+  this->addIfNonNull(bytecodeIndex, absValueOriginal->_param, absValue2);
+  
+  }
   return absState;
 }
 
@@ -188,8 +220,19 @@ IDTConstructor::ifnonnull(AbstractState& absState, int branchOffset, int bytecod
      {
      traceMsg(TR::comp(), "ifeq: absValue->_param %d\n", absValue->_param);
      }
+  TR::VPNonNullObject *nonnull = NULL;
+  TR::VPNullObject *null = NULL;
+  AbsValue *absValue2 = NULL;
+  AbsValue *absValue3 = NULL;
   if (absValue->_param < 0) goto normal;
-  this->addIfeq(bytecodeIndex, absValue->_param);
+
+  nonnull = TR::VPNonNullObject::create(this->getFrame()->getValuePropagation());
+  null = TR::VPNullObject::create(this->getFrame()->getValuePropagation());
+  absValue2 = new (getRegion()) AbsValue(nonnull, TR::Address);
+  absValue3 = new (getRegion()) AbsValue(null, TR::Address);
+  this->addIfNonNull(bytecodeIndex, absValue->_param, absValue2);
+  this->addIfNonNull(bytecodeIndex, absValue->_param, absValue3);
+
 normal:
   AbsEnvStatic::ifnonnull(absState, branchOffset, bytecodeIndex);
   return absState;
@@ -204,47 +247,74 @@ IDTConstructor::ifnull(AbstractState& absState, int branchOffset, int bytecodeIn
      {
      traceMsg(TR::comp(), "ifeq: absValue->_param %d\n", absValue->_param);
      }
+  TR::VPNonNullObject *nonnull = NULL;
+  TR::VPNullObject *null = NULL;
+  AbsValue *absValue2 = NULL;
+  AbsValue *absValue3 = NULL;
   if (absValue->_param < 0) goto normal;
-  this->addIfeq(bytecodeIndex, absValue->_param);
+  nonnull = TR::VPNonNullObject::create(this->getFrame()->getValuePropagation());
+  null = TR::VPNullObject::create(this->getFrame()->getValuePropagation());
+  absValue2 = new (getRegion()) AbsValue(nonnull, TR::Address);
+  absValue3 = new (getRegion()) AbsValue(null, TR::Address);
+  this->addIfNonNull(bytecodeIndex, absValue->_param, absValue2);
+  this->addIfNonNull(bytecodeIndex, absValue->_param, absValue3);
 normal:
   AbsEnvStatic::ifnull(absState, branchOffset, bytecodeIndex);
   return absState;
 }
 
 void
+IDTConstructor::addIfNull(int bcIndex, int argPos, AbsValue *absValue)
+{
+  return static_cast<AbsFrameIDTConstructor*>(this->_absFrame)->_summary->addNullCheckFolding(bcIndex, absValue, argPos);
+}
+
+void
+IDTConstructor::addIfNonNull(int bcIndex, int argPos, AbsValue *absValue)
+{
+  return static_cast<AbsFrameIDTConstructor*>(this->_absFrame)->_summary->addNullCheckFolding(bcIndex, absValue, argPos);
+}
+
+void
+IDTConstructor::addInstanceof(int bcIndex, int argPos, AbsValue *absValue)
+{
+  return static_cast<AbsFrameIDTConstructor*>(this->_absFrame)->_summary->addInstanceOfFolding(bcIndex, absValue, argPos);
+}
+
+void
 IDTConstructor::addIfeq(int bcIndex, int argPos)
 {
-  return static_cast<AbsFrameIDTConstructor*>(this->_absFrame)->_summary.addIfeq(bcIndex, argPos);
+  return static_cast<AbsFrameIDTConstructor*>(this->_absFrame)->_summary->addIfeq(bcIndex, argPos);
 }
 
 void
 IDTConstructor::addIfne(int bcIndex, int argPos)
 {
-  return static_cast<AbsFrameIDTConstructor*>(this->_absFrame)->_summary.addIfne(bcIndex, argPos);
+  return static_cast<AbsFrameIDTConstructor*>(this->_absFrame)->_summary->addIfne(bcIndex, argPos);
 }
 
 void
 IDTConstructor::addIfgt(int bcIndex, int argPos)
 {
-  return static_cast<AbsFrameIDTConstructor*>(this->_absFrame)->_summary.addIfgt(bcIndex, argPos);
+  return static_cast<AbsFrameIDTConstructor*>(this->_absFrame)->_summary->addIfgt(bcIndex, argPos);
 }
 
 void
 IDTConstructor::addIfge(int bcIndex, int argPos)
 {
-  return static_cast<AbsFrameIDTConstructor*>(this->_absFrame)->_summary.addIfge(bcIndex, argPos);
+  return static_cast<AbsFrameIDTConstructor*>(this->_absFrame)->_summary->addIfge(bcIndex, argPos);
 }
 
 void
 IDTConstructor::addIflt(int bcIndex, int argPos)
 {
-  return static_cast<AbsFrameIDTConstructor*>(this->_absFrame)->_summary.addIflt(bcIndex, argPos);
+  return static_cast<AbsFrameIDTConstructor*>(this->_absFrame)->_summary->addIflt(bcIndex, argPos);
 }
 
 void
 IDTConstructor::addIfle(int bcIndex, int argPos)
 {
-  return static_cast<AbsFrameIDTConstructor*>(this->_absFrame)->_summary.addIfle(bcIndex, argPos);
+  return static_cast<AbsFrameIDTConstructor*>(this->_absFrame)->_summary->addIfle(bcIndex, argPos);
 }
 
 AbstractState&
@@ -706,8 +776,9 @@ AbsFrameIDTConstructor::AbsFrameIDTConstructor(TR::Region &region, IDT::Node *no
   , _callSitesRegion(region)
   , _inliningCallStack(callStack)
   , _inliner(inliner)
-  , _summary(region, this->getValuePropagation())
+  , _summary(nullptr)
 {
+  _summary = new (region) MethodSummaryExtension(region, this->getValuePropagation());
 }
 
 TR_CallStack*
@@ -737,5 +808,5 @@ IDTConstructor::inliner()
 void
 AbsFrameIDTConstructor::traceMethodSummary()
 {
-   this->_summary.trace();
+   this->_summary->trace();
 }

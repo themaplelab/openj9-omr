@@ -984,8 +984,8 @@ AbsEnvStatic::instanceof(AbstractState &absState, int cpIndex, int byteCodeIndex
      }
 
   TR::VPClassType *fixedClass = TR::VPFixedClass::create(this->getVP(), block);
-  TR::VPObjectLocation *objectLocation = TR::VPObjectLocation::create(this->getVP(), TR::VPObjectLocation::J9ClassObject);
-  TR::VPConstraint *typeConstraint= TR::VPClass::create(this->getVP(), fixedClass, NULL, NULL, NULL, objectLocation);
+  TR::VPNonNullObject *nonnull = TR::VPNonNullObject::create(this->getFrame()->getValuePropagation());
+  TR::VPConstraint *typeConstraint= TR::VPClass::create(this->getVP(), fixedClass, nonnull, NULL, NULL, NULL);
   /*
    * The following rules are used to determine whether an objectref that is
    * not null is an instance of the resolved type: 
@@ -2745,6 +2745,7 @@ AbsEnvStatic::invoke(int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind, boo
     if (callee) traceMsg(TR::comp(), "\n%s:%d:%s callsite invariants for (FROM IDT) %s\n", __FILE__, __LINE__, __func__, callee->getName());
     if (!callee) goto withoutCallee;
 
+    if (callee && callee->_summary) callee->_summary->trace();
     // TODO: can I place these on the stack?
     AbsFrame absFrame(this->getRegion(), callee);
     absFrame.interpret(this, kind);

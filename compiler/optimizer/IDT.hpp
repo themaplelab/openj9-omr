@@ -16,6 +16,7 @@
 #include "compiler/il/OMRBlock.hpp"
 #include "compiler/ilgen/J9ByteCodeIterator.hpp"
 #include "compiler/infra/Cfg.hpp"
+#include "optimizer/MethodSummary.hpp"
 
 class InliningProposal;
 
@@ -49,6 +50,7 @@ class IDT
     public:
     Node(IDT* idt, int idx, int32_t callsite_bci, TR::ResolvedMethodSymbol* rms, Node *parent, int unsigned benefit, int budget, TR_CallSite*, float);
     Node(const Node&) = delete;
+    MethodSummaryExtension *_summary;
     unsigned int howManyDescendantsIncludingMe() const;
     Node* addChildIfNotExists(IDT* idt, int32_t callsite_bci, TR::ResolvedMethodSymbol* rms, unsigned int benefit, TR_CallSite*, float);
     const char* getName(const IDT* idt) const;
@@ -104,7 +106,6 @@ class IDT
     float _callRatioCallerCallee;
     float _callRatioRootCallee;
     
-
     bool nodeSimilar(int32_t callsite_bci, TR::ResolvedMethodSymbol* rms) const;
     uint32_t getBcSz() const;
     // Returns NULL if 0 or > 1 children

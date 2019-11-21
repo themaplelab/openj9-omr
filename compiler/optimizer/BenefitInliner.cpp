@@ -10,6 +10,7 @@
 #include "compiler/env/PersistentCHTable.hpp"
 #include "infra/SimpleRegex.hpp"
 #include "optimizer/BenefitInliner.hpp"
+#include "optimizer/MethodSummary.hpp"
 #include "optimizer/J9CallGraph.hpp"
 #include "optimizer/J9EstimateCodeSize.hpp"
 #include "optimizer/PriorityPreorder.hpp"
@@ -526,6 +527,9 @@ OMR::BenefitInliner::obtainIDT(IDT::Node *node, int32_t budget)
       {
       constructor.traceMethodSummary();
       }
+
+
+   node->_summary = constructor._summary;
 
    
 

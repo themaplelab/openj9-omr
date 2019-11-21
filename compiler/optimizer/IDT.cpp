@@ -24,6 +24,7 @@ IDT::Node::Node(IDT* idt, int idx, int32_t callsite_bci, TR::ResolvedMethodSymbo
   _callSite(callsite),
   _calltarget(nullptr),
   _callStack(nullptr),
+  _summary(nullptr),
   _callRatioCallerCallee(callRatioCallerCallee),
   _callRatioRootCallee(parent ? parent->_callRatioRootCallee * callRatioCallerCallee : 1)
   {}
@@ -387,8 +388,10 @@ IDT::Node::copyChildrenFrom(const IDT::Node * other, Indices& someIndex)
                          childCopy->_callsite_bci,
                          childCopy->_rms,
                          childCopy->_benefit, childCopy->_callSite, childCopy->_callRatioCallerCallee);
-      if (newChild)
+      if (newChild) {
          newChild->setCallTarget(childCopy->getCallTarget());
+         newChild->_summary = childCopy->_summary;
+      }
       return;
       }
 
@@ -403,8 +406,10 @@ IDT::Node::copyChildrenFrom(const IDT::Node * other, Indices& someIndex)
                          childCopy->_callsite_bci,
                          childCopy->_rms,
                          childCopy->_benefit, childCopy->_callSite, childCopy->_callRatioCallerCallee);
-      if (newChild)
+      if (newChild) {
          newChild->setCallTarget(childCopy->getCallTarget());
+         newChild->_summary = childCopy->_summary;
+      }
       }
       return;
    }
