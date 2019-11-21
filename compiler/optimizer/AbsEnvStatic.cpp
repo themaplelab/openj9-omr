@@ -179,7 +179,7 @@ AbsEnvStatic::getTopDataType(TR::DataType dt)
   {
   // TODO: Don't allocate new memory and always return the same set of values
   TR::Region &region = this->getRegion();
-  return new (region) AbsValue(NULL, dt);
+  return new (getRegion()) AbsValue(NULL, dt);
   }
 
 
@@ -760,10 +760,26 @@ AbsEnvStatic::checkcast(AbstractState &absState, int cpIndex, int bytecodeIndex)
   TR_ResolvedMethod *method = this->getFrame()->_bci.method();
   // TODO: can we do this some other way? I don't want to pass TR::comp();
   TR_OpaqueClassBlock* type = method->getClassFromConstantPool(TR::comp(), cpIndex);
-  TR::VPConstraint *typeConstraint = NULL;
+  if (!type)
+  {
+  absState.push(absValue);
+  return absState;
+  }
+  TR::VPClassType *fixedClass = TR::VPFixedClass::create(this->getVP(), type);
+  if (!fixedClass)
+  {
+  absState.push(absValue);
+  return absState;
+  }
+  TR::VPConstraint *typeConstraint= TR::VPClass::create(this->getVP(), fixedClass, NULL, NULL, NULL, NULL);
+  if (!typeConstraint)
+  {
+  absState.push(absValue);
+  return absState;
+  }
   // If objectRef is not assignable to a class of type type then throw an exception.
 
-  absState.push(absValue);
+  absState.push(new (getRegion()) AbsValue(typeConstraint, TR::Address));
   return absState;
 }
 
@@ -2745,7 +2761,6 @@ AbsEnvStatic::invoke(int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind, boo
     if (callee) traceMsg(TR::comp(), "\n%s:%d:%s callsite invariants for (FROM IDT) %s\n", __FILE__, __LINE__, __func__, callee->getName());
     if (!callee) goto withoutCallee;
 
-    if (callee && callee->_summary) callee->_summary->trace();
     // TODO: can I place these on the stack?
     AbsFrame absFrame(this->getRegion(), callee);
     absFrame.interpret(this, kind);
@@ -2999,16 +3014,27 @@ AbsFrame::interpret(AbsEnvStatic *absEnvStatic, TR::MethodSymbol::Kinds kind)
   if (TR::comp()->getOption(TR_TraceAbstractInterpretation))
   {
      traceMsg(TR::comp(), "\n%s:%d:%s what variables are being placed in the local variable array?\n", __FILE__, __LINE__, __func__);
+  }
+     int value = 0;
      for (int i = 0, j = 0; i < totalParameters; i++, j++)
      {
      if (paramsArray[i]) paramsArray[i]->print(absEnvStatic->getVP());
      //this->aloadn
      if (paramsArray[i]) paramsArray[i]->_param = i;
+
+      AbsValue *param = paramsArray[i];
+      value += this->_node->_summary ?  this->_node->_summary->predicate(param, i) : 0;
+      if (TR::comp()->getOption(TR_TraceAbstractInterpretation)) {
+          traceMsg(TR::comp(), "%s:%d:%s AAAA benefit %d\n", __FILE__, __LINE__, __func__, value);
+      }
+
+     
+
      innerAbsEnvStatic.getState().at(j, paramsArray[i]);
      if (paramsArray[i]->isType2()) innerAbsEnvStatic.getState().at(++j, new (this->getRegion()) AbsValue(NULL, TR::NoType));
      }
-  }
 
+  this->_node->setBenefit(value);
   if (TR::comp()->getOption(TR_TraceAbstractInterpretation)) {
     traceMsg(TR::comp(), "%s:%d:%s interpreting %s\n", __FILE__, __LINE__, __func__, this->_node->getName());
   }

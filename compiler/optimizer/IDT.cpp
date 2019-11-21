@@ -219,7 +219,7 @@ IDT::Node::getRecursiveCost() const
 unsigned int
 IDT::Node::getBenefit() const
   {
-    return this->_callRatioRootCallee * 100 + 1;
+    return this->_callRatioRootCallee * 100 * (1 + this->_benefit) + 1;
   }
 
 void

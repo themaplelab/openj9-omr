@@ -14,6 +14,69 @@ const char * BranchIfLeFolding::name = "branch folding if le";
 const char * BranchIfGeFolding::name = "branch folding if ge";
 const char * BranchIfGtFolding::name = "branch folding if gt";
 
+// This works for integer range lattice...
+int
+PotentialOptimization::test(AbsValue *argumentEstimate, TR::ValuePropagation *valueProp)
+{
+  if (!argumentEstimate) return 0;
+  if (!this->_constraint) return 0;
+
+  TR::VPConstraint *argumentEstimateVP = argumentEstimate->_vp;
+  if (!argumentEstimateVP) return 0;
+
+  TR::VPConstraint *c = _constraint->_vp;
+  if (!c) return 0;
+
+
+  TR::VPConstraint *intersect = argumentEstimateVP->intersect(c, valueProp);
+  if (!intersect) return 0;
+
+  return intersect->mustBeEqual(argumentEstimateVP, valueProp) == false ? 0 : 1;
+}
+
+int
+NullCheckFolding::test(AbsValue *argumentEstimate, TR::ValuePropagation *valueProp)
+{
+  if (!argumentEstimate) return 0;
+  if (!this->_constraint) return 0;
+
+  TR::VPConstraint *argumentEstimateVP = argumentEstimate->_vp; // aClass...
+  if (!argumentEstimateVP) return 0;
+
+  TR::VPClass *argEst = argumentEstimateVP->asClass();
+  if (!argEst) return 0;
+
+  TR::VPClassPresence *argPres = argEst->getClassPresence();
+  if (!argPres) return 0;
+
+  TR::VPConstraint *c = _constraint->_vp; // NULL or non-NULL...
+  if (!c) return 0;
+
+
+  return argPres->mustBeEqual(argumentEstimateVP, valueProp) == false ? 0 : 1;
+}
+
+int
+MethodSummaryExtension::predicate(AbsValue *argumentEstimate, int parameter)
+{
+   if (!this->_potentialOpts.getSize()) { 
+     return 0;
+   }
+   traceMsg(TR::comp(), "BBBB: method summary printing\n");
+
+   int i = 0;
+   ListIterator<PotentialOptimization> iter(&this->_potentialOpts);
+   PotentialOptimization *popt = iter.getFirst();
+   while (popt) {
+     popt->trace(this->_vp);
+     if (popt->_argPos == parameter) {
+       traceMsg(TR::comp(), "CCC: argument position matches\n");
+       i += popt->test(argumentEstimate, this->_vp);
+     }
+     popt = iter.getNext();
+   }
+   return i;
+}
 
 void
 MethodSummaryExtension::trace()
@@ -186,6 +249,8 @@ void
 MethodSummaryExtension::addIfeq(int bc_index, int argPos)
    {
    this->addBranchIfEqFolding(bc_index, new (_region) AbsValue(TR::VPIntConst::create(this->_vp, 0), TR::Int32), argPos);
+   this->addBranchIfEqFolding(bc_index, new (_region) AbsValue(TR::VPIntRange::create(this->_vp, INT_MIN, -1), TR::Int32), argPos);
+   this->addBranchIfEqFolding(bc_index, new (_region) AbsValue(TR::VPIntRange::create(this->_vp, 1, INT_MAX), TR::Int32), argPos);
    }
 
 void

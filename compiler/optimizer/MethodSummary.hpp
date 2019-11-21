@@ -16,10 +16,11 @@ class PotentialOptimization
    {};
    static const char *name;
    virtual void trace(TR::ValuePropagation *vp); 
+   virtual int test(AbsValue *constraint, TR::ValuePropagation*);
+   int _argPos;
    protected:
    int _bytecode_idx;
    AbsValue *_constraint;
-   int _argPos;
    };
 
 class BranchFolding : public PotentialOptimization
@@ -99,6 +100,7 @@ class NullCheckFolding : public PotentialOptimization
       PotentialOptimization(bytecode_idx, constraint, argPos)
    {};
    static const char *name;
+   virtual int test(AbsValue *constraint, TR::ValuePropagation*);
    virtual void trace(TR::ValuePropagation *vp); 
    };
 
@@ -125,6 +127,7 @@ class CheckCastFolding : public PotentialOptimization
 class MethodSummaryExtension
    {
 public:
+   int predicate(AbsValue*, int);
    MethodSummaryExtension(TR::Region &, TR::ValuePropagation *);
    void addIfeq(int, int);
    void addIfne(int, int);
