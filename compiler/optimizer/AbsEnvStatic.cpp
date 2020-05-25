@@ -11,6 +11,8 @@
 #include "compiler/infra/ILWalk.hpp"
 #include "compiler/il/OMRBlock.hpp"
 #include "il/Block.hpp"
+#include "compiler/optimizer/MethodSummary.hpp"
+
 
 AbstractState::AbstractState(TR::Region &region, IDT::Node *node) :
   _region(region),
@@ -192,12 +194,12 @@ AbsEnvStatic::aload0getfield(AbstractState &absState, int i) {
 void
 AbsEnvStatic::interpret(TR_J9ByteCode bc, TR_J9ByteCodeIterator &bci)
   {
+
   TR::Compilation *comp = TR::comp();
   if (TR::comp()->getOption(TR_TraceAbstractInterpretation))
   {
      bci.printByteCode();
   }
-
   switch(bc)
      {
      //alphabetical order
@@ -336,11 +338,11 @@ AbsEnvStatic::interpret(TR_J9ByteCode bc, TR_J9ByteCodeIterator &bci)
      case J9BCineg: this->ineg(this->_absState); break;
      case J9BCinstanceof: this->instanceof(this->_absState, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
      // invokes...
-     case J9BCinvokedynamic: TR_ASSERT_FATAL(false, "TODO: model invoke dynamic"); break;
+     case J9BCinvokedynamic: TR_ASSERT_FATAL(false, "no inoke dynamic"); break;
      case J9BCinvokeinterface: this->invokeinterface(this->_absState, bci.currentByteCodeIndex(), bci.next2Bytes()); break;
      case J9BCinvokespecial: this->invokespecial(this->_absState, bci.currentByteCodeIndex(), bci.next2Bytes()); break;
      case J9BCinvokestatic: this->invokestatic(this->_absState, bci.currentByteCodeIndex(), bci.next2Bytes()); break;
-     case J9BCinvokevirtual: this->invokevirtual(this->_absState, bci.currentByteCodeIndex(), bci.next2Bytes()); break;
+     case J9BCinvokevirtual: this->invokevirtual(this->_absState, bci.currentByteCodeIndex(), bci.next2Bytes());break;
      case J9BCinvokespecialsplit: this->invokespecial(this->_absState, bci.currentByteCodeIndex(), bci.next2Bytes() | J9_SPECIAL_SPLIT_TABLE_INDEX_FLAG); break;
      case J9BCinvokestaticsplit: this->invokestatic(this->_absState, bci.currentByteCodeIndex(), bci.next2Bytes() | J9_STATIC_SPLIT_TABLE_INDEX_FLAG); break;
      case J9BCior: this->ior(this->_absState); break;
@@ -1148,6 +1150,7 @@ AbsEnvStatic::ishl(AbstractState &absState) {
 
 AbstractState&
 AbsEnvStatic::ishr(AbstractState &absState) {
+
   AbsValue *value1 = absState.pop();
   AbsValue* value2 = absState.pop();
   bool nonnull = value1->_vp && value2->_vp;
@@ -1167,8 +1170,10 @@ AbsEnvStatic::ishr(AbstractState &absState) {
 
   int int1 = value1->_vp->asIntConst()->getLow();
   int int2 = value2->_vp->asIntConst()->getLow() & 0x1f;
+
   //arithmetic shift.
   int result = int1 >> int2;
+
   absState.push(new (getRegion()) AbsValue(TR::VPIntConst::create(this->getVP(), result), TR::Int32));
   return absState;
 }
@@ -2760,11 +2765,9 @@ AbsEnvStatic::invoke(int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind, boo
     IDT::Node * callee = this->getNode()->findChildWithBytecodeIndex(bcIndex);
     if (callee) traceMsg(TR::comp(), "\n%s:%d:%s callsite invariants for (FROM IDT) %s\n", __FILE__, __LINE__, __func__, callee->getName());
     if (!callee) goto withoutCallee;
-
     // TODO: can I place these on the stack?
     AbsFrame absFrame(this->getRegion(), callee);
     absFrame.interpret(this, kind);
-  
     //TODO: What I need to do is to create a new AbsEnvStatic with the contents of operand stack as the variable array.
     // how many pops?
   
@@ -3135,6 +3138,7 @@ void AbsFrame::interpret()
 
 void AbsFrame::interpret(OMR::Block* block)
 {
+
   if (TR::comp()->getOption(TR_TraceAbstractInterpretation)) {
     traceMsg(TR::comp(), "%s:%d:%s\n", __FILE__, __LINE__, __func__);
   }

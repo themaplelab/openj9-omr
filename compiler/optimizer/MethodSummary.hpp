@@ -1,10 +1,11 @@
 #pragma once
 
-#include "compile/Compilation.hpp"
 #include "compiler/optimizer/VPConstraint.hpp"
 #include "optimizer/GlobalValuePropagation.hpp"
 #include "optimizer/LocalValuePropagation.hpp"
 #include "compiler/optimizer/AbsValue.hpp"
+#include "compiler/optimizer/IDT.hpp"
+#include "compiler/optimizer/AbsVarArray.hpp"
 
 class PotentialOptimization
    {
@@ -154,7 +155,6 @@ private:
    };
 
 
-/*
 
 class MethodSummaryRow {
 public:
@@ -203,7 +203,7 @@ public:
   MethodSummaryRow* getRowSummary(MethodSummaryRow::PotentialTransform, IDT::Node*, int);
   TR::VPConstraint *getClassConstraint(TR_OpaqueClassBlock *implicitParameterClass);
   int compareInformationAtCallSite(TR_ResolvedMethod *resolvedMethod, AbsVarArray *argumentConstraints);
-  //int apply(AbsVarArray* argumentConstraints);
+  int apply(AbsVarArray* argumentConstraints);
   int applyVerbose(AbsVarArray* argumentConstraints, int);
   int applyVerbose(AbsVarArray* argumentConstraints, IDT::Node*);
   char* toString();
@@ -216,4 +216,4 @@ private:
   List<MethodSummaryRow> _methodSummaryNew;
   int _index;
 };
-*/
+

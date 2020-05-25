@@ -1,5 +1,5 @@
 #include "IDT.hpp"
-
+#include <stdio.h>
 #include "compiler/env/j9method.h"
 #include "compiler/infra/ILWalk.hpp"
 #include "compiler/infra/OMRCfg.hpp"
@@ -7,6 +7,7 @@
 #include "il/Block.hpp"
 #include "ilgen/J9ByteCodeIterator.hpp"
 #include "compiler/optimizer/InliningProposal.hpp"
+#include "compiler/optimizer/MethodSummary.hpp"
 
 #define SINGLE_CHILD_BIT 1
 

@@ -27,7 +27,6 @@ int32_t OMR::BenefitInlinerWrapper::perform()
    TR::CFG *prevCFG = sym->getFlowGraph();
    int32_t budget = this->getBudget(sym);
    if (budget < 0) return 1;
-
    OMR::BenefitInliner inliner(optimizer(), this, budget);
    inliner._rootRms = prevCFG;
    inliner.initIDT(sym, budget);
@@ -35,16 +34,14 @@ int32_t OMR::BenefitInlinerWrapper::perform()
      {
      traceMsg(TR::comp(), "starting benefit inliner for %s, budget = %d, hotness = %s\n", sym->signature(this->comp()->trMemory()), budget, comp()->getHotnessName(comp()->getMethodHotness()));
      }
-
+   
    inliner.obtainIDT(inliner._idt->getRoot(), budget);
    inliner.traceIDT();
-
    if (inliner._idt->howManyNodes() == 1) 
       {
       inliner._idt->getRoot()->getResolvedMethodSymbol()->setFlowGraph(inliner._rootRms);
       return 1;
       }
-
    inliner._idt->getRoot()->getResolvedMethodSymbol()->setFlowGraph(inliner._rootRms);
    int recursiveCost = inliner._idt->getRoot()->getRecursiveCost();
    bool canSkipAbstractInterpretation = recursiveCost < budget;
@@ -68,7 +65,6 @@ int32_t OMR::BenefitInlinerWrapper::perform()
 */
    inliner._currentNode = inliner._idt->getRoot();
    inliner.performInlining(sym);
-
    return 1;
    }
 
@@ -510,7 +506,6 @@ OMR::BenefitInliner::obtainIDT(IDT::Node *node, int32_t budget)
          cfg->getStartForReverseSnapshot()->setFrequency(cfg->getStartBlockFrequency());
          }
 
-
    IDT::Indices Deque(0, nullptr, this->comp()->trMemory()->currentStackRegion());
    bool shouldInterpret = this->obtainIDT(Deque, node, budget);
    this->_inliningCallStack = new (this->_callSitesRegion) TR_CallStack(this->comp(), resolvedMethodSymbol, resolvedMethod, prevCallStack, budget, true);
@@ -531,8 +526,6 @@ OMR::BenefitInliner::obtainIDT(IDT::Node *node, int32_t budget)
 
    node->_summary = constructor._summary;
 
-   
-
    while (!Deque.empty())
       {
       IDT::Node *node2 = Deque.front();
@@ -545,7 +538,6 @@ OMR::BenefitInliner::obtainIDT(IDT::Node *node, int32_t budget)
       this->_callerIndex--;
       comp()->decInlineDepth(true);
       }
-
    this->_inliningCallStack = prevCallStack;
    
    }
@@ -1013,7 +1005,6 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
       char nameBuffer[1024];
       const char *calleeName = NULL;
       calleeName = comp()->fej9()->sampleSignature(calltarget->_calleeMethod->getPersistentIdentifier(), nameBuffer, 1024, comp()->trMemory());
-
       if (!supportsMultipleTargetInlining () && i > 0)
          {
          if (comp()->getOption(TR_TraceBIIDTGen))
@@ -1024,7 +1015,6 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
          i--;
          continue;
          }
-
       TR_ASSERT(calltarget->_guard, "assertion failure");
       if (!getPolicy()->canInlineMethodWhileInstrumenting(calltarget->_calleeMethod))
          {
@@ -1036,7 +1026,6 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
          i--;
          continue;
          }
-
       bool toInline = getPolicy()->tryToInline(calltarget, callStack, true);
       if (toInline)
          {
@@ -1066,7 +1055,6 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
          i--;
          continue;
          }
-
       TR_InlinerFailureReason checkInlineableTarget = getPolicy()->checkIfTargetInlineable(calltarget, callsite, comp());
 
       if (checkInlineableTarget != InlineableTarget)
@@ -1082,7 +1070,6 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
          }
 
       bool realGuard = false;
-
       if (comp()->getHCRMode() != TR::none)
          {
          if (calltarget->_guard->_kind != TR_HCRGuard)
@@ -1096,7 +1083,6 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
          if ((calltarget->_guard->_kind != TR_NoGuard) && (calltarget->_guard->_kind != TR_InnerGuard))
             realGuard = true;
          }
-
       if (realGuard && (!inlineVirtuals() || comp()->getOption(TR_DisableVirtualInlining)))
          {
          if (comp()->getOption(TR_TraceBIIDTGen))
@@ -1246,10 +1232,10 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
          // however, now is the question, what about the profiling information that is supposedly linked with the blocks in the CFG?
          // is that accurate?
          // I am not sure!
-        
          TR::CFG *cfg2 = cfgGen->generateCFG(calltarget, callStack, this->_cfgRegion);
          //Not yet completely functionsl. Need some basic blocks...
          // now we have the call block
+         TR_ASSERT_FATAL(cfg2 != nullptr, "cfg2 is null\n");
          cfg2->computeMethodBranchProfileInfo(this->getAbsEnvUtil(), calltarget, caller, this->_nodes, callblock, callerCFG);
          this->_nodes++;
          //Now the frequencies should have been set...
@@ -1267,7 +1253,6 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
          // the + 1 is to make sure that this in non zero.
          calltarget->_callRatioCallerCallee = ((float)callblock->getFrequency() / (float) cfg->getStartBlockFrequency());
       }
-
    return;
    }
 

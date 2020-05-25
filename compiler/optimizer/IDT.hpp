@@ -1,6 +1,7 @@
 #pragma once
 
-#include "Inliner.hpp"
+#include "optimizer/Inliner.hpp"
+#include "compile/Compilation.hpp"
 #include "env/Region.hpp"
 #include "env/TypedAllocator.hpp"
 #include "infra/Cfg.hpp"
@@ -16,10 +17,9 @@
 #include "compiler/il/OMRBlock.hpp"
 #include "compiler/ilgen/J9ByteCodeIterator.hpp"
 #include "compiler/infra/Cfg.hpp"
-#include "optimizer/MethodSummary.hpp"
 
 class InliningProposal;
-
+class MethodSummaryExtension;
 /**
  * Class IDT 
  * =========

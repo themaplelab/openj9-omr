@@ -17,7 +17,6 @@
 #include "optimizer/GlobalValuePropagation.hpp"
 #include "optimizer/LocalValuePropagation.hpp"
 #include "compiler/optimizer/InlinerPacking.hpp"
-#include "MethodSummary.hpp"
 #include "infra/List.hpp"
 
 #ifndef TRACE

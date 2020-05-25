@@ -16,7 +16,6 @@ void AbsFrameIDTConstructor::interpret()
   _target->_calleeSymbol->setFlowGraph(cfg);
   TR::CFGNode *cfgNode = cfg->getStartForReverseSnapshot();
   TR::Block *startBlock = cfgNode->asBlock();
-
   // TODO: maybe instead of region try trCurrentStackRegion
   TR::list<OMR::Block*, TR::Region&> queue(this->getRegion());
   bool first = true;
