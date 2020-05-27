@@ -61,10 +61,10 @@ forwards_BitVectorImpl(const int cost_budget, PriorityPreorder& items, Growable_
          bool doesNewFitInBudget = prevBest->getCost() <= budget;
          bool storeNew = isNewBetterThanOld and doesNewFitInBudget;
          if (storeNew) {
-            prevBest->print();
+            prevBest->print(comp);
             table->_put(row, budget, prevBest);
          } else {
-            old_proposal->print();
+            old_proposal->print(comp);
             table->_put(row, budget, old_proposal);
          }
       } else {
@@ -74,17 +74,17 @@ forwards_BitVectorImpl(const int cost_budget, PriorityPreorder& items, Growable_
          bool doesNewFitInBudget = new_proposal.getCost() <= budget;
          bool storeNew = isNewBetterThanOld and doesNewFitInBudget;
          if (storeNew) { 
-           new_proposal.print();
+           new_proposal.print(comp);
            table->put(row, budget, new_proposal);
          }
          else {
-           old_proposal->print();
+           old_proposal->print(comp);
            table->_put(row, budget, old_proposal);
          }
       }
  
       retval = table->_get(row, budget);
-      retval->print();
+      retval->print(comp);
 
     }
   }

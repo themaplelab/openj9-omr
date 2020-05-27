@@ -72,7 +72,7 @@ void
 OMR::BenefitInliner::addEverything() {
   _inliningProposal = new (this->_cfgRegion) InliningProposal(this->comp()->trMemory()->currentStackRegion(), this->_idt, this->_idt->howManyNodes());
   this->addEverythingRecursively(this->_idt->getRoot());
-  this->_inliningProposal->print();
+  this->_inliningProposal->print(comp());
 }
 
 void
@@ -388,7 +388,7 @@ OMR::BenefitInliner::analyzeIDT()
       Growable_2d_array_BitVectorImpl results(this->comp(), items.size(), this->budget() + 1, this);
       _inliningProposal = forwards_BitVectorImpl(this->budget(), items, &results, this->comp(), this, this->_idt);
       traceMsg(TR::comp(), "budget: %d result: \n", this->budget());
-      _inliningProposal->print();
+      _inliningProposal->print(comp());
    }
 
 int32_t

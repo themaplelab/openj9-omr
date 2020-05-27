@@ -9,6 +9,7 @@
 #include "env/Region.hpp"
 #include "infra/List.hpp" // for List
 #include "infra/BitVector.hpp" // for BitVector
+#include "compiler/compile/Compilation.hpp"
 
 class TR_InlinerBase;
 
@@ -17,7 +18,7 @@ class InliningProposal
   public:
   InliningProposal(TR::Region& region, IDT *idt, int max);
   InliningProposal(InliningProposal&, TR::Region& region);
-  void print();
+  void print(TR::Compilation *comp);
   bool isEmpty() const;
   void clear();
   int getCost() ;

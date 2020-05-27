@@ -26,18 +26,18 @@ InliningProposal::InliningProposal(InliningProposal &proposal, TR::Region& regio
     }
 
 void
-InliningProposal::print()
+InliningProposal::print(TR::Compilation* comp)
 {
-   if (TR::comp()->getOption(TR_TraceBIProposal))
+   if (comp->getOption(TR_TraceBIProposal))
    { // make a flag for printing inlining proposals
-     traceMsg(TR::comp(), "Printing bit vector with nodes\n");
+     traceMsg(comp, "Printing bit vector with nodes\n");
      if (!_nodes)
      { 
-        traceMsg(TR::comp(), "bit vector is NULL\n");
+        traceMsg(comp, "bit vector is NULL\n");
         return;
      }
-    this->_nodes->print(TR::comp(), TR::comp()->getOutFile());
-    traceMsg(TR::comp(), "\n");
+    this->_nodes->print(comp, comp->getOutFile());
+    traceMsg(comp, "\n");
    }
 }
 
