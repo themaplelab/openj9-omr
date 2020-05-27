@@ -3,7 +3,6 @@
 #ifdef J9_PROJECT_SPECIFIC
 #include "compile/Compilation.hpp"
 #include "env/Region.hpp"
-#include "optimizer/Inliner.hpp"
 #include "infra/BitVector.hpp" // for BitVector
 #endif
 

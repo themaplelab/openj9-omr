@@ -9,7 +9,6 @@
 #include "env/Region.hpp"
 #include "infra/List.hpp" // for List
 #include "infra/BitVector.hpp" // for BitVector
-#include "BenefitInliner.hpp"
 
 class TR_InlinerBase;
 
