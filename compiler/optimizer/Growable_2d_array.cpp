@@ -18,7 +18,7 @@ Growable_2d_array_BitVectorImpl::Growable_2d_array_BitVectorImpl(TR::Compilation
   , _inliner(inliner)
 {
 
-  this->_default = new (region()) InliningProposal(inliner, NULL, 1);
+  this->_default = new (region()) InliningProposal(inliner->comp()->trMemory()->currentStackRegion(), NULL, 1);
   this->_table = new(region()) InliningProposal**[_rows];
   for (int i = 0; i < _rows; i++) {
     this->_table[i] =  new(region()) InliningProposal*[cols];
@@ -74,7 +74,7 @@ Growable_2d_array_BitVectorImpl::get_best() {
 
 InliningProposal*
 Growable_2d_array_BitVectorImpl::get_new(const int row, const int col) {
-  InliningProposal*heap = new (region()) InliningProposal(*this->_default, this->_inliner);
+  InliningProposal*heap = new (region()) InliningProposal(*this->_default, this->_inliner->comp()->trMemory()->currentStackRegion());
   this->_table[row][col] = heap;
   return heap;
 }
@@ -93,7 +93,7 @@ Growable_2d_array_BitVectorImpl::put(int row, int col, InliningProposal& proposa
     return;
   }
 
-  InliningProposal*heap = new (region()) InliningProposal(proposal, this->_inliner);
+  InliningProposal*heap = new (region()) InliningProposal(proposal, this->_inliner->comp()->trMemory()->currentStackRegion());
   this->_put(row, col, heap);
 }
 

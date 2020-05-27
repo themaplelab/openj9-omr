@@ -7,24 +7,22 @@
 #include "infra/BitVector.hpp" // for BitVector
 #endif
 
-InliningProposal::InliningProposal(OMR::BenefitInliner *inliner, IDT *idt, int max):
-   _inliner(inliner),
+InliningProposal::InliningProposal(TR::Region& region, IDT *idt, int max):
    _cost(-1),
    _benefit(-1),
-   _idt(idt)
-    {
-        TR_Memory *mem = inliner->comp()->trMemory();
-        this->_nodes = new (mem->currentStackRegion()) TR_BitVector(max, mem);
+   _idt(idt),
+   _region(region),
+   _nodes(NULL) // Lazy Initialization of BitVector
+    {      
     }
 
-InliningProposal::InliningProposal(InliningProposal &proposal, OMR::BenefitInliner *inliner):
-   _inliner(inliner),
+InliningProposal::InliningProposal(InliningProposal &proposal, TR::Region& region):
    _cost(proposal._cost),
    _benefit(proposal._benefit),
-   _idt(proposal._idt)
+   _idt(proposal._idt),
+   _region(region)
     {
-        TR_Memory *mem = inliner->comp()->trMemory();
-        this->_nodes = new (mem->currentStackRegion()) TR_BitVector(proposal._nodes->getHighestBitPosition(), mem);
+        this->_nodes = new (region) TR_BitVector(proposal._nodes->getHighestBitPosition(), region);
        *this->_nodes = *proposal._nodes;
     }
 
@@ -48,6 +46,9 @@ InliningProposal::print()
 void
 InliningProposal::pushBack(IDT::Node *node)
   {
+  //Ensure initialization
+  if (!_nodes) _nodes = new (_region) TR_BitVector(_region);
+
   int32_t calleeIdx = node->getCalleeIndex() + 1;
   if (this->_nodes->isSet(calleeIdx))
     {
@@ -62,6 +63,9 @@ InliningProposal::pushBack(IDT::Node *node)
 bool
 InliningProposal::isEmpty() const
   {
+
+  if (!_nodes) return true;
+
   return this->_nodes->isEmpty();
   }
 
@@ -96,7 +100,7 @@ InliningProposal::computeCostAndBenefit()
     while (bvi.hasMoreElements()) {
         igNodeIndex = bvi.getNextElement();
         IDT::Node *node = _idt->getNodeByCalleeIndex(igNodeIndex - 1);
-        if (node == nullptr) 
+        if (node == NULL) 
             {
             continue;
             }
@@ -108,6 +112,7 @@ InliningProposal::computeCostAndBenefit()
 void
 InliningProposal::clear()
   {
+  if (!_nodes) return;
   this->_cost = -1;
   this->_benefit = -1;
   this->_nodes->empty();
@@ -116,8 +121,8 @@ InliningProposal::clear()
 bool
 InliningProposal::inSet(IDT::Node* node)
   {
-  if (node == nullptr) return false;
-  if (this->_nodes == nullptr) return false;
+  if (node == NULL) return false;
+  if (this->_nodes == NULL) return false;
   if (this->_nodes->isEmpty()) return false;
   int32_t callee_idx = node->getCalleeIndex() + 1;
   return this->_nodes->isSet(callee_idx);
@@ -126,12 +131,18 @@ InliningProposal::inSet(IDT::Node* node)
 bool
 InliningProposal::inSet(int calleeIdx)
   {
+  if (!_nodes) return false;
   return this->_nodes->isSet(calleeIdx + 1);
   }
 
 void
 InliningProposal::intersectInPlace(InliningProposal &a, InliningProposal &b)
   {
+  //Ensure initialization
+  if (!_nodes) _nodes = new (_region) TR_BitVector(_region);
+  if (!a._nodes) a._nodes = new (a._region) TR_BitVector(a._region);
+  if (!b._nodes) b._nodes = new (b._region) TR_BitVector(b._region);
+
   *this->_nodes = *a._nodes;
   *this->_nodes &= *b._nodes;
   this->_cost = -1;
@@ -143,6 +154,11 @@ InliningProposal::intersectInPlace(InliningProposal &a, InliningProposal &b)
 void
 InliningProposal::unionInPlace(InliningProposal &a, InliningProposal &b)
   {
+  //Ensure initialization
+  if (!_nodes) _nodes = new (_region) TR_BitVector(_region);
+  if (!a._nodes) a._nodes = new (a._region) TR_BitVector(a._region);
+  if (!b._nodes) b._nodes = new (b._region) TR_BitVector(b._region);
+  
   *this->_nodes = *a._nodes;
   *this->_nodes |= *b._nodes;
   this->_cost = -1;
@@ -154,6 +170,7 @@ InliningProposal::unionInPlace(InliningProposal &a, InliningProposal &b)
 bool
 InliningProposal::overlaps(InliningProposal *p)
 {
+  if (!_nodes) return false;
   TR_BitVectorIterator bvi(*p->_nodes);
   int32_t igNodeIndex;
   while (bvi.hasMoreElements()) {

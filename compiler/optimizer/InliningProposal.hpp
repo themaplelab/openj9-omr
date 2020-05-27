@@ -16,8 +16,8 @@ class TR_InlinerBase;
 class InliningProposal
   {
   public:
-  InliningProposal(OMR::BenefitInliner *inliner, IDT *idt, int max);
-  InliningProposal(InliningProposal&, OMR::BenefitInliner *inliner);
+  InliningProposal(TR::Region& region, IDT *idt, int max);
+  InliningProposal(InliningProposal&, TR::Region& region);
   void print();
   bool isEmpty() const;
   void clear();
@@ -35,7 +35,7 @@ class InliningProposal
   InliningProposal(const InliningProposal&) = delete;
   InliningProposal & operator=(const InliningProposal&) = delete;
   void computeCostAndBenefit();
-  OMR::BenefitInliner *_inliner;
+  TR::Region& _region;
   TR_BitVector *_nodes;
   int _cost;
   int _benefit;
