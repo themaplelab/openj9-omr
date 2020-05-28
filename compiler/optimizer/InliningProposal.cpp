@@ -6,7 +6,7 @@
 #include "infra/BitVector.hpp" // for BitVector
 #endif
 
-InliningProposal::InliningProposal(TR::Region& region, IDT *idt, int max):
+InliningProposal::InliningProposal(TR::Region& region, IDT *idt):
    _cost(-1),
    _benefit(-1),
    _idt(idt),

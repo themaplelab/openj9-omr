@@ -16,7 +16,7 @@ class TR_InlinerBase;
 class InliningProposal
   {
   public:
-  InliningProposal(TR::Region& region, IDT *idt, int max);
+  InliningProposal(TR::Region& region, IDT *idt);
   InliningProposal(InliningProposal&, TR::Region& region);
   void print(TR::Compilation *comp);
   bool isEmpty() const;

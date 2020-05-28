@@ -18,7 +18,7 @@ Growable_2d_array_BitVectorImpl::Growable_2d_array_BitVectorImpl(TR::Compilation
   , _inliner(inliner)
 {
 
-  this->_default = new (region()) InliningProposal(inliner->comp()->trMemory()->currentStackRegion(), NULL, 1);
+  this->_default = new (region()) InliningProposal(inliner->comp()->trMemory()->currentStackRegion(), NULL);
   this->_table = new(region()) InliningProposal**[_rows];
   for (int i = 0; i < _rows; i++) {
     this->_table[i] =  new(region()) InliningProposal*[cols];

@@ -70,7 +70,7 @@ int32_t OMR::BenefitInlinerWrapper::perform()
 
 void
 OMR::BenefitInliner::addEverything() {
-  _inliningProposal = new (this->_cfgRegion) InliningProposal(this->comp()->trMemory()->currentStackRegion(), this->_idt, this->_idt->howManyNodes());
+  _inliningProposal = new (this->_cfgRegion) InliningProposal(this->comp()->trMemory()->currentStackRegion(), this->_idt);
   this->addEverythingRecursively(this->_idt->getRoot());
   this->_inliningProposal->print(comp());
 }

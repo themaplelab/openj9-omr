@@ -7,12 +7,12 @@ InliningProposal*
 forwards_BitVectorImpl(const int cost_budget, PriorityPreorder& items, Growable_2d_array_BitVectorImpl* table, TR::Compilation* comp, OMR::BenefitInliner *inliner, IDT *idt)
 {
   size_t max = items.size();
-  InliningProposal new_proposal(inliner->comp()->trMemory()->currentStackRegion(), idt, max);
+  InliningProposal new_proposal(inliner->comp()->trMemory()->currentStackRegion(), idt);
   InliningProposal *old_proposal = NULL;
-  InliningProposal common(inliner->comp()->trMemory()->currentStackRegion(), idt, max);
+  InliningProposal common(inliner->comp()->trMemory()->currentStackRegion(), idt);
   InliningProposal *prev_best = NULL;
   InliningProposal *temp = NULL;
-  InliningProposal curr_set(inliner->comp()->trMemory()->currentStackRegion(), idt, max);
+  InliningProposal curr_set(inliner->comp()->trMemory()->currentStackRegion(), idt);
   InliningProposal *retval = NULL;
   for(int row = 0; row < max; row++) {
     for(int budget = 1; budget < cost_budget + 1; budget++) {
