@@ -27,7 +27,7 @@ namespace OMR {
       virtual int32_t perform();
       virtual const char * optDetailString() const throw()
          {
-            return "O^O Beneft Inliner Wrapper: ";
+            return "O^O Benefit Inliner Wrapper: ";
          }
       int32_t getBudget(TR::ResolvedMethodSymbol *resolvedMethodSymbol);
    };

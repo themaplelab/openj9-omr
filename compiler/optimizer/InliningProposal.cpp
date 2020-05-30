@@ -1,4 +1,5 @@
-#include "InliningProposal.hpp"
+#include "compiler/optimizer/InliningProposal.hpp"
+#include "infra/deque.hpp"
 
 #ifdef J9_PROJECT_SPECIFIC
 #include "compile/Compilation.hpp"
@@ -28,17 +29,66 @@ InliningProposal::InliningProposal(InliningProposal &proposal, TR::Region& regio
 void
 InliningProposal::print(TR::Compilation* comp)
 {
-   if (comp->getOption(TR_TraceBIProposal))
-   { // make a flag for printing inlining proposals
-     traceMsg(comp, "Printing bit vector with nodes\n");
-     if (!_nodes)
-     { 
-        traceMsg(comp, "bit vector is NULL\n");
-        return;
-     }
-    this->_nodes->print(comp, comp->getOutFile());
-    traceMsg(comp, "\n");
-   }
+  bool ifTrace = comp->getOption(TR_TraceBIProposal);
+  bool ifVerbose = comp->getOptions()->getVerboseOption(TR_VerboseInlining);
+
+  if (!ifTrace && !ifVerbose) return; //no need to run the following code if neither flag is set
+
+  if (!_nodes)
+  { 
+    traceMsg(comp, "Inlining Proposal is NULL\n");
+    return;
+  }
+
+  int32_t numMethodsInlined =  _nodes->elementCount()-1;
+
+  char header[1024];
+  sprintf(header,"#Proposal: %d methods inlined into %s", numMethodsInlined, _idt->getRoot()->getName());
+  if (ifTrace) traceMsg(comp, "%s\n", header);
+  if (ifVerbose) TR_VerboseLog::writeLineLocked(TR_Vlog_SIP, header);
+
+  TR::deque<IDT::Node*, TR::Region&> *idtNodeQueue =  new (_region) TR::deque<IDT::Node*, TR::Region&>(_region) ;
+  idtNodeQueue->push_back(_idt->getRoot());
+
+  //BFS 
+  while (!idtNodeQueue->empty()) 
+  {
+    IDT::Node* currentNode = idtNodeQueue->front();
+    idtNodeQueue->pop_front();
+    int calleeIndex = currentNode->getCalleeIndex();
+
+    if (calleeIndex != -1) { //do not print the root node
+      char line[1024];
+      sprintf(line, "#Proposal: #%d : #%d %s @%d -> bcsz=%d %s target %s, benefit = %d, cost = %d, budget = %d",
+        currentNode->getCalleeIndex(),
+        currentNode->getCallerIndex(),
+        _nodes->isSet(calleeIndex+1) ? "inlined" : "not inlined",
+        currentNode->getByteCodeIndex(),
+        currentNode->getBcSz(),
+        currentNode->getCallTarget()->_calleeSymbol ? currentNode->getCallTarget()->_calleeSymbol->signature(comp->trMemory()) : "no callee symbol???",
+        currentNode->getName(),
+        currentNode->getBenefit(),
+        currentNode->getCost(),
+        currentNode->budget()
+      );
+
+      if (ifTrace) traceMsg(comp, "%s\n",line);
+      if (ifVerbose) TR_VerboseLog::writeLineLocked(TR_Vlog_SIP, line);
+    } 
+    
+    //process children
+    int32_t numChildren = currentNode->getNumChildren();
+    for (int32_t i = 0; i < numChildren; i++)
+    {
+      idtNodeQueue->push_back(currentNode->getChild(i));
+    }
+    
+  } 
+
+  traceMsg(comp, "\nBit Vector\n");
+  this->_nodes->print(comp, comp->getOutFile());
+  traceMsg(comp, "\n");
+   
 }
 
 

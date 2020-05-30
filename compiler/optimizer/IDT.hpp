@@ -55,7 +55,6 @@ class IDT
     Node* addChildIfNotExists(IDT* idt, int32_t callsite_bci, TR::ResolvedMethodSymbol* rms, unsigned int benefit, TR_CallSite*, float);
     const char* getName(const IDT* idt) const;
     const char* getName() const;
-    void printNodeThenChildren(const IDT* idt, int callerIndex) const;
     Node *getParent() const;
     int getCalleeIndex() const;
     unsigned int getCost() const;
@@ -90,6 +89,7 @@ class IDT
     void setCallStack(TR_CallStack*);
     TR_CallStack* getCallStack();
     unsigned int getByteCodeIndex();
+    uint32_t getBcSz() const;
     private:
     TR_CallStack *_callStack;
     TR_CallTarget *_calltarget;
@@ -107,7 +107,6 @@ class IDT
     float _callRatioRootCallee;
     
     bool nodeSimilar(int32_t callsite_bci, TR::ResolvedMethodSymbol* rms) const;
-    uint32_t getBcSz() const;
     // Returns NULL if 0 or > 1 children
     Node* getOnlyChild() const;
     void setOnlyChild(Node* child);

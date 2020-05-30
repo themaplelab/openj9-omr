@@ -384,10 +384,10 @@ OMR::BenefitInliner::analyzeIDT()
       if (this->_idt->howManyNodes() == 1) return; // No Need to analyze, since there is nothing to inline.
       this->_idt->buildIndices();
       PriorityPreorder items(this->_idt, this->comp());
-      traceMsg(TR::comp(), "size = %d, budget = %d\n", items.size(), this->budget());
+      // traceMsg(TR::comp(), "Inlining Proposal: \n");
+      // traceMsg(TR::comp(), "size = %d, budget = %d\n", items.size(), this->budget());
       Growable_2d_array_BitVectorImpl results(this->comp(), items.size(), this->budget() + 1, this);
       _inliningProposal = forwards_BitVectorImpl(this->budget(), items, &results, this->comp(), this, this->_idt);
-      traceMsg(TR::comp(), "budget: %d result: \n", this->budget());
       _inliningProposal->print(comp());
    }
 
@@ -407,7 +407,7 @@ OMR::BenefitInlinerWrapper::getBudget(TR::ResolvedMethodSymbol *resolvedMethodSy
 
       if (this->comp()->getMethodHotness() >= warm && size < 250)
       {
-         return 250;
+         return 10;
       }
 
       if (this->comp()->getMethodHotness() >= warm && size < 700)
@@ -431,9 +431,9 @@ void OMR::BenefitInliner::initIDT(TR::ResolvedMethodSymbol *root, int budget)
 
 void OMR::BenefitInliner::traceIDT()
    {
-  if (!TR::comp()->getOption(TR_TraceBIIDTGen)) return;
-   _idt->printTrace();
-   }
+      if (!TR::comp()->getOption(TR_TraceBIIDTGen)) return;
+      _idt->printTrace();
+   } 
 
 void
 OMR::BenefitInliner::obtainIDT(IDT::Indices *Deque, IDT::Node *currentNode, TR_CallSite *callsite, int32_t budget, int cpIndex)
@@ -486,25 +486,25 @@ OMR::BenefitInliner::obtainIDT(IDT::Node *node, int32_t budget)
       TR::CFG *prevCFG = resolvedMethodSymbol->getFlowGraph();
       int32_t maxBytecodeIndex = resolvedMethodSymbol->getResolvedMethod()->maxBytecodeIndex();
       if (!prevCallStack)
-         {
-         TR_CallTarget *calltarget = new (this->comp()->trHeapMemory()) TR_CallTarget(NULL, resolvedMethodSymbol, resolvedMethod, NULL, resolvedMethod->containingClass(), NULL);
-         TR_J9EstimateCodeSize *cfgGen = (TR_J9EstimateCodeSize *)TR_EstimateCodeSize::get(this, this->tracer(), 0);
-         cfg = cfgGen->generateCFG(calltarget, NULL, this->_cfgRegion);
-         cfg->computeInitialBlockFrequencyBasedOnExternalProfiler(comp());
-         //cfg->setBlockFrequenciesBasedOnInterpreterProfiler();
-         //uint32_t firstBlockFreq = cfg->getInitialBlockFrequency();
-         //traceMsg(TR::comp(), "initialBlockFrequency = %d\n", firstBlockFreq);
-         cfg->setFrequencies();
-         traceMsg(TR::comp(), "cfg->getStartBlockFrequency() = %d\n", cfg->getStartBlockFrequency());
-         resolvedMethodSymbol->setFlowGraph(cfg);
-         cfg->getStartForReverseSnapshot()->setFrequency(cfg->getStartBlockFrequency());
-         node->setCallTarget(calltarget);
-         } 
+      {
+            TR_CallTarget *calltarget = new (this->comp()->trHeapMemory()) TR_CallTarget(NULL, resolvedMethodSymbol, resolvedMethod, NULL, resolvedMethod->containingClass(), NULL);
+            TR_J9EstimateCodeSize *cfgGen = (TR_J9EstimateCodeSize *)TR_EstimateCodeSize::get(this, this->tracer(), 0);
+            cfg = cfgGen->generateCFG(calltarget, NULL, this->_cfgRegion);
+            cfg->computeInitialBlockFrequencyBasedOnExternalProfiler(comp());
+            //cfg->setBlockFrequenciesBasedOnInterpreterProfiler();
+            //uint32_t firstBlockFreq = cfg->getInitialBlockFrequency();
+            //traceMsg(TR::comp(), "initialBlockFrequency = %d\n", firstBlockFreq);
+            cfg->setFrequencies();
+            traceMsg(TR::comp(), "cfg->getStartBlockFrequency() = %d\n", cfg->getStartBlockFrequency());
+            resolvedMethodSymbol->setFlowGraph(cfg);
+            cfg->getStartForReverseSnapshot()->setFrequency(cfg->getStartBlockFrequency());
+            node->setCallTarget(calltarget);
+      } 
       else 
-         {
-         cfg = resolvedMethodSymbol->getFlowGraph();
-         cfg->getStartForReverseSnapshot()->setFrequency(cfg->getStartBlockFrequency());
-         }
+      {
+            cfg = resolvedMethodSymbol->getFlowGraph();
+            cfg->getStartForReverseSnapshot()->setFrequency(cfg->getStartBlockFrequency());
+      }
 
    IDT::Indices Deque(0, nullptr, this->comp()->trMemory()->currentStackRegion());
    bool shouldInterpret = this->obtainIDT(Deque, node, budget);

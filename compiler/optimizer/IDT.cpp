@@ -18,14 +18,14 @@ IDT::Node::Node(IDT* idt, int idx, int32_t callsite_bci, TR::ResolvedMethodSymbo
   _idx(idx),
   _benefit(benefit),
   _callsite_bci(callsite_bci),
-  _children(nullptr),
+  _children(NULL),
   _rms(rms),
   _parent(parent),
   _budget(budget),
   _callSite(callsite),
-  _calltarget(nullptr),
-  _callStack(nullptr),
-  _summary(nullptr),
+  _calltarget(NULL),
+  _callStack(NULL),
+  _summary(NULL),
   _callRatioCallerCallee(callRatioCallerCallee),
   _callRatioRootCallee(parent ? parent->_callRatioRootCallee * callRatioCallerCallee : 1)
   {}
@@ -47,10 +47,10 @@ IDT::Node::Node(const Node& node) :
 
 IDT::IDT(TR_InlinerBase* inliner, TR::Region &mem, TR::ResolvedMethodSymbol* rms, int budget):
   _mem(mem),
-  _vp(nullptr),
+  _vp(NULL),
   _inliner(inliner),
   _max_idx(-1),
-  _root(new (_mem) IDT::Node(this, nextIdx(), -1, rms, nullptr, 1, budget, nullptr, 1)),
+  _root(new (_mem) IDT::Node(this, nextIdx(), -1, rms, NULL, 1, budget, NULL, 1)),
   _current(_root)
   {
   }
@@ -72,57 +72,66 @@ IDT::Node::budget() const
 void
 IDT::printTrace() const
   {
-  // TODO: fix this flag. We need to print to Verbose when Verbose is set not Trace.
-  if (TR::comp()->getOption(TR_TraceBIIDTGen))
-    {
+    bool ifVerbose = comp()->getOptions()->getVerboseOption(TR_VerboseInlining);
+    bool ifTrace = TR::comp()->getOption(TR_TraceBIIDTGen);
+    // TODO: fix this flag. We need to print to Verbose when Verbose is set not Trace.
+
+    if (!ifTrace && !ifVerbose) return;
+    
+    // print header line
+    char header[1024];
     const int candidates = howManyNodes() - 1;
-    TR_VerboseLog::writeLineLocked(TR_Vlog_SIP, "#IDT: %d candidate methods to inline into %s with a budget %d",
+    sprintf(header,"#IDT: %d candidate methods inlinable into %s with a budget %d", 
       candidates,
       getRoot()->getName(this),
       getRoot()->budget()
     );
-    if (candidates <= 0) {
-       return;
+
+    if (ifVerbose) TR_VerboseLog::writeLineLocked(TR_Vlog_SIP, header);
+    if (ifTrace) traceMsg(comp(), "%s\n", header);
+
+    if (candidates <= 0) 
+    {
+      return;
     }
-    getRoot()->printNodeThenChildren(this, -2);
-  }
-  }
 
-void
-IDT::Node::printNodeThenChildren(const IDT* idt, int callerIndex) const
-  {
-  if (this != idt->getRoot()) {
-    const char *nodeName = getName(idt);
-    TR_VerboseLog::writeLineLocked(TR_Vlog_SIP, "#IDT: %d: %d inlinable @%d -> bcsz=%d %s target %s, benefit = %d, budget = %d", 
-      _idx,
-      callerIndex,
-      _callsite_bci,
-      getBcSz(),
-      this->getCallTarget()->_calleeSymbol ? this->getCallTarget()->_calleeSymbol->signature(comp()->trMemory()) : "no callee symbol???",
-      nodeName,
-      this->getBenefit(),
-      this->budget()
-    );
-  }
-  
-  if (_children == nullptr) {
-    return;
-  }
+    //print the IDT nodes in BFS
+    TR::deque<IDT::Node*, TR::Region&> *idtNodeQueue = new (_mem)TR::deque<IDT::Node*, TR::Region&>(_mem);
+    idtNodeQueue->push_back(getRoot());
 
-  // Print children
-  IDT::Node* child = getOnlyChild();
-
-  if (child != nullptr)
+    while (!idtNodeQueue->empty())
     {
-    child->printNodeThenChildren(idt, _idx);
-    } 
-  else
-    {
-    for (auto curr = _children->begin(); curr != _children->end(); ++curr)
+      IDT::Node* currentNode = idtNodeQueue->front();
+      idtNodeQueue->pop_front();
+
+      int calleeIndex = currentNode->getCalleeIndex();
+
+      //print IDT node info
+      if (calleeIndex != -1) //skip root node
       {
-      (*curr)->printNodeThenChildren(idt, _idx);
+        char line[1024];
+        sprintf(line, "#IDT: #%d: #%d inlinable @%d -> bcsz=%d %s target %s, benefit = %d, cost = %d, budget = %d", 
+          calleeIndex,
+          currentNode->getCallerIndex(),
+          currentNode->getByteCodeIndex(),
+          currentNode->getBcSz(),
+          currentNode->getCallTarget()->_calleeSymbol ? currentNode->getCallTarget()->_calleeSymbol->signature(comp()->trMemory()) : "no callee symbol???",
+          currentNode->getName(),
+          currentNode->getBenefit(),
+          currentNode->getCost(),
+          currentNode->budget());
+
+        if (ifVerbose) TR_VerboseLog::writeLineLocked(TR_Vlog_SIP, line);
+        if (ifTrace) traceMsg(comp(), "%s\n", line);
+      }
+
+      //process children
+      for (int i = 0; i < currentNode->getNumChildren(); i ++)
+      {
+        idtNodeQueue->push_back(currentNode->getChild(i));
       }
     }
+      
   }
 
 uint32_t
@@ -138,7 +147,7 @@ IDT::Node::getOnlyChild() const
     {
     return (IDT::Node *)((uintptr_t)(_children) & ~SINGLE_CHILD_BIT);
     }
-  return nullptr;
+  return NULL;
   }
 
 void
@@ -236,19 +245,19 @@ IDT::Node::addChildIfNotExists(IDT* idt,
                          unsigned int benefit, TR_CallSite *callsite, float callRatioCallerCallee)
   {
   // don't add things that we do are 1/25th as good as the root
-  if (this->_callRatioRootCallee * callRatioCallerCallee * 100 < 25) return nullptr;
+  if (this->_callRatioRootCallee * callRatioCallerCallee * 100 < 25) return NULL;
   // 0 Children
-  if (_children == nullptr)
+  if (_children == NULL)
     {
     IDT::Node* created = new (idt->_mem) IDT::Node(idt, idt->nextIdx(), callsite_bci, rms, this, benefit, this->budget() - rms->getResolvedMethod()->maxBytecodeIndex(), callsite, callRatioCallerCallee);
     setOnlyChild(created);
-    this->_head->_indices = nullptr;
+    this->_head->_indices = NULL;
     return created;
     }
   // 1 Child
   IDT::Node* onlyChild = getOnlyChild();
 
-  if (onlyChild && onlyChild->nodeSimilar(callsite_bci, rms)) return nullptr;
+  if (onlyChild && onlyChild->nodeSimilar(callsite_bci, rms)) return NULL;
 
   if (onlyChild)
     {
@@ -268,7 +277,7 @@ IDT::Node::addChildIfNotExists(IDT* idt,
     TR_ASSERT(*curr, "no child can be null");
     if ((*curr)->nodeSimilar(callsite_bci, rms))
       {
-      return nullptr;
+      return NULL;
       }
     }
 
@@ -276,7 +285,7 @@ IDT::Node::addChildIfNotExists(IDT* idt,
   TR_ASSERT_FATAL(newChild, "storing a null child");
   this->_children->push_back(newChild);
   TR_ASSERT(_children->size() > 1, "something wrong");
-  this->_head->_indices = nullptr;
+  this->_head->_indices = NULL;
   return _children->back();
   }
 
@@ -311,8 +320,8 @@ IDT::howManyNodes() const
 unsigned int
 IDT::Node::getNumChildren() const
    {
-   if (_children == nullptr) return 0;
-   if (getOnlyChild() != nullptr) return 1;
+   if (_children == NULL) return 0;
+   if (getOnlyChild() != NULL) return 1;
    int retval = _children->size();
    //TODO... why is this assertion being triggered?
    TR_ASSERT(retval > 1, "retval can't be 1 nor 0");
@@ -323,11 +332,11 @@ unsigned int
 IDT::Node::howManyDescendantsIncludingMe() const
   {
    return 1 + this->howManyDescendants();
-    if (_children == nullptr) {
+    if (_children == NULL) {
       return 1;
     }
     Node *child = this->getOnlyChild();
-    if (getOnlyChild() != nullptr) {
+    if (getOnlyChild() != NULL) {
       return 1 + child->howManyDescendantsIncludingMe();
     }
     int sum = 1;
@@ -418,7 +427,7 @@ IDT::Node::copyChildrenFrom(const IDT::Node * other, Indices& someIndex)
 void
 IDT::Node::enqueue_subordinates(IDT::NodePtrPriorityQueue *q) const
    {
-      TR_ASSERT(q, "priority queue can't be nullptr");
+      TR_ASSERT(q, "priority queue can't be NULL");
       int count = this->getNumChildren();
       IDT::Node* child = this->getOnlyChild();
       if (child) {
@@ -445,7 +454,7 @@ IDT::Node::getCallerIndex() const
 bool
 IDT::Node::isRoot() const
   {
-  return this->getParent() == nullptr;
+  return this->getParent() == NULL;
   }
 
 TR::ResolvedMethodSymbol*
@@ -486,12 +495,12 @@ IDT::Node::findChildWithBytecodeIndex(int bcIndex)
     traceMsg(TR::comp(), "%s:%d:%s\n", __FILE__, __LINE__, __func__);
     //TODO: not linear search
     int size = this->getNumChildren();
-    if (size == 0) return nullptr;
+    if (size == 0) return NULL;
     if (size == 1) {
         IDT::Node *child = this->getOnlyChild();
-        return (child->_callsite_bci == bcIndex) ? child : nullptr;
+        return (child->_callsite_bci == bcIndex) ? child : NULL;
     }
-    IDT::Node *child = nullptr;
+    IDT::Node *child = NULL;
     for (int i = 0; i < size; i++) {
        if (child && _children->at(i)->_callsite_bci == bcIndex)
           TR_ASSERT(false, "we have more than two, how to disambiguate?");
@@ -534,7 +543,7 @@ IDT::Node::getValuePropagation()
 TR::ValuePropagation*
 IDT::getValuePropagation()
   {
-  if (this->_vp != nullptr) return this->_vp;
+  if (this->_vp != NULL) return this->_vp;
 
   TR::OptimizationManager* manager = this->_inliner->comp()->getOptimizer()->getOptimization(OMR::globalValuePropagation);
   this->_vp = (TR::ValuePropagation*) manager->factory()(manager);
@@ -630,12 +639,12 @@ IDT::Node*
 IDT::Node::getChild(unsigned int childIndex) const
 {
    int children = this->getNumChildren();
-   if (0 == children) return nullptr;
+   if (0 == children) return NULL;
 
    bool correct = childIndex < children;
    if (!correct) {
       TR_ASSERT_FATAL(false, "we shouldn't call this");
-      return nullptr;
+      return NULL;
    }
 
    bool onlyOneChild = (childIndex == 0 && children == 1);
@@ -687,7 +696,7 @@ IDT::Node::printByteCode()
    for (TR_J9ByteCode bc = bci.current(); bc != J9BCunknown && bci.currentByteCodeIndex() < end; bc = bci.next())
    {
      bci.printByteCode();
-     IDT::Node *child = nullptr;
+     IDT::Node *child = NULL;
      switch(bc)
      {
         case J9BCinvokestatic:
