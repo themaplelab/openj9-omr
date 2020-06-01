@@ -407,7 +407,7 @@ OMR::BenefitInlinerWrapper::getBudget(TR::ResolvedMethodSymbol *resolvedMethodSy
 
       if (this->comp()->getMethodHotness() >= warm && size < 250)
       {
-         return 10;
+         return 250;
       }
 
       if (this->comp()->getMethodHotness() >= warm && size < 700)
