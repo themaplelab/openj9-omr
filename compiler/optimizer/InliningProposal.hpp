@@ -1,43 +1,43 @@
-#pragma once
-
-#include "IDT.hpp"
+#ifndef INLININGPROPOSAL_INCL
+#define INLININGPROPOSAL_INCL
 
 #include <functional>
 #include <unordered_set>
 #include <iostream>
 #include <string>
 #include "env/Region.hpp"
-#include "infra/List.hpp" // for List
-#include "infra/BitVector.hpp" // for BitVector
-#include "compiler/compile/Compilation.hpp"
-
-class TR_InlinerBase;
+#include "infra/List.hpp" 
+#include "optimizer/IDT.hpp"
+#include "infra/BitVector.hpp" 
+#include "compile/Compilation.hpp"
 
 class InliningProposal
-  {
-  public:
-  InliningProposal(TR::Region& region, IDT *idt);
-  InliningProposal(InliningProposal&, TR::Region& region);
-  void print(TR::Compilation *comp);
-  bool isEmpty() const;
-  void clear();
-  int getCost() ;
-  int getBenefit() ;
-  void pushBack(IDT::Node *);
-  bool inSet(IDT::Node* );
-  bool inSet(int calleeIndex);
-  void intersectInPlace(InliningProposal &, InliningProposal&);
-  void unionInPlace(InliningProposal &, InliningProposal&);
-  bool overlaps(InliningProposal *p);
+   {
+   public:
+   InliningProposal(TR::Region& region, IDT *idt);
+   InliningProposal(InliningProposal&, TR::Region& region);
+   void print(TR::Compilation *comp);
+   bool isEmpty() const;
+   void clear();
+   int getCost();
+   int getBenefit();
+   void pushBack(IDT::Node *);
+   bool inSet(IDT::Node* );
+   bool inSet(int calleeIndex);
+   void intersectInPlace(InliningProposal &, InliningProposal&);
+   void unionInPlace(InliningProposal &, InliningProposal&);
+   bool overlaps(InliningProposal *p);
 
-  private:
-  InliningProposal() = delete;
-  InliningProposal(const InliningProposal&) = delete;
-  InliningProposal & operator=(const InliningProposal&) = delete;
-  void computeCostAndBenefit();
-  TR::Region& _region;
-  TR_BitVector *_nodes;
-  int _cost;
-  int _benefit;
-  IDT *_idt;
+   private:
+   InliningProposal() = delete;
+   InliningProposal(const InliningProposal&) = delete;
+   InliningProposal & operator=(const InliningProposal&) = delete;
+   void computeCostAndBenefit();
+   TR::Region& _region;
+   TR_BitVector *_nodes;
+   int _cost;
+   int _benefit;
+   IDT *_idt;
 };
+
+#endif
