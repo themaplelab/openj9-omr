@@ -33,6 +33,7 @@ class InliningProposal
    InliningProposal(const InliningProposal&) = delete;
    InliningProposal & operator=(const InliningProposal&) = delete;
    void computeCostAndBenefit();
+   void ensureBitVectorInitialized();
    TR::Region& _region;
    TR_BitVector *_nodes;
    int _cost;

@@ -28,10 +28,10 @@ InliningProposal::InliningProposal(InliningProposal &proposal, TR::Region& regio
 
 void InliningProposal::print(TR::Compilation* comp)
    {
-   bool ifTrace = comp->getOption(TR_TraceBIProposal);
-   bool ifVerbose = comp->getOptions()->getVerboseOption(TR_VerboseInlining);
+   bool traceBIProposal = comp->getOption(TR_TraceBIProposal);
+   bool verboseInlining = comp->getOptions()->getVerboseOption(TR_VerboseInlining);
 
-   if (!ifTrace && !ifVerbose) //no need to run the following code if neither flag is set
+   if (!traceBIProposal && !verboseInlining) //no need to run the following code if neither flag is set
       return; 
 
    if (!_nodes)
@@ -45,9 +45,9 @@ void InliningProposal::print(TR::Compilation* comp)
    char header[1024];
    sprintf(header,"#Proposal: %d methods inlined into %s", numMethodsInlined, _idt->getRoot()->getName());
 
-   if (ifTrace)
+   if (traceBIProposal)
       traceMsg(comp, "%s\n", header);
-   if (ifVerbose)
+   if (verboseInlining)
       TR_VerboseLog::writeLineLocked(TR_Vlog_SIP, header);
 
    TR::deque<IDT::Node*, TR::Region&> *idtNodeQueue =  new (_region) TR::deque<IDT::Node*, TR::Region&>(_region) ;
@@ -76,9 +76,9 @@ void InliningProposal::print(TR::Compilation* comp)
             currentNode->budget()
          );
 
-         if (ifTrace)
+         if (traceBIProposal)
             traceMsg(comp, "%s\n",line);
-         if (ifVerbose)
+         if (verboseInlining)
             TR_VerboseLog::writeLineLocked(TR_Vlog_SIP, line);
          } 
       
@@ -99,9 +99,7 @@ void InliningProposal::print(TR::Compilation* comp)
 
 void InliningProposal::pushBack(IDT::Node *node)
    {
-   //Ensure initialization
-   if (!_nodes) 
-      _nodes = new (_region) TR_BitVector(_region);
+   ensureBitVectorInitialized();
 
    int32_t calleeIdx = node->getCalleeIndex() + 1;
    if (this->_nodes->isSet(calleeIdx))
@@ -158,6 +156,12 @@ void InliningProposal::computeCostAndBenefit()
       }
    }
 
+void InliningProposal::ensureBitVectorInitialized()
+   {
+   if (!_nodes)
+      _nodes = new (_region) TR_BitVector(_region);
+   }
+
 void InliningProposal::clear()
    {
    if (!_nodes)
@@ -190,13 +194,9 @@ bool InliningProposal::inSet(int calleeIdx)
 
 void InliningProposal::intersectInPlace(InliningProposal &a, InliningProposal &b)
    {
-   //Ensure initialization
-   if (!_nodes)
-      _nodes = new (_region) TR_BitVector(_region);
-   if (!a._nodes)
-      a._nodes = new (a._region) TR_BitVector(a._region);
-   if (!b._nodes)
-      b._nodes = new (b._region) TR_BitVector(b._region);
+   ensureBitVectorInitialized();
+   a.ensureBitVectorInitialized();
+   b.ensureBitVectorInitialized();
 
    *this->_nodes = *a._nodes;
    *this->_nodes &= *b._nodes;
@@ -206,13 +206,9 @@ void InliningProposal::intersectInPlace(InliningProposal &a, InliningProposal &b
 
 void InliningProposal::unionInPlace(InliningProposal &a, InliningProposal &b)
    {
-   //Ensure initialization
-   if (!_nodes)
-      _nodes = new (_region) TR_BitVector(_region);
-   if (!a._nodes)
-      a._nodes = new (a._region) TR_BitVector(a._region);
-   if (!b._nodes)
-      b._nodes = new (b._region) TR_BitVector(b._region);
+   ensureBitVectorInitialized();
+   a.ensureBitVectorInitialized();
+   b.ensureBitVectorInitialized();
    
    *this->_nodes = *a._nodes;
    *this->_nodes |= *b._nodes;
