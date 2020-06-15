@@ -14,7 +14,7 @@
 #include "compiler/optimizer/MethodSummary.hpp"
 
 
-AbstractState::AbstractState(TR::Region &region, IDT::Node *node) :
+AbstractState::AbstractState(TR::Region &region, IDTNode *node) :
   _region(region),
   _array(region, node->maxLocals()),
   _stack(region, node->maxStack())
@@ -73,13 +73,13 @@ AbsEnvStatic::getVP() const
   return this->_absFrame->_vp;
 }
 
-IDT::Node*
+IDTNode*
 AbsEnvStatic::getNode() const
 {
    return this->_absFrame->_node;
 }
 
-AbsEnvStatic::AbsEnvStatic(TR::Region &region, IDT::Node *node, AbsFrame* absFrame) :
+AbsEnvStatic::AbsEnvStatic(TR::Region &region, IDTNode *node, AbsFrame* absFrame) :
   
   _absState(region, node),
   _absFrame(absFrame),
@@ -2762,10 +2762,11 @@ AbsEnvStatic::invoke(int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind, boo
     traceMsg(TR::comp(), "\n%s:%d:%s callsite invariants for %s\n", __FILE__, __LINE__, __func__, method->signature(TR::comp()->trMemory()));
   }
   if (loadFromIDT && TR::comp()->getOption(TR_TraceAbstractInterpretation)) {
-    IDT::Node * callee = this->getNode()->findChildWithBytecodeIndex(bcIndex);
+    IDTNode * callee = this->getNode()->findChildWithBytecodeIndex(bcIndex);
     if (callee) traceMsg(TR::comp(), "\n%s:%d:%s callsite invariants for (FROM IDT) %s\n", __FILE__, __LINE__, __func__, callee->getName());
     if (!callee) goto withoutCallee;
     // TODO: can I place these on the stack?
+    
     AbsFrame absFrame(this->getRegion(), callee);
     absFrame.interpret(this, kind);
     //TODO: What I need to do is to create a new AbsEnvStatic with the contents of operand stack as the variable array.
@@ -2844,7 +2845,7 @@ withoutCallee:
 
 
 
-AbsFrame::AbsFrame(TR::Region &region, IDT::Node *node)
+AbsFrame::AbsFrame(TR::Region &region, IDTNode *node)
   : _region(region)
   , _target(node->getCallTarget())
   , _node(node)
@@ -2855,7 +2856,7 @@ AbsFrame::AbsFrame(TR::Region &region, IDT::Node *node)
 }
 
 
-AbsEnvStatic* AbsEnvStatic::enterMethod(TR::Region& region, IDT::Node* node, AbsFrame* absFrame, TR::ResolvedMethodSymbol* rms)
+AbsEnvStatic* AbsEnvStatic::enterMethod(TR::Region& region, IDTNode* node, AbsFrame* absFrame, TR::ResolvedMethodSymbol* rms)
 {
   if (TR::comp()->getOption(TR_TraceAbstractInterpretation)) {
     traceMsg(TR::comp(), "%s:%d:%s\n", __FILE__, __LINE__, __func__);

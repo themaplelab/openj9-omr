@@ -17,7 +17,7 @@ forwards_BitVectorImpl(const int cost_budget, PriorityPreorder& items, Growable_
   for(int row = 0; row < max; row++) {
     for(int budget = 1; budget < cost_budget + 1; budget++) {
 
-      IDT::Node* curr_item = items.get(row);
+      IDTNode* curr_item = items.get(row);
       TR_ASSERT(curr_item->getCallTarget()->_calleeSymbol->getFlowGraph(), "we have a cfg");
       //TODO: encapsulate this in a clear method.
       curr_set.intersectInPlace(*table->_get(-1, -1), *table->_get(-1, -1));

@@ -308,7 +308,7 @@ MethodSummaryExtension::add(PotentialOptimization *potentialOpt)
    this->_potentialOpts.add(potentialOpt); 
    }
 
-MethodSummary::MethodSummary(TR::Compilation *comp, TR::Region &region, TR::ValuePropagation *vp, IDT::Node* hunk):
+MethodSummary::MethodSummary(TR::Compilation *comp, TR::Region &region, TR::ValuePropagation *vp, IDTNode* hunk):
   _methodSummaryNew(comp->trMemory())
   , _hunk(hunk)
   , _index(0)
@@ -356,73 +356,73 @@ MethodSummaryRow::transform() {
 }
 
 MethodSummaryRow*
-MethodSummary::newCHECK_CAST(IDT::Node* hunk, int bytecodeIndex) {
+MethodSummary::newCHECK_CAST(IDTNode* hunk, int bytecodeIndex) {
   return this->getRowSummary(MethodSummaryRow::PotentialTransform::CHECK_CAST, hunk, bytecodeIndex);
 }
 
 MethodSummaryRow*
-MethodSummary::newIFLT(IDT::Node* hunk, int bytecodeIndex) {
+MethodSummary::newIFLT(IDTNode* hunk, int bytecodeIndex) {
   return this->getRowSummary(MethodSummaryRow::PotentialTransform::IFLT, hunk, bytecodeIndex);
 }
 
 MethodSummaryRow*
-MethodSummary::newSTR_LEN(IDT::Node* hunk, int bytecodeIndex) {
+MethodSummary::newSTR_LEN(IDTNode* hunk, int bytecodeIndex) {
   return this->getRowSummary(MethodSummaryRow::PotentialTransform::STR_LEN, hunk, bytecodeIndex);
 }
 
 MethodSummaryRow*
-MethodSummary::newIFLE(IDT::Node* hunk, int bytecodeIndex) {
+MethodSummary::newIFLE(IDTNode* hunk, int bytecodeIndex) {
   return this->getRowSummary(MethodSummaryRow::PotentialTransform::IFLE, hunk, bytecodeIndex);
 }
 
 MethodSummaryRow*
-MethodSummary::newIFEQ(IDT::Node* hunk, int bytecodeIndex) {
+MethodSummary::newIFEQ(IDTNode* hunk, int bytecodeIndex) {
   return this->getRowSummary(MethodSummaryRow::PotentialTransform::IFEQ, hunk, bytecodeIndex);
 }
 
 MethodSummaryRow*
-MethodSummary::newIFNE(IDT::Node* hunk, int bytecodeIndex) {
+MethodSummary::newIFNE(IDTNode* hunk, int bytecodeIndex) {
   return this->getRowSummary(MethodSummaryRow::PotentialTransform::IFNE, hunk, bytecodeIndex);
 }
 
 MethodSummaryRow*
-MethodSummary::newIFGE(IDT::Node* hunk, int bytecodeIndex) {
+MethodSummary::newIFGE(IDTNode* hunk, int bytecodeIndex) {
   return this->getRowSummary(MethodSummaryRow::PotentialTransform::IFGE, hunk, bytecodeIndex);
 }
 
 MethodSummaryRow*
-MethodSummary::newIFGT(IDT::Node* hunk, int bytecodeIndex) {
+MethodSummary::newIFGT(IDTNode* hunk, int bytecodeIndex) {
   return this->getRowSummary(MethodSummaryRow::PotentialTransform::IFGT, hunk, bytecodeIndex);
 }
 
 MethodSummaryRow*
-MethodSummary::newINOF(IDT::Node* hunk, int bytecodeIndex) {
+MethodSummary::newINOF(IDTNode* hunk, int bytecodeIndex) {
   return this->getRowSummary(MethodSummaryRow::PotentialTransform::INOF, hunk, bytecodeIndex);
 }
 
 MethodSummaryRow*
-MethodSummary::newIFNU(IDT::Node* hunk, int bytecodeIndex) {
+MethodSummary::newIFNU(IDTNode* hunk, int bytecodeIndex) {
   return this->getRowSummary(MethodSummaryRow::PotentialTransform::IFNU, hunk, bytecodeIndex);
 }
 
 MethodSummaryRow*
-MethodSummary::newIFNN(IDT::Node* hunk, int bytecodeIndex) {
+MethodSummary::newIFNN(IDTNode* hunk, int bytecodeIndex) {
   return this->getRowSummary(MethodSummaryRow::PotentialTransform::IFNN, hunk, bytecodeIndex);
 }
 
 MethodSummaryRow*
-MethodSummary::newNLCK(IDT::Node* hunk, int bytecodeIndex) {
+MethodSummary::newNLCK(IDTNode* hunk, int bytecodeIndex) {
   return this->getRowSummary(MethodSummaryRow::PotentialTransform::NLCK, hunk, bytecodeIndex);
 }
 
 MethodSummaryRow*
-MethodSummary::newSIZE(IDT::Node* hunk, int bytecodeIndex) {
+MethodSummary::newSIZE(IDTNode* hunk, int bytecodeIndex) {
   return this->getRowSummary(MethodSummaryRow::PotentialTransform::SIZE, hunk, bytecodeIndex);
 }
 
 
 MethodSummaryRow*
-MethodSummary::getRowSummary(MethodSummaryRow::PotentialTransform pt, IDT::Node *hunk, int bytecodeIndex) {
+MethodSummary::getRowSummary(MethodSummaryRow::PotentialTransform pt, IDTNode *hunk, int bytecodeIndex) {
   MethodSummaryRow *retval = this->getRowSummary();
   if (!retval) return NULL;
   retval->transform(pt);
@@ -600,7 +600,7 @@ MethodSummary::toString() {
   auto const buffer_length = 32768;
   char* buffer = new (this->_region) char [buffer_length];
   int index = 0;
-  memset(buffer, NULL, buffer_length);
+  memset(buffer, 0, buffer_length);
   static const char* signatureChars = feGetEnv("TR_ProfitabilitySignatureChars");
   if (!signatureChars) {
   const char* name = this->_hunk->getName();
@@ -768,7 +768,7 @@ MethodSummary::toString() {
 
 //TODO: change name
 int
-MethodSummary::applyVerbose(AbsVarArray *argumentConstraints, IDT::Node* hunk) {
+MethodSummary::applyVerbose(AbsVarArray *argumentConstraints, IDTNode* hunk) {
   
     int methodSummarySize = this->_index;
     if (methodSummarySize <= 0)  {

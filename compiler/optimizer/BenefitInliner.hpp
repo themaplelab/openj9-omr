@@ -7,8 +7,10 @@
 #include "optimizer/J9Inliner.hpp"
 #include "optimizer/Optimization.hpp"
 #include "optimizer/OptimizationManager.hpp"
-#include "IDT.hpp"
+#include "optimizer/IDTNode.hpp"
+#include "optimizer/IDT.hpp"
 #include "optimizer/MethodSummary.hpp"
+#include "compiler/ilgen/J9ByteCodeIterator.hpp"
 
 
 class InliningProposal;
@@ -37,7 +39,7 @@ class AbsEnvInlinerUtil;
 class BenefitInlinerBase: public TR_InlinerBase 
    {
    protected:
-      void loopThroughIDT(IDT::Node*);
+      void loopThroughIDT(IDTNode*);
       void debugTrees(TR::ResolvedMethodSymbol*);
       void getSymbolAndFindInlineTargets(TR_CallStack *callStack, TR_CallSite *callsite, bool findNewTargets=true);
       virtual inline void updateBenefitInliner();
@@ -53,11 +55,11 @@ class BenefitInlinerBase: public TR_InlinerBase
       //void performInlining(TR::ResolvedMethodSymbol *);
 protected:
       virtual bool inlineCallTargets(TR::ResolvedMethodSymbol *, TR_CallStack *, TR_InnerPreexistenceInfo *info);
-      bool usedSavedInformation(TR::ResolvedMethodSymbol *, TR_CallStack *, TR_InnerPreexistenceInfo *info, IDT::Node *idtNode);
+      bool usedSavedInformation(TR::ResolvedMethodSymbol *, TR_CallStack *, TR_InnerPreexistenceInfo *info, IDTNode *idtNode);
       IDT *_idt;
-      IDT::Node *_currentNode;
-      IDT::Node *_previousNode;
-      IDT::Node *_currentChild;
+      IDTNode *_currentNode;
+      IDTNode *_previousNode;
+      IDTNode *_currentChild;
       InliningProposal *_inliningProposal;
    private:
       AbsEnvInlinerUtil *_util2;
@@ -71,23 +73,23 @@ class BenefitInliner: public BenefitInlinerBase
    public:
    friend class BenefitInlinerWrapper;
       void addEverything();
-      void addEverythingRecursively(IDT::Node*);
+      void addEverythingRecursively(IDTNode*);
       BenefitInliner(TR::Optimizer *, TR::Optimization *, uint32_t);
       void initIDT(TR::ResolvedMethodSymbol *root, int);
       void analyzeIDT();
       void abstractInterpreter();
-      void obtainIDT(IDT::Node *node, int32_t budget);
+      void obtainIDT(IDTNode *node, int32_t budget);
       
-      bool obtainIDT(IDT::Indices&, IDT::Node*, int32_t budget);
-      void obtainIDT(IDT::Indices&, IDT::Node*, TR_J9ByteCodeIterator&, TR::Block *, int32_t);
-      void obtainIDT(IDT::Indices*, IDT::Node *, TR_CallSite*, int32_t budget, int cpIndex);
+      bool obtainIDT(IDTNodeIndices&, IDTNode*, int32_t budget);
+      void obtainIDT(IDTNodeIndices&, IDTNode*, TR_J9ByteCodeIterator&, TR::Block *, int32_t);
+      void obtainIDT(IDTNodeIndices*, IDTNode *, TR_CallSite*, int32_t budget, int cpIndex);
       void traceIDT();
       TR::Region _holdingProposalRegion;
       inline const uint32_t budget() const { return this->_budget; }
    private:
-      typedef TR::typed_allocator<std::pair<TR_OpaqueMethodBlock*, IDT::Node*>, TR::Region&> MethodSummaryMapAllocator;
+      typedef TR::typed_allocator<std::pair<TR_OpaqueMethodBlock*, IDTNode*>, TR::Region&> MethodSummaryMapAllocator;
       typedef std::less<TR_OpaqueMethodBlock*> MethodSummaryMapComparator;
-      typedef std::map<TR_OpaqueMethodBlock *, IDT::Node*, MethodSummaryMapComparator, MethodSummaryMapAllocator> MethodSummaryMap;
+      typedef std::map<TR_OpaqueMethodBlock *, IDTNode*, MethodSummaryMapComparator, MethodSummaryMapAllocator> MethodSummaryMap;
 
       TR::CFG *_rootRms;
       TR::Region _absEnvRegion;

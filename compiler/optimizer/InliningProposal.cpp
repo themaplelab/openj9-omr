@@ -50,13 +50,13 @@ void InliningProposal::print(TR::Compilation* comp)
    if (verboseInlining)
       TR_VerboseLog::writeLineLocked(TR_Vlog_SIP, header);
 
-   TR::deque<IDT::Node*, TR::Region&> *idtNodeQueue =  new (_region) TR::deque<IDT::Node*, TR::Region&>(_region) ;
+   TR::deque<IDTNode*, TR::Region&> *idtNodeQueue =  new (_region) TR::deque<IDTNode*, TR::Region&>(_region) ;
    idtNodeQueue->push_back(_idt->getRoot());
 
    //BFS 
    while (!idtNodeQueue->empty()) 
       {
-      IDT::Node* currentNode = idtNodeQueue->front();
+      IDTNode* currentNode = idtNodeQueue->front();
       idtNodeQueue->pop_front();
       int calleeIndex = currentNode->getCalleeIndex();
 
@@ -68,12 +68,12 @@ void InliningProposal::print(TR::Compilation* comp)
             currentNode->getCallerIndex(),
             _nodes->isSet(calleeIndex+1) ? "inlined" : "not inlined",
             currentNode->getByteCodeIndex(),
-            currentNode->getBcSz(),
+            currentNode->getByteCodeSize(),
             currentNode->getCallTarget()->_calleeSymbol ? currentNode->getCallTarget()->_calleeSymbol->signature(comp->trMemory()) : "no callee symbol???",
             currentNode->getName(),
             currentNode->getBenefit(),
             currentNode->getCost(),
-            currentNode->budget()
+            currentNode->getBudget()
          );
 
          if (traceBIProposal)
@@ -97,7 +97,7 @@ void InliningProposal::print(TR::Compilation* comp)
 }
 
 
-void InliningProposal::pushBack(IDT::Node *node)
+void InliningProposal::pushBack(IDTNode *node)
    {
    ensureBitVectorInitialized();
 
@@ -148,7 +148,8 @@ void InliningProposal::computeCostAndBenefit()
    while (bvi.hasMoreElements())
       {
       igNodeIndex = bvi.getNextElement();
-      IDT::Node *node = _idt->getNodeByCalleeIndex(igNodeIndex - 1);
+      _idt->buildIndices();
+      IDTNode *node = _idt->getNodeByCalleeIndex(igNodeIndex - 1);
       if (node == NULL) 
          continue;
       this->_cost += node->getCost();
@@ -171,7 +172,7 @@ void InliningProposal::clear()
    this->_nodes->empty();
    }
 
-bool InliningProposal::inSet(IDT::Node* node)
+bool InliningProposal::inSet(IDTNode* node)
    {
    if (node == NULL)
       return false;

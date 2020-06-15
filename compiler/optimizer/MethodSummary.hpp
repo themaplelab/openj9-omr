@@ -5,6 +5,7 @@
 #include "optimizer/LocalValuePropagation.hpp"
 #include "compiler/optimizer/AbsValue.hpp"
 #include "compiler/optimizer/IDT.hpp"
+#include "compiler/optimizer/IDTNode.hpp"
 #include "compiler/optimizer/AbsVarArray.hpp"
 
 class PotentialOptimization
@@ -183,33 +184,33 @@ public:
 
 class MethodSummary {
 public:
-  MethodSummary(TR::Compilation *comp, TR::Region &region, TR::ValuePropagation*, IDT::Node*);
+  MethodSummary(TR::Compilation *comp, TR::Region &region, TR::ValuePropagation*, IDTNode*);
   int getIndex(void);
   //TODO: Rename all of these. These are not new anymore...
-  MethodSummaryRow* newCHECK_CAST(IDT::Node*, int);
-  MethodSummaryRow* newIFLT(IDT::Node*, int);
-  MethodSummaryRow* newIFLE(IDT::Node*, int);
-  MethodSummaryRow* newIFEQ(IDT::Node*, int);
-  MethodSummaryRow* newIFNE(IDT::Node*, int);
-  MethodSummaryRow* newIFGE(IDT::Node*, int);
-  MethodSummaryRow* newIFGT(IDT::Node*, int);
-  MethodSummaryRow* newINOF(IDT::Node*, int);
-  MethodSummaryRow* newIFNU(IDT::Node*, int);
-  MethodSummaryRow* newIFNN(IDT::Node*, int);
-  MethodSummaryRow* newNLCK(IDT::Node*, int);
-  MethodSummaryRow* newSIZE(IDT::Node*, int);
-  MethodSummaryRow* newSTR_LEN(IDT::Node*, int);
+  MethodSummaryRow* newCHECK_CAST(IDTNode*, int);
+  MethodSummaryRow* newIFLT(IDTNode*, int);
+  MethodSummaryRow* newIFLE(IDTNode*, int);
+  MethodSummaryRow* newIFEQ(IDTNode*, int);
+  MethodSummaryRow* newIFNE(IDTNode*, int);
+  MethodSummaryRow* newIFGE(IDTNode*, int);
+  MethodSummaryRow* newIFGT(IDTNode*, int);
+  MethodSummaryRow* newINOF(IDTNode*, int);
+  MethodSummaryRow* newIFNU(IDTNode*, int);
+  MethodSummaryRow* newIFNN(IDTNode*, int);
+  MethodSummaryRow* newNLCK(IDTNode*, int);
+  MethodSummaryRow* newSIZE(IDTNode*, int);
+  MethodSummaryRow* newSTR_LEN(IDTNode*, int);
   MethodSummaryRow* getRowSummary(void);
-  MethodSummaryRow* getRowSummary(MethodSummaryRow::PotentialTransform, IDT::Node*, int);
+  MethodSummaryRow* getRowSummary(MethodSummaryRow::PotentialTransform, IDTNode*, int);
   TR::VPConstraint *getClassConstraint(TR_OpaqueClassBlock *implicitParameterClass);
   int compareInformationAtCallSite(TR_ResolvedMethod *resolvedMethod, AbsVarArray *argumentConstraints);
   int apply(AbsVarArray* argumentConstraints);
   int applyVerbose(AbsVarArray* argumentConstraints, int);
-  int applyVerbose(AbsVarArray* argumentConstraints, IDT::Node*);
+  int applyVerbose(AbsVarArray* argumentConstraints, IDTNode*);
   char* toString();
   void printMethodSummary(int);
 private:
-  IDT::Node *_hunk;
+  IDTNode *_hunk;
   TR::ValuePropagation *_vp;
   TR::Region &_region;
   TR::Compilation *_comp;

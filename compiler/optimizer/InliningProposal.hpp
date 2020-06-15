@@ -8,6 +8,7 @@
 #include "env/Region.hpp"
 #include "infra/List.hpp" 
 #include "optimizer/IDT.hpp"
+#include "optimizer/IDTNode.hpp"
 #include "infra/BitVector.hpp" 
 #include "compile/Compilation.hpp"
 
@@ -21,8 +22,8 @@ class InliningProposal
    void clear();
    int getCost();
    int getBenefit();
-   void pushBack(IDT::Node *);
-   bool inSet(IDT::Node* );
+   void pushBack(IDTNode *);
+   bool inSet(IDTNode* );
    bool inSet(int calleeIndex);
    void intersectInPlace(InliningProposal &, InliningProposal&);
    void unionInPlace(InliningProposal &, InliningProposal&);

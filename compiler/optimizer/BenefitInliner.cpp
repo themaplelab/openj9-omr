@@ -37,7 +37,7 @@ int32_t OMR::BenefitInlinerWrapper::perform()
    
    inliner.obtainIDT(inliner._idt->getRoot(), budget);
    inliner.traceIDT();
-   if (inliner._idt->howManyNodes() == 1) 
+   if (inliner._idt->getNumNodes() == 1) 
       {
       inliner._idt->getRoot()->getResolvedMethodSymbol()->setFlowGraph(inliner._rootRms);
       return 1;
@@ -76,27 +76,27 @@ OMR::BenefitInliner::addEverything() {
 }
 
 void
-OMR::BenefitInliner::addEverythingRecursively(IDT::Node *node)
+OMR::BenefitInliner::addEverythingRecursively(IDTNode *node)
    {
    TR_ASSERT(_inliningProposal, "we don't have an inlining proposal\n");
    _inliningProposal->pushBack(node);
    int children = node->getNumChildren();
    for (int i = 0; i < children; i++)
       {
-      IDT::Node *child = node->getChild(i);
+      IDTNode *child = node->getChild(i);
       this->addEverythingRecursively(child);
       }
    }
 
 void
-OMR::BenefitInlinerBase::loopThroughIDT(IDT::Node* node) {
+OMR::BenefitInlinerBase::loopThroughIDT(IDTNode* node) {
   traceMsg(TR::comp(), "looping through %s\n", node->getName());
   // We don't really need to have a flow graph for _calleeSymbol since the _calleeSymbol might not be the target _calleeMethod
   //TR_ASSERT(node->getCallTarget()->_calleeSymbol->getFlowGraph(), "we have a flow graph");
   node->printByteCode();
   for (int i = 0; i < node->getNumChildren(); i++)
   {
-    IDT::Node *child = node->getChild(i);
+    IDTNode *child = node->getChild(i);
     loopThroughIDT(child);
   }
 }
@@ -124,7 +124,7 @@ OMR::BenefitInlinerBase::inlineCallTargets(TR::ResolvedMethodSymbol *rms, TR_Cal
 {
    // inputs : IDT = all possible inlining candidates
    // TR::InliningProposal results = candidates selected for inlining
-   // IDT::Node = _currentNode being analyzed
+   // IDTNode = _currentNode being analyzed
 
    // if current node is in inlining proposal
    // at the beginning, current node is root, so it can't be inlined. So we need to iterate over its children to see if they are inlined...
@@ -172,7 +172,7 @@ OMR::BenefitInlinerBase::analyzeCallSite(TR_CallStack * callStack, TR::TreeTop *
    }
 
 bool
-OMR::BenefitInlinerBase::usedSavedInformation(TR::ResolvedMethodSymbol *rms, TR_CallStack *callStack, TR_InnerPreexistenceInfo *info, IDT::Node *idtNode)
+OMR::BenefitInlinerBase::usedSavedInformation(TR::ResolvedMethodSymbol *rms, TR_CallStack *callStack, TR_InnerPreexistenceInfo *info, IDTNode *idtNode)
 {
       bool inlined = false;
       uint32_t inlineCount = 0;
@@ -189,11 +189,12 @@ OMR::BenefitInlinerBase::usedSavedInformation(TR::ResolvedMethodSymbol *rms, TR_
 
          // is this call site in the IDT?
          TR_ByteCodeInfo &bcInfo = node->getByteCodeInfo();
-         IDT::Node *child = idtNode->findChildWithBytecodeIndex(bcInfo.getByteCodeIndex());
+         IDTNode *child = idtNode->findChildWithBytecodeIndex(bcInfo.getByteCodeIndex());
          if (!child) continue;
 
          // is this IDT node in the proposal to inline?
-         bool shouldBeInlined = child->isInProposal(this->_inliningProposal);
+         TR_ASSERT(_inliningProposal, "Inlining Proposal is NULL!\n");
+         bool shouldBeInlined = _inliningProposal->inSet(child);
          if (!shouldBeInlined) continue;
 
          if (TR::comp()->trace(OMR::benefitInliner))
@@ -201,7 +202,7 @@ OMR::BenefitInlinerBase::usedSavedInformation(TR::ResolvedMethodSymbol *rms, TR_
              traceMsg(TR::comp(), "inlining node %d %s\n", child->getCalleeIndex(), child->getName());
              }
 
-         IDT::Node *prevChild = this->_currentChild;
+         IDTNode *prevChild = this->_currentChild;
          this->_currentChild = child;
          bool success = analyzeCallSite(callStack, tt, parent, node, child->getCallTarget());
          if (success)
@@ -381,8 +382,7 @@ OMR::BenefitInliner::abstractInterpreter()
 void
 OMR::BenefitInliner::analyzeIDT()
    {
-      if (this->_idt->howManyNodes() == 1) return; // No Need to analyze, since there is nothing to inline.
-      this->_idt->buildIndices();
+      if (this->_idt->getNumNodes() == 1) return; // No Need to analyze, since there is nothing to inline.
       PriorityPreorder items(this->_idt, this->comp());
       // traceMsg(TR::comp(), "Inlining Proposal: \n");
       // traceMsg(TR::comp(), "size = %d, budget = %d\n", items.size(), this->budget());
@@ -426,7 +426,7 @@ OMR::BenefitInlinerWrapper::getBudget(TR::ResolvedMethodSymbol *resolvedMethodSy
 void OMR::BenefitInliner::initIDT(TR::ResolvedMethodSymbol *root, int budget)
    {
    //TODO: can we do this in the initialization list?
-   _idt = new (comp()->trMemory()->currentStackRegion()) IDT(this, comp()->trMemory()->currentStackRegion(), root, budget);
+   _idt = new (comp()->trMemory()->currentStackRegion()) IDT(comp()->trMemory()->currentStackRegion(), root, budget, comp());
    }
 
 void OMR::BenefitInliner::traceIDT()
@@ -436,7 +436,7 @@ void OMR::BenefitInliner::traceIDT()
    } 
 
 void
-OMR::BenefitInliner::obtainIDT(IDT::Indices *Deque, IDT::Node *currentNode, TR_CallSite *callsite, int32_t budget, int cpIndex)
+OMR::BenefitInliner::obtainIDT(IDTNodeIndices *Deque, IDTNode *currentNode, TR_CallSite *callsite, int32_t budget, int cpIndex)
    {
    if (!callsite) return;
    for (int i = 0; i < callsite->numTargets(); i++)
@@ -444,13 +444,14 @@ OMR::BenefitInliner::obtainIDT(IDT::Indices *Deque, IDT::Node *currentNode, TR_C
       TR_CallTarget *callTarget = callsite->getTarget(i);
       TR::ResolvedMethodSymbol * resolvedMethodSymbol = TR::ResolvedMethodSymbol::create(comp()->trHeapMemory(), callTarget->_calleeMethod, comp());
 
-      int budgetForChild = currentNode->budget() - callTarget->_calleeMethod->maxBytecodeIndex();
+      int budgetForChild = currentNode->getBudget() - callTarget->_calleeMethod->maxBytecodeIndex();
       
       bool hasEnoughBudget = 0 < budgetForChild;
       if (!hasEnoughBudget) continue;
 
-      IDT::Node *node = currentNode->addChildIfNotExists(this->_idt, callsite->_byteCodeIndex, resolvedMethodSymbol, 100, callsite, callTarget->_callRatioCallerCallee);
+      IDTNode *node = currentNode->addChildIfNotExists(this->_idt->getNextGlobalIDTNodeIdx(), callsite->_byteCodeIndex, resolvedMethodSymbol, 100, callsite, callTarget->_callRatioCallerCallee, _idt->getMemoryRegion());
       if (node) {
+         _idt->increaseGlobalIDTNodeIndex();
          node->setCallStack(this->_inliningCallStack);
          node->setCallTarget(callTarget);
          TR::CFGNode *cfgNode = callTarget->_calleeSymbol->getFlowGraph()->getStartForReverseSnapshot();
@@ -471,7 +472,7 @@ OMR::BenefitInliner::obtainIDT(IDT::Indices *Deque, IDT::Node *currentNode, TR_C
    }
 
 void
-OMR::BenefitInliner::obtainIDT(IDT::Node *node, int32_t budget)
+OMR::BenefitInliner::obtainIDT(IDTNode *node, int32_t budget)
    {
       if (budget < 0) return;
 
@@ -506,7 +507,7 @@ OMR::BenefitInliner::obtainIDT(IDT::Node *node, int32_t budget)
             cfg->getStartForReverseSnapshot()->setFrequency(cfg->getStartBlockFrequency());
       }
 
-   IDT::Indices Deque(0, nullptr, this->comp()->trMemory()->currentStackRegion());
+   IDTNodeIndices Deque(0, nullptr, this->comp()->trMemory()->currentStackRegion());
    bool shouldInterpret = this->obtainIDT(Deque, node, budget);
    this->_inliningCallStack = new (this->_callSitesRegion) TR_CallStack(this->comp(), resolvedMethodSymbol, resolvedMethod, prevCallStack, budget, true);
    AbsFrameIDTConstructor constructor(this->_callSitesRegion, node, this->_callerIndex, this->_inliningCallStack, this);
@@ -528,13 +529,13 @@ OMR::BenefitInliner::obtainIDT(IDT::Node *node, int32_t budget)
 
    while (!Deque.empty())
       {
-      IDT::Node *node2 = Deque.front();
+      IDTNode *node2 = Deque.front();
       Deque.pop_front();
-      TR_ASSERT(node2 && node2->_callSite, "call site is null");
+      TR_ASSERT(node2 && node2->getCallSite(), "call site is null");
       TR::ResolvedMethodSymbol * resolvedMethodSymbol = TR::ResolvedMethodSymbol::create(comp()->trHeapMemory(), node2->getCallTarget()->_calleeMethod, comp());
-      if (!comp()->incInlineDepth(resolvedMethodSymbol, node2->_callSite->_bcInfo, node2->_callSite->_cpIndex, NULL, !node2->_callSite->isIndirectCall(), 0)) continue;
+      if (!comp()->incInlineDepth(resolvedMethodSymbol, node2->getCallSite()->_bcInfo, node2->getCallSite()->_cpIndex, NULL, !node2->getCallSite()->isIndirectCall(), 0)) continue;
       this->_callerIndex++;
-      this->obtainIDT(node2, node2->budget());
+      this->obtainIDT(node2, node2->getBudget());
       this->_callerIndex--;
       comp()->decInlineDepth(true);
       }
@@ -543,7 +544,7 @@ OMR::BenefitInliner::obtainIDT(IDT::Node *node, int32_t budget)
    }
 
 bool
-OMR::BenefitInliner::obtainIDT(IDT::Indices &Deque, IDT::Node *node, int32_t budget)
+OMR::BenefitInliner::obtainIDT(IDTNodeIndices &Deque, IDTNode *node, int32_t budget)
    {
       // Here is where I should make a method summary and edit it in the next obtainIDT...
       TR::ResolvedMethodSymbol *resolvedMethodSymbol = node->getResolvedMethodSymbol();
@@ -551,20 +552,20 @@ OMR::BenefitInliner::obtainIDT(IDT::Indices &Deque, IDT::Node *node, int32_t bud
       TR_OpaqueMethodBlock *persistentIdentifier = resolvedMethod->getPersistentIdentifier();
       // if it is found, keep it as a nullptr, as we don't want to write new data?
       auto iter = this->_methodSummaryMap.find(persistentIdentifier);
-      IDT::Node *ms = iter == this->_methodSummaryMap.end() ? nullptr : iter->second;
+      IDTNode *ms = iter == this->_methodSummaryMap.end() ? nullptr : iter->second;
 
       if (ms != nullptr)
          {
          // At this moment, the method visited by node has already been visited by the method in ms.
          // So, ideally we would like to create avoid all the iteration and just create nodes.
          // We add the children from ms to Deque and Children in Node.
-         if ((node->budget() - node->getCost()) < 0) return false;
-         node->copyChildrenFrom(ms, Deque);
+         if ((node->getBudget() - node->getCost()) < 0) return false;
+         _idt->copyChildren(ms,node);
          return false;
          }
       if (ms == nullptr)
          {
-         this->_methodSummaryMap.insert(std::pair<TR_OpaqueMethodBlock *, IDT::Node *>(persistentIdentifier,node));
+         this->_methodSummaryMap.insert(std::pair<TR_OpaqueMethodBlock *, IDTNode *>(persistentIdentifier,node));
          }
 
       return true;
@@ -574,7 +575,7 @@ OMR::BenefitInliner::obtainIDT(IDT::Indices &Deque, IDT::Node *node, int32_t bud
 // This is basically very limited abstract interpreter, we should be able to 
 // re-use the class.
 void
-OMR::BenefitInliner::obtainIDT(IDT::Indices &Deque, IDT::Node *node, TR_J9ByteCodeIterator &bci, TR::Block *block, int budget)
+OMR::BenefitInliner::obtainIDT(IDTNodeIndices &Deque, IDTNode *node, TR_J9ByteCodeIterator &bci, TR::Block *block, int budget)
    {
       int start = block->getBlockBCIndex();
       int end = block->getBlockBCIndex() + block->getBlockSize();

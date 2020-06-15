@@ -81,7 +81,7 @@ AbsEnv::AbsEnv(AbsEnv& absEnv) :
 }
 
 
-AbsEnv::AbsEnv(AbsEnv& absEnv, IDT::Node* hunk) :
+AbsEnv::AbsEnv(AbsEnv& absEnv, IDTNode* hunk) :
     _variableArray(absEnv._comp, absEnv._region),
     _operandStack(absEnv._comp, absEnv._region),
     _region(absEnv._region),
@@ -107,7 +107,7 @@ AbsEnv::AbsEnv(AbsEnv& absEnv, IDT::Node* hunk) :
 // for root
 // for root
 // for starting again after detecting a cycle
-AbsEnv::AbsEnv(TR::Compilation *comp, TR::Region &region, IDT::Node* hunk) :
+AbsEnv::AbsEnv(TR::Compilation *comp, TR::Region &region, IDTNode* hunk) :
     _variableArray(comp, region),
     _operandStack(comp, region),
     _region(region),
@@ -139,7 +139,7 @@ AbsEnv::AbsEnv(TR::Compilation *comp, TR::Region &region, IDT::Node* hunk) :
 
 // for starting new method
 // for elements with 1 predecessor
-AbsEnv::AbsEnv(TR::Compilation *comp, TR::Region &region, IDT::Node* hunk, AbsEnv &absEnv) :
+AbsEnv::AbsEnv(TR::Compilation *comp, TR::Region &region, IDTNode* hunk, AbsEnv &absEnv) :
     _variableArray(comp, region),
     _operandStack(comp, region),
     _region(region),
@@ -173,7 +173,7 @@ AbsEnv::AbsEnv(TR::Compilation *comp, TR::Region &region, IDT::Node* hunk, AbsEn
 
 
 void
-AbsEnv::compareInformationAtCallSite(IDT::Node *hunk, AbsEnv &absEnv) {
+AbsEnv::compareInformationAtCallSite(IDTNode *hunk, AbsEnv &absEnv) {
   if (!hunk) { return; }
   TR::ResolvedMethodSymbol *resolvedMethodSymbol = hunk->getResolvedMethodSymbol();
   if (!resolvedMethodSymbol) { return; }
@@ -264,7 +264,7 @@ AbsEnv::compareInformationAtCallSite(TR_ResolvedMethod *resolvedMethod, AbsEnv &
 }
 
 void
-AbsEnv::addMethodParameterConstraints(IDT::Node *hunk) {
+AbsEnv::addMethodParameterConstraints(IDTNode *hunk) {
   if (!hunk) { return; }
   TR::ResolvedMethodSymbol *resolvedMethodSymbol = hunk->getResolvedMethodSymbol();
   if (!resolvedMethodSymbol) { return; }
@@ -307,7 +307,7 @@ AbsEnv::addMethodParameterConstraints(TR_ResolvedMethod *resolvedMethod) {
 }
 
 void
-AbsEnv::addImplicitArgumentConstraint(IDT::Node *hunk) {
+AbsEnv::addImplicitArgumentConstraint(IDTNode *hunk) {
   if (!hunk) { return; }
 
   TR::ResolvedMethodSymbol *resolvedMethodSymbol = hunk->getResolvedMethodSymbol();
@@ -2061,7 +2061,7 @@ AbsEnv::ireturn() {
 }
 
 void
-AbsEnv::handleGetClass(int bcIndex, IDT::Node * hunk) {
+AbsEnv::handleGetClass(int bcIndex, IDTNode * hunk) {
   TR::VPConstraint* constraint = this->topAndPop();
   this->pushNull();
 
@@ -2076,7 +2076,7 @@ AbsEnv::handleGetClass(int bcIndex, IDT::Node * hunk) {
 
 
 void
-AbsEnv::handleLengthInternal(int bytecodeIndex, IDT::Node* hunk) {
+AbsEnv::handleLengthInternal(int bytecodeIndex, IDTNode* hunk) {
 #ifdef TR_PROFITABILITY_VERIFY
   if (hunk) {
       hunk->_visited = true;
@@ -2125,7 +2125,7 @@ AbsEnv::handleLengthInternal(int bytecodeIndex, IDT::Node* hunk) {
 }
 
 bool
-AbsEnv::isLengthInternal(const IDT::Node* hunk) const {
+AbsEnv::isLengthInternal(const IDTNode* hunk) const {
   return false;
   char *nameChars= "lengthInternal";
   int nameLength = strlen(nameChars);
@@ -2165,7 +2165,7 @@ AbsEnv::isGetClass(int cpIndex) {
 }
 
 bool
-AbsEnv::isGetClass(const IDT::Node* hunk) const {
+AbsEnv::isGetClass(const IDTNode* hunk) const {
   return false;
   char *nameChars= "getClass";
   int nameLength = strlen(nameChars);
@@ -2198,7 +2198,7 @@ AbsEnv::invoke(int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind) {
 
   static const char* avoidInvoke = feGetEnv("TR_AvoidInvoke");
   if (avoidInvoke) {
-    IDT::Node *next = this->_hunk->findChildWithBytecodeIndex(bcIndex);
+    IDTNode *next = this->_hunk->findChildWithBytecodeIndex(bcIndex);
     if (!next) {
       this->handleInvokeWithoutHunk(bcIndex, cpIndex, kind);
       return;
@@ -2212,7 +2212,7 @@ AbsEnv::invoke(int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind) {
   }
 
   bool multipleImplementors = kind == TR::MethodSymbol::Kinds::Virtual || kind == TR::MethodSymbol::Kinds::Interface;
-  IDT::Node *next = this->_hunk->findChildWithBytecodeIndex(bcIndex);
+  IDTNode *next = this->_hunk->findChildWithBytecodeIndex(bcIndex);
   if (!next) {
     this->handleInvokeWithoutHunk(bcIndex, cpIndex, kind);
     return;
@@ -2287,10 +2287,10 @@ AbsEnv::invoke(int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind) {
       next->setBenefit(benefit + 1);
       this->push(NULL);
   return;
-  //List<IDT::Node> nexts = this->_hunk->findChildrenWithBytecodeIndex(bcIndex);
+  //List<IDTNode> nexts = this->_hunk->findChildrenWithBytecodeIndex(bcIndex);
 /*
-  ListIterator<IDT::Node> hunkIt(&nexts);
-  for (IDT::Node* next = hunkIt.getFirst(); next != NULL; next = hunkIt.getNext()) {
+  ListIterator<IDTNode> hunkIt(&nexts);
+  for (IDTNode* next = hunkIt.getFirst(); next != NULL; next = hunkIt.getNext()) {
 
     if (multipleImplementors) {
         TRACE((this->_comp->trace(OMR::inlining)), "Potentially multiple implementors for method %s\n", next->name());
@@ -2371,7 +2371,7 @@ AbsEnv::invoke(int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind) {
 }
 
 MethodSummary*
-AbsEnv::getSummaryFromBuffer(IDT::Node* aHunk) {
+AbsEnv::getSummaryFromBuffer(IDTNode* aHunk) {
   //return this->getSummaryFromBuffer(aHunk->name());
   return NULL;
 }

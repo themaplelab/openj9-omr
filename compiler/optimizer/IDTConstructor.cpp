@@ -41,7 +41,7 @@ void AbsFrameIDTConstructor::interpret()
   }
 }
 
-IDTConstructor::IDTConstructor(TR::Region &region, IDT::Node *node, AbsFrame *absFrame)
+IDTConstructor::IDTConstructor(TR::Region &region, IDTNode *node, AbsFrame *absFrame)
   : AbsEnvStatic(region, node, absFrame)
 {
 }
@@ -344,7 +344,7 @@ IDTConstructor::invokestatic(AbstractState& absState, int bcIndex, int cpIndex)
   return absState;
 }
 
-IDT::Indices *
+IDTNodeIndices *
 IDTConstructor::getDeque()
 {
   return static_cast<AbsFrameIDTConstructor*>(this->_absFrame)->getDeque();
@@ -433,7 +433,7 @@ IDTConstructor::findCallSiteTargets(TR::ResolvedMethodSymbol *callerSymbol, int 
 }
 
 
-AbsEnvStatic* IDTConstructor::enterMethod(TR::Region& region, IDT::Node* node, AbsFrame* absFrame, TR::ResolvedMethodSymbol* rms)
+AbsEnvStatic* IDTConstructor::enterMethod(TR::Region& region, IDTNode* node, AbsFrame* absFrame, TR::ResolvedMethodSymbol* rms)
 {
   AbsEnvStatic *absEnv = new (region) IDTConstructor(region, node, absFrame);
   TR_ResolvedMethod *resolvedMethod = rms->getResolvedMethod();
@@ -769,7 +769,7 @@ IDTConstructor::getCallSitesRegion()
   return static_cast<AbsFrameIDTConstructor*>(this->_absFrame)->getCallSitesRegion();
 }
 
-AbsFrameIDTConstructor::AbsFrameIDTConstructor(TR::Region &region, IDT::Node *node, int callerIndex, TR_CallStack *callStack, OMR::BenefitInliner *inliner)
+AbsFrameIDTConstructor::AbsFrameIDTConstructor(TR::Region &region, IDTNode *node, int callerIndex, TR_CallStack *callStack, OMR::BenefitInliner *inliner)
   : AbsFrame(region, node)
   , _callerIndex(callerIndex)
   , _callSitesRegion(region)

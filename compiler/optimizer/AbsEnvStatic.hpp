@@ -6,6 +6,8 @@
 #include "compiler/optimizer/VPConstraint.hpp"
 #include "compiler/optimizer/ValuePropagation.hpp"
 #include "compiler/optimizer/AbsValue.hpp"
+#include "compiler/optimizer/MethodSummary.hpp"
+#include "compiler/optimizer/IDTNode.hpp"
 #include "compiler/optimizer/IDT.hpp"
 #include "compiler/infra/ILWalk.hpp"
 #include "compiler/il/OMRBlock.hpp"
@@ -644,7 +646,7 @@ public:
 class AbstractState
 {
 public:
-  AbstractState(TR::Region &region, IDT::Node *);
+  AbstractState(TR::Region &region, IDTNode *);
   AbstractState(const AbstractState&);
   void at(unsigned int, AbsValue*);
   AbsValue *at(unsigned int);
@@ -665,7 +667,7 @@ class AbsFrame;
 
 class AbsEnvStatic : public AbstractSemanticsFunctional<AbstractState> {
 public:
-  AbsEnvStatic(TR::Region &region, IDT::Node *node, AbsFrame*);
+  AbsEnvStatic(TR::Region &region, IDTNode *node, AbsFrame*);
   AbsEnvStatic(AbsEnvStatic&);
   void trace(const char* methodName = NULL);
   void merge(AbsEnvStatic&);
@@ -673,10 +675,10 @@ public:
   void zeroOut(AbsEnvStatic *other);
   AbstractState &getState() { return this->_absState; }
   AbsFrame* getFrame() { return this->_absFrame; }
-  static AbsEnvStatic *enterMethod(TR::Region&region, IDT::Node* node, AbsFrame* absFrame, TR::ResolvedMethodSymbol*);
+  static AbsEnvStatic *enterMethod(TR::Region&region, IDTNode* node, AbsFrame* absFrame, TR::ResolvedMethodSymbol*);
   OMR::Block *getBlock() { return this->_block; }
   OMR::Block *_block;
-  IDT::Node *getNode() const;
+  IDTNode *getNode() const;
   virtual bool loadFromIDT() { return true; }
   TR::ValuePropagation *getVP() const;
   AbsValue* getTopDataType(TR::DataType);
@@ -913,13 +915,13 @@ private:
 class AbsFrame
 {
 public:
-  AbsFrame(TR::Region &region, IDT::Node *node);
+  AbsFrame(TR::Region &region, IDTNode *node);
   TR::ResolvedMethodSymbol *getResolvedMethodSymbol() const;
   TR::ValuePropagation* getValuePropagation() { return this->_vp; };
   virtual void interpret();
   TR::Region& getRegion() const { return this->_region; }
 //TODO: move these to private...
-  IDT::Node *_node;
+  IDTNode *_node;
   TR::ValuePropagation *_vp;
   TR_J9ByteCodeIterator _bci;
   TR::CFG* getCFG();

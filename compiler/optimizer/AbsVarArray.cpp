@@ -69,7 +69,7 @@ AbsVarArray::merge(AbsVarArray &absVarArray) {
 }
 
 void
-AbsVarArray::initialize(IDT::Node* hunk, AbsEnv* context, TR::ValuePropagation *vp) {
+AbsVarArray::initialize(IDTNode* hunk, AbsEnv* context, TR::ValuePropagation *vp) {
   this->_vp = vp;
   const auto resolvedMethodSymbol = hunk->getResolvedMethodSymbol();
   if (!resolvedMethodSymbol) { return; }

@@ -24,11 +24,11 @@ public:
   typedef TR::typed_allocator<int, TR::Region &> intAllocator;
   typedef std::map<int, bool, std::less<int>, intAllocator > IndexMap;
   AbsEnv(TR::Compilation *comp, TR::Region& region);
-  AbsEnv(TR::Compilation *comp, TR::Region& region, IDT::Node* hunk);
+  AbsEnv(TR::Compilation *comp, TR::Region& region, IDTNode* hunk);
   AbsEnv(AbsEnv &absEnv);
-  AbsEnv(AbsEnv &absEnv, IDT::Node* hunk);
-  AbsEnv(TR::Compilation *, TR::Region&, IDT::Node* hunk, AbsEnv &absEnv);
-  void compareInformationAtCallSite(IDT::Node *hunk, AbsEnv &absEnv);
+  AbsEnv(AbsEnv &absEnv, IDTNode* hunk);
+  AbsEnv(TR::Compilation *, TR::Region&, IDTNode* hunk, AbsEnv &absEnv);
+  void compareInformationAtCallSite(IDTNode *hunk, AbsEnv &absEnv);
   void compareInformationAtCallSite(TR_ResolvedMethod *resolvedMethod, AbsEnv &context);
   TR::VPConstraint* topAndPop();
   void merge(AbsEnv*);
@@ -86,12 +86,12 @@ public:
   void invokevirtual(int bcIndex, int cpIndex);
   void invoke(int, int, TR::MethodSymbol::Kinds);
   void handleInvokeWithoutHunk(int bcIndex, int cpIndex, TR::MethodSymbol::Kinds);
-  bool isLengthInternal(const IDT::Node* hunk) const;
+  bool isLengthInternal(const IDTNode* hunk) const;
   bool isLengthInternal(int cpIndex);
-  bool isGetClass(const IDT::Node* hunk) const;
+  bool isGetClass(const IDTNode* hunk) const;
   bool isGetClass(int cpIndex);
-  void handleLengthInternal(int, IDT::Node* hunk = NULL);
-  void handleGetClass(int, IDT::Node* hunk = NULL);
+  void handleLengthInternal(int, IDTNode* hunk = NULL);
+  void handleGetClass(int, IDTNode* hunk = NULL);
   void dup();
   void dup_x1();
   void dup_x2();
@@ -217,9 +217,9 @@ public:
   TR::Compilation *comp() { return this->_comp; }
   TR::ValuePropagation *_vp;
   TR::VPConstraint* _returns;
-  IDT::Node *_hunk;
+  IDTNode *_hunk;
   MethodSummary* _newMethodSummary;
-  MethodSummary* getSummaryFromBuffer(IDT::Node *aHunk);
+  MethodSummary* getSummaryFromBuffer(IDTNode *aHunk);
   MethodSummary* getSummaryFromBuffer(const char *name);
   int numberOfParametersInCurrentMethod();
   int _methodSummaryIndex;
@@ -239,9 +239,9 @@ public:
 private:
   int _directDependency;
   OMR::Block *_block;
-  void addMethodParameterConstraints(IDT::Node*);
+  void addMethodParameterConstraints(IDTNode*);
   void addMethodParameterConstraints(TR_ResolvedMethod *resolvedMethod);
-  void addImplicitArgumentConstraint(IDT::Node *hunk);
+  void addImplicitArgumentConstraint(IDTNode *hunk);
   void addImplicitArgumentConstraint(TR_ResolvedMethod *resolvedMethod);
   TR::VPConstraint *getClassConstraint(TR_OpaqueClassBlock*);
   bool _firstReturn;

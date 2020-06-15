@@ -6,6 +6,7 @@
 #include "optimizer/GlobalValuePropagation.hpp"
 #include "optimizer/LocalValuePropagation.hpp"
 #include "compiler/optimizer/IDT.hpp"
+#include "compiler/optimizer/IDTNode.hpp"
 
 class AbsEnv;
 
@@ -16,7 +17,7 @@ public:
   AbsVarArray(const AbsVarArray &absVarArray);
   void at(int, TR::VPConstraint*);
   TR::VPConstraint* at(int) const;
-  void initialize(IDT::Node*, AbsEnv*, TR::ValuePropagation*);
+  void initialize(IDTNode*, AbsEnv*, TR::ValuePropagation*);
   int size() const;
   void merge(AbsVarArray &);
   void print();

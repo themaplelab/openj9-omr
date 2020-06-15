@@ -4,6 +4,7 @@
 
 #include "compiler/optimizer/AbsEnvStatic.hpp"
 #include "compiler/optimizer/IDT.hpp"
+#include "compiler/optimizer/IDTNode.hpp"
 #include "compiler/optimizer/BenefitInliner.hpp"
 #include "compiler/optimizer/MethodSummary.hpp"
 
@@ -12,10 +13,10 @@ class AbsFrameIDTConstructor;
 class IDTConstructor : public AbsEnvStatic 
 {
 public:
-  IDTConstructor(TR::Region &region, IDT::Node *node, AbsFrame*);
+  IDTConstructor(TR::Region &region, IDTNode *node, AbsFrame*);
   IDTConstructor(IDTConstructor&);
   IDTConstructor(AbsEnvStatic&);
-  static AbsEnvStatic *enterMethod(TR::Region&region, IDT::Node* node, AbsFrame* absFrame, TR::ResolvedMethodSymbol*);
+  static AbsEnvStatic *enterMethod(TR::Region&region, IDTNode* node, AbsFrame* absFrame, TR::ResolvedMethodSymbol*);
   TR::Region& getCallSitesRegion();
   virtual bool loadFromIDT() { return false; }
 protected:
@@ -43,7 +44,7 @@ private:
   void addIfle(int, int);
   void addIfNonNull(int, int, AbsValue *absValue);
   void addIfNull(int, int, AbsValue *absValue);
-  IDT::Indices *getDeque();
+  IDTNodeIndices *getDeque();
   TR_CallSite* findCallSiteTargets(TR::ResolvedMethodSymbol *callerSymbol, int, int, TR::MethodSymbol::Kinds, OMR::Block *block, TR::CFG* cfg = NULL);
   TR::SymbolReference* getSymbolReference(TR::ResolvedMethodSymbol *callerSymbol, int cpIndex, TR::MethodSymbol::Kinds kind);
   int getCallerIndex() const;
@@ -72,11 +73,11 @@ private:
 class AbsFrameIDTConstructor : public AbsFrame
 {
 public:
-  AbsFrameIDTConstructor(TR::Region &region, IDT::Node *node, int callerIndex, TR_CallStack* callStack, OMR::BenefitInliner* inliner);
+  AbsFrameIDTConstructor(TR::Region &region, IDTNode *node, int callerIndex, TR_CallStack* callStack, OMR::BenefitInliner* inliner);
   virtual void interpret();
   TR::Region &getCallSitesRegion();
   TR_CallStack* getCallStack();
-  IDT::Node *getNode();
+  IDTNode *getNode();
   MethodSummaryExtension *_summary;
   void traceMethodSummary();
 protected:
@@ -86,10 +87,10 @@ protected:
   int _callerIndex;
   virtual void factFlow(OMR::Block *);
   virtual AbsEnvStatic *mergeAllPredecessors(OMR::Block *);
-  IDT::Indices *_deque;
+  IDTNodeIndices *_deque;
 public:
-  void setDeque(IDT::Indices * deque) { this->_deque=deque; };
-  IDT::Indices *getDeque() { return this->_deque; };
+  void setDeque(IDTNodeIndices * deque) { this->_deque=deque; };
+  IDTNodeIndices *getDeque() { return this->_deque; };
    int getCallerIndex() const;
   OMR::BenefitInliner* inliner();
 };
