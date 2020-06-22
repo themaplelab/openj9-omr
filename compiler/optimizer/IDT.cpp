@@ -142,7 +142,7 @@ TR::ValuePropagation* IDT::getValuePropagation()
    {
    if (_vp != NULL)
       return _vp;
-   TR::OptimizationManager* manager = _comp->getOptimizer()->getOptimization(OMR::globalValuePropagation);
+   TR::OptimizationManager* manager = comp()->getOptimizer()->getOptimization(OMR::globalValuePropagation);
    _vp = (TR::ValuePropagation*) manager->factory()(manager);
    _vp->initialize();
    return _vp;
@@ -155,7 +155,6 @@ TR::Region& IDT::getMemoryRegion() const
 
 void IDT::copyChildren(IDTNode* fromNode, IDTNode* toNode)
    {
-      
    TR_ASSERT(
       fromNode->getResolvedMethodSymbol()->getResolvedMethod()->getPersistentIdentifier() 
       == toNode->getResolvedMethodSymbol()->getResolvedMethod()->getPersistentIdentifier(), 

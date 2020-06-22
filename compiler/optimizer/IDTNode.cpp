@@ -175,27 +175,27 @@ void IDTNode::printByteCode() const
    unsigned long int end = resolvedMethod->maxBytecodeIndex();
    for (TR_J9ByteCode bc = bci.current(); bc != J9BCunknown && bci.currentByteCodeIndex() < end; bc = bci.next())
    {
-     bci.printByteCode();
-     IDTNode *child = NULL;
-     switch(bc)
-     {
-        case J9BCinvokestatic:
-        case J9BCinvokevirtual:
-        case J9BCinvokedynamic:
-        case J9BCinvokespecial:
-        case J9BCinvokeinterface:
-        // print name of target...
-           child = findChildWithBytecodeIndex(bci.currentByteCodeIndex());
-           if (!child) {
-              traceMsg(TR::comp(), "No child for bytecode index %d\n", bci.currentByteCodeIndex());
-              break;
-           }
-           traceMsg(TR::comp(), "CalleeSymbol signature %s\n", child->getCallTarget()->_calleeSymbol->signature(TR::comp()->trMemory()));
-           traceMsg(TR::comp(), "calleeMethod signature %s\n", child->getCallTarget()->_calleeMethod->signature(TR::comp()->trMemory()));
-        break;
-        default:
-        break;
-     }
+      bci.printByteCode();
+      IDTNode *child = NULL;
+      switch(bc)
+         {
+         case J9BCinvokestatic:
+         case J9BCinvokevirtual:
+         case J9BCinvokedynamic:
+         case J9BCinvokespecial:
+         case J9BCinvokeinterface:
+         // print name of target...
+            child = findChildWithBytecodeIndex(bci.currentByteCodeIndex());
+            if (!child) {
+               traceMsg(TR::comp(), "No child for bytecode index %d\n", bci.currentByteCodeIndex());
+               break;
+            }
+            traceMsg(TR::comp(), "CalleeSymbol signature %s\n", child->getCallTarget()->_calleeSymbol->signature(TR::comp()->trMemory()));
+            traceMsg(TR::comp(), "calleeMethod signature %s\n", child->getCallTarget()->_calleeMethod->signature(TR::comp()->trMemory()));
+         break;
+         default:
+         break;
+         }
    }
    traceMsg(TR::comp(), "\n");
    }

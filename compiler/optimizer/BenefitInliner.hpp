@@ -46,7 +46,7 @@ class BenefitInlinerBase: public TR_InlinerBase
       virtual inline void popBenefitInlinerInformation();
       virtual bool analyzeCallSite(TR_CallStack *, TR::TreeTop *, TR::Node *, TR::Node *, TR_CallTarget*);
       BenefitInlinerBase(TR::Optimizer *optimizer, TR::Optimization *optimization);
-      TR::Region _cfgRegion;
+      TR::Region& _cfgRegion;
    public:
       virtual bool supportsMultipleTargetInlining () { return false; }
       virtual void applyPolicyToTargets(TR_CallStack *, TR_CallSite *, TR::Block *block=NULL, TR::CFG* callerCFG=NULL);
@@ -92,11 +92,11 @@ class BenefitInliner: public BenefitInlinerBase
       typedef std::map<TR_OpaqueMethodBlock *, IDTNode*, MethodSummaryMapComparator, MethodSummaryMapAllocator> MethodSummaryMap;
 
       TR::CFG *_rootRms;
-      TR::Region _absEnvRegion;
-      TR::Region _callSitesRegion;
-      TR::Region _callStacksRegion;
-      TR::Region _mapRegion;
-      TR::Region _IDTConstructorRegion;
+      TR::Region& _absEnvRegion;
+      TR::Region& _callSitesRegion;
+      TR::Region& _callStacksRegion;
+      TR::Region& _mapRegion;
+      TR::Region& _IDTConstructorRegion;
       MethodSummaryMap _methodSummaryMap;
       TR_CallStack *_inliningCallStack;
       const uint32_t _budget;

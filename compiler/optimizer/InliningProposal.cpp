@@ -145,13 +145,14 @@ void InliningProposal::computeCostAndBenefit()
    TR_BitVectorIterator bvi(*this->_nodes);
    int32_t igNodeIndex;
    
-   while (bvi.hasMoreElements())
+   while (bvi.hasMoreElements()) 
       {
       igNodeIndex = bvi.getNextElement();
-      _idt->buildIndices();
       IDTNode *node = _idt->getNodeByCalleeIndex(igNodeIndex - 1);
       if (node == NULL) 
+         {
          continue;
+         }
       this->_cost += node->getCost();
       this->_benefit += node->getBenefit();
       }

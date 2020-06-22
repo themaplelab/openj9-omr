@@ -383,6 +383,7 @@ void
 OMR::BenefitInliner::analyzeIDT()
    {
       if (this->_idt->getNumNodes() == 1) return; // No Need to analyze, since there is nothing to inline.
+      _idt->buildIndices();
       PriorityPreorder items(this->_idt, this->comp());
       // traceMsg(TR::comp(), "Inlining Proposal: \n");
       // traceMsg(TR::comp(), "size = %d, budget = %d\n", items.size(), this->budget());
