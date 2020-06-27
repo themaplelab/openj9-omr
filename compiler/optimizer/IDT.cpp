@@ -5,7 +5,7 @@ IDT::IDT(TR::Region& region, TR::ResolvedMethodSymbol* rms, int budget, TR::Comp
       _vp(NULL),
       _max_idx(-1),
       _comp(comp),
-      _root(new (_region) IDTNode(getNextGlobalIDTNodeIdx(),-1,rms,NULL,1,budget,NULL,1,getValuePropagation())),
+      _root(new (_region) IDTNode(getNextGlobalIDTNodeIdx(),-1,rms,NULL,0,budget,NULL,1,getValuePropagation())),
       _indices(NULL)
    {   
    increaseGlobalIDTNodeIndex();
@@ -53,16 +53,20 @@ void IDT::printTrace() const
          if (calleeIndex != -1) //skip root node
             {
             char line[1024];
-            sprintf(line, "#IDT: #%d: #%d inlinable @%d -> bcsz=%d %s target %s, benefit = %d, cost = %d, budget = %d", 
+            sprintf(line, "#IDT: #%d: #%d inlinable @%d -> bcsz=%d %s target %s, static benefit = %d, benefit = %d, cost = %d, budget = %d, callratio = %f, rootcallratio = %f", 
                calleeIndex,
                currentNode->getCallerIndex(),
                currentNode->getByteCodeIndex(),
                currentNode->getByteCodeSize(),
                currentNode->getCallTarget()->_calleeSymbol ? currentNode->getCallTarget()->_calleeSymbol->signature(comp()->trMemory()) : "no callee symbol???",
                currentNode->getName(),
+               currentNode->getStaticBenefit(),
                currentNode->getBenefit(),
                currentNode->getCost(),
-               currentNode->getBudget());
+               currentNode->getBudget(),
+               currentNode->getCallRatio(),
+               currentNode->getRootCallRatio()
+            );
 
             if (verboseInlining)
                TR_VerboseLog::writeLineLocked(TR_Vlog_SIP, line);
@@ -97,7 +101,7 @@ void IDT::buildIndices()
       idtNodeQueue->pop_front();
 
       int calleeIndex = currentNode->getCalleeIndex();
-      TR_ASSERT(_indices[calleeIndex+1] == 0, "Callee index not unique!\n");
+      TR_ASSERT_FATAL(_indices[calleeIndex+1] == 0, "Callee index not unique!\n");
 
       _indices[calleeIndex + 1] = currentNode;
 
@@ -135,6 +139,7 @@ IDTNode* IDT::getRoot() const
 
 IDTNode *IDT::getNodeByCalleeIndex(int calleeIndex)
    {
+   TR_ASSERT_FATAL(calleeIndex < getNextGlobalIDTNodeIdx(), "CalleeIndex out of range!");
    return _indices[calleeIndex + 1];
    }
 
@@ -155,10 +160,10 @@ TR::Region& IDT::getMemoryRegion() const
 
 void IDT::copyChildren(IDTNode* fromNode, IDTNode* toNode)
    {
-   TR_ASSERT(
+   TR_ASSERT_FATAL(
       fromNode->getResolvedMethodSymbol()->getResolvedMethod()->getPersistentIdentifier() 
       == toNode->getResolvedMethodSymbol()->getResolvedMethod()->getPersistentIdentifier(), 
-      "Copying different nodes is not allowed!\n");
+      "Copying different nodes is not allowed!");
 
    unsigned int numChildren = fromNode->getNumChildren();
    if (numChildren == 0)
@@ -176,7 +181,7 @@ void IDT::copyChildren(IDTNode* fromNode, IDTNode* toNode)
                               getNextGlobalIDTNodeIdx(),
                               child->getByteCodeIndex(),
                               child->getResolvedMethodSymbol(),
-                              child->getBenefit(),
+                              child->getStaticBenefit(),
                               child->getCallSite(),
                               child->getCallRatio(),
                               getMemoryRegion());

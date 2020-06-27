@@ -58,6 +58,7 @@ class IDTNode
    unsigned int getCost() const;
    unsigned int getRecursiveCost() const;
    unsigned int getBenefit() const;
+   unsigned int getStaticBenefit() const;
    void printByteCode() const;
    void setBenefit(unsigned int);
    void enqueueSubordinates(IDTNodePtrPriorityQueue *q) const;

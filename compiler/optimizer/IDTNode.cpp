@@ -4,7 +4,7 @@
 
 bool IDTNodePtrOrder::operator()(IDTNode *left, IDTNode *right)
    {  
-   TR_ASSERT(left && right, "Comparing against null\n");
+   TR_ASSERT_FATAL(left && right, "Comparing against null");
    return left->getCost() < right->getCost() || left->getBenefit() < right->getBenefit();
    }
 
@@ -76,12 +76,11 @@ IDTNode* IDTNode::addChildIfNotExists(
       TR_ASSERT_FATAL(!((uintptr_t)_children & SINGLE_CHILD_BIT), "Maligned memory address.\n");
       TR_ASSERT_FATAL(onlyChild, "Storing a null child\n");
       _children->push_back(onlyChild);
-      TR_ASSERT(_children->size() == 1, "Something wrong\n");
       }
    
    for (auto curr = _children->begin(); curr != _children->end(); ++curr)
       {
-      TR_ASSERT(*curr, "No child can be null\n");
+      TR_ASSERT_FATAL(*curr, "No child can be null\n");
       if ((*curr)->isNodeSimilar(callSiteBci, rms))
          {
          return NULL;
@@ -101,7 +100,6 @@ IDTNode* IDTNode::addChildIfNotExists(
                         
    TR_ASSERT_FATAL(newChild, "Storing a null child\n");
    _children->push_back(newChild);
-   TR_ASSERT(_children->size() > 1, "Something wrong\n");
    return _children->back();
    }
 
@@ -162,7 +160,12 @@ unsigned int IDTNode::getRecursiveCost() const
 
 unsigned int IDTNode::getBenefit() const
    {
-   return _callRatioRootCallee * 100 * ( 1 + _benefit) + 1;
+   return _callRatioRootCallee * ( 1 + _benefit);
+   }
+
+unsigned int IDTNode::getStaticBenefit() const
+   {
+   return _benefit;
    }
 
 void IDTNode::printByteCode() const
@@ -207,7 +210,7 @@ void IDTNode::setBenefit(unsigned int benefit)
 
 void IDTNode::enqueueSubordinates(IDTNodePtrPriorityQueue *q) const
    {
-   TR_ASSERT(q, "Priority queue cannot be NULL!\n");
+   TR_ASSERT_FATAL(q, "Priority queue cannot be NULL!");
    unsigned int numChildren = getNumChildren();
    if (numChildren == 0)
       return;
@@ -215,7 +218,7 @@ void IDTNode::enqueueSubordinates(IDTNodePtrPriorityQueue *q) const
    if (numChildren == 1) //The case where there is only one child
       {
       IDTNode* onlyChild = getOnlyChild();
-      TR_ASSERT(onlyChild, "Child cannot be NULL!\n");
+      TR_ASSERT_FATAL(onlyChild, "Child cannot be NULL!");
       q->push(onlyChild);
       return;
       }
@@ -223,7 +226,7 @@ void IDTNode::enqueueSubordinates(IDTNodePtrPriorityQueue *q) const
    for (unsigned int i = 0; i < numChildren; i ++)
       {
       IDTNode *child = _children->at(i);
-      TR_ASSERT(child, "Child cannot be NULL!\n");
+      TR_ASSERT_FATAL(child, "Child cannot be NULL!");
       q->push(child);
       }
    }
@@ -237,7 +240,7 @@ unsigned int IDTNode::getNumChildren() const
       return 1;
    
    size_t num = _children->size();
-   TR_ASSERT(num > 1, "num cannot be 1 or 0!\n");
+   TR_ASSERT_FATAL(num > 1, "num cannot be 1 or 0!\n");
    return num;
    }
 
@@ -279,7 +282,7 @@ IDTNode* IDTNode::findChildWithBytecodeIndex(int bcIndex) const
    for (unsigned int i = 0; i < size; i ++)
       {
       if (child && _children->at(i)->getByteCodeIndex() == bcIndex)
-         TR_ASSERT(false, "we have more than two, how to disambiguate?");
+         TR_ASSERT_FATAL(false, "Two children with the same bytecode index!");
       
       if (_children->at(i)->getByteCodeIndex() == bcIndex)
          child = _children->at(i);
