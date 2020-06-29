@@ -35,7 +35,7 @@ class IDTNode
       int unsigned benefit,
       int budget,
       TR_CallSite* callSite,
-      float callRatioCallerCallee,
+      float callRatio,
       TR::ValuePropagation* vp
       );
 
@@ -48,7 +48,9 @@ class IDTNode
       float callRatioCallerCallee, 
       TR::Region& region);
 
-   MethodSummaryExtension *_summary;
+   
+   MethodSummaryExtension* getMethodSummary() const;
+   void setMethodSummary(MethodSummaryExtension* methodSummary);
    unsigned int getNumDescendants() const;
    unsigned int getNumDescendantsIncludingMe() const;
    const char* getName(TR_Memory* mem) const;
@@ -72,8 +74,6 @@ class IDTNode
    TR::ResolvedMethodSymbol* getResolvedMethodSymbol() const;
    void setResolvedMethodSymbol(TR::ResolvedMethodSymbol* rms);
    int getCallerIndex() const;
-   UDATA maxStack() const;
-   IDATA maxLocals() const;
    int getBudget() const;
    void printTrace() const;
    //TODO: maybe get rid of this
@@ -100,8 +100,9 @@ class IDTNode
    unsigned int _benefit;
    TR::ResolvedMethodSymbol* _rms;
    int _budget;
-   float _callRatioCallerCallee;
-   float _callRatioRootCallee;
+   float _callRatio;
+   float _rootCallRatio;
+   MethodSummaryExtension *_methodSummary;
    TR::ValuePropagation* _vp;
    bool isNodeSimilar(int32_t callSiteBci, TR::ResolvedMethodSymbol* rms) const;
    // Returns NULL if 0 or > 1 children

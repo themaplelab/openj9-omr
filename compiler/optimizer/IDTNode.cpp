@@ -16,7 +16,7 @@ IDTNode::IDTNode(
       int unsigned benefit, 
       int budget, 
       TR_CallSite* callSite, 
-      float callRatioCallerCallee,
+      float callRatio,
       TR::ValuePropagation* vp):
    _idx(idx),
    _benefit(benefit),
@@ -28,8 +28,9 @@ IDTNode::IDTNode(
    _callSite(callSite),
    _callTarget(NULL),
    _callStack(NULL),
-   _callRatioCallerCallee(callRatioCallerCallee),
-   _callRatioRootCallee(parent ? parent->_callRatioRootCallee * callRatioCallerCallee : 1),
+   _callRatio(callRatio),
+   _rootCallRatio(parent ? parent->_rootCallRatio * callRatio : 1),
+   _methodSummary(NULL),
    _vp(vp)
    {   
    }
@@ -160,12 +161,24 @@ unsigned int IDTNode::getRecursiveCost() const
 
 unsigned int IDTNode::getBenefit() const
    {
-   return _callRatioRootCallee * ( 1 + _benefit);
+   return _rootCallRatio * ( 1 + _benefit);
    }
 
 unsigned int IDTNode::getStaticBenefit() const
    {
    return _benefit;
+   }
+
+MethodSummaryExtension *IDTNode::getMethodSummary() const  
+   {
+   TR_ASSERT_FATAL(_methodSummary,"Method summary is not set!");
+   return _methodSummary;
+   }
+
+void IDTNode::setMethodSummary(MethodSummaryExtension* methodSummary)
+   {
+   TR_ASSERT_FATAL(methodSummary, "Setting a NULL methodsummary");
+   _methodSummary = methodSummary;
    }
 
 void IDTNode::printByteCode() const
@@ -325,20 +338,6 @@ int IDTNode::getCallerIndex() const
    return parent->getCalleeIndex();
    }
 
-UDATA IDTNode::maxStack() const
-   {
-   TR_ResolvedJ9Method *method = (TR_ResolvedJ9Method *)getResolvedMethodSymbol()->getResolvedMethod();
-   J9ROMMethod *romMethod = method->romMethod();
-   return J9_MAX_STACK_FROM_ROM_METHOD(romMethod);
-   }
-
-IDATA IDTNode::maxLocals() const
-   {
-   TR_ResolvedJ9Method *method = (TR_ResolvedJ9Method *)getResolvedMethodSymbol()->getResolvedMethod();
-   J9ROMMethod *romMethod = method->romMethod();
-   return J9_ARG_COUNT_FROM_ROM_METHOD(romMethod) + J9_TEMP_COUNT_FROM_ROM_METHOD(romMethod);
-   }
-
 int IDTNode::getBudget() const
    {
    return _budget;
@@ -408,12 +407,12 @@ void IDTNode::setOnlyChild(IDTNode* child)
 
 float IDTNode::getCallRatio() const
    {
-   return _callRatioCallerCallee;
+   return _callRatio;
    }
 
 float IDTNode::getRootCallRatio() const  
    {
-   return _callRatioRootCallee;
+   return _rootCallRatio;
    }
 
 TR::ValuePropagation* IDTNode::getValuePropagation() const
