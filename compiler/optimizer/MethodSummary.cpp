@@ -21,10 +21,10 @@ PotentialOptimization::test(AbsValue *argumentEstimate, TR::ValuePropagation *va
   if (!argumentEstimate) return 0;
   if (!this->_constraint) return 0;
 
-  TR::VPConstraint *argumentEstimateVP = argumentEstimate->_vp;
+  TR::VPConstraint *argumentEstimateVP = argumentEstimate->getConstraint();
   if (!argumentEstimateVP) return 0;
 
-  TR::VPConstraint *c = _constraint->_vp;
+  TR::VPConstraint *c = _constraint->getConstraint();
   if (!c) return 0;
 
 
@@ -40,7 +40,7 @@ NullCheckFolding::test(AbsValue *argumentEstimate, TR::ValuePropagation *valuePr
   if (!argumentEstimate) return 0;
   if (!this->_constraint) return 0;
 
-  TR::VPConstraint *argumentEstimateVP = argumentEstimate->_vp; // aClass...
+  TR::VPConstraint *argumentEstimateVP = argumentEstimate->getConstraint(); // aClass...
   if (!argumentEstimateVP) return 0;
 
   TR::VPClass *argEst = argumentEstimateVP->asClass();
@@ -49,7 +49,7 @@ NullCheckFolding::test(AbsValue *argumentEstimate, TR::ValuePropagation *valuePr
   TR::VPClassPresence *argPres = argEst->getClassPresence();
   if (!argPres) return 0;
 
-  TR::VPConstraint *c = _constraint->_vp; // NULL or non-NULL...
+  TR::VPConstraint *c = _constraint->getConstraint(); // NULL or non-NULL...
   if (!c) return 0;
 
 

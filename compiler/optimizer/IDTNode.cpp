@@ -45,7 +45,7 @@ IDTNode* IDTNode::addChildIfNotExists(
       TR::Region& region)
    {
    // don't add things that we do are 1/25th as good as the root
-   if (_callRatioRootCallee * callRatioCallerCallee * 100 < 25)
+   if (_rootCallRatio * callRatioCallerCallee * 100 < 25)
       return NULL;
 
    // The case where there is no children
@@ -171,7 +171,6 @@ unsigned int IDTNode::getStaticBenefit() const
 
 MethodSummaryExtension *IDTNode::getMethodSummary() const  
    {
-   TR_ASSERT_FATAL(_methodSummary,"Method summary is not set!");
    return _methodSummary;
    }
 

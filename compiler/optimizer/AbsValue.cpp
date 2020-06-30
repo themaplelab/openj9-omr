@@ -7,6 +7,13 @@ AbsValue::AbsValue(TR::VPConstraint* constraint, TR::DataType dataType) :
    {
    }
 
+AbsValue::AbsValue(AbsValue* other):
+      _constraint(other->_constraint),
+      _dataType(other->_dataType),
+      _paramPos(other->_paramPos)
+   {
+   }
+
 AbsValue* AbsValue::merge(AbsValue *other, TR::Region &region, OMR::ValuePropagation *vp)
    {
    //TR_ASSERT(other->_dt == this->_dt, "different data types");
@@ -52,4 +59,9 @@ void AbsValue::setParamPosition(int paramPos)
 TR::VPConstraint* AbsValue::getConstraint()
    {
    return _constraint;
+   }
+
+TR::DataType AbsValue::getDataType()
+   {
+   return _dataType;
    }

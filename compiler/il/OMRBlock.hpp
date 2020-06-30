@@ -50,7 +50,7 @@ namespace OMR { typedef OMR::Block BlockConnector; }
 #include "infra/List.hpp"
 #include "optimizer/Optimizer.hpp"
 
-
+class AbsState;
 class AbsEnvStatic;
 class TR_BitVector;
 class TR_BlockStructure;
@@ -491,6 +491,7 @@ class OMR_EXTENSIBLE Block : public TR::CFGNode
     */
 
    AbsEnvStatic *_absEnv;
+   AbsState *_absState;
 
    private:
    void init(TR::TreeTop *entry, TR::TreeTop *exit);

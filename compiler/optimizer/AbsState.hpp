@@ -1,5 +1,5 @@
 #ifndef ABS_STATE_INCL
-#define ASB_STATE_INCL
+#define ABS_STATE_INCL
 
 #include "env/Region.hpp"
 #include "optimizer/IDTNode.hpp"
@@ -11,7 +11,7 @@ class AbsState
     {
     public:
     AbsState(TR::Region &region, TR::ResolvedMethodSymbol* symbol);
-    AbsState(const AbstractState&);
+    AbsState(const AbsState&);
     //For AbsArray
     void set(unsigned int, AbsValue*);
     AbsValue *at(unsigned int);
@@ -19,15 +19,14 @@ class AbsState
     void push(AbsValue *);
     AbsValue* pop();
     AbsValue* top();
-    
-    void merge(AbstractState &, TR::ValuePropagation*);
+    void merge(AbsState &, TR::ValuePropagation*);
     size_t getStackSize();
     size_t getArraySize();
     void trace(TR::ValuePropagation*);
 
     private:
-    UDATA maxStack();
-    IDATA maxLocal();
+    UDATA maxStack(TR::ResolvedMethodSymbol* symbol);
+    IDATA maxLocal(TR::ResolvedMethodSymbol* symbol);
     TR::Region& _region;
     AbsVarArrayStatic _array;
     AbsOpStackStatic _stack;

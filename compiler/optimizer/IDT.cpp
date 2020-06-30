@@ -189,7 +189,7 @@ void IDT::copyChildren(IDTNode* fromNode, IDTNode* toNode)
          {
          increaseGlobalIDTNodeIndex();
          newChild->setCallTarget(child->getCallTarget());
-         newChild->_summary = child->_summary;
+         newChild->setMethodSummary(child->getMethodSummary());
          }
       }
       

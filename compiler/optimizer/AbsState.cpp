@@ -7,7 +7,7 @@ AbsState::AbsState(TR::Region &region, TR::ResolvedMethodSymbol* symbol) :
    {
    }
 
-AbsState::AbsState(const AbstractState& other) :
+AbsState::AbsState(const AbsState& other) :
       _region(other._region),
       _array(other._array, other._region),
       _stack(other._stack, other._region)
@@ -42,16 +42,17 @@ size_t AbsState::getStackSize()
    {
    return _stack.size();
    }
+
 size_t AbsState::getArraySize()
    {
    return _array.size();
    }
-   
+
 void AbsState::merge(AbsState &other, TR::ValuePropagation *vp)
    {
    AbsState copyOfOther(other);
-   this->_array.merge(copyOfOther._array, _region, vp);
-   this->_stack.merge(copyOfOther._stack, _region, vp);
+   _array.merge(copyOfOther._array, _region, vp);
+   _stack.merge(copyOfOther._stack, _region, vp);
 
    if (TR::comp()->trace(OMR::benefitInliner)) 
       trace(vp);
@@ -66,10 +67,17 @@ AbsValue* AbsState::pop()
 
 AbsValue* AbsState::top()
    {
+      int a = 1;
    return _stack.top();
    }
 
 void AbsState::push(AbsValue *absValue)
    {
    _stack.push(absValue);
+   }
+
+void AbsState::trace(TR::ValuePropagation *vp)
+   {
+   _array.trace(vp);
+   _stack.trace(vp, _region);
    }

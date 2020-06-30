@@ -9,6 +9,7 @@ class AbsValue
    {
    public:
       AbsValue(TR::VPConstraint *constraint, TR::DataType dataType);
+      AbsValue(AbsValue* other);
       AbsValue *merge(AbsValue *other, TR::Region &region, OMR::ValuePropagation *vp);
       
       void print(OMR::ValuePropagation *vp);
@@ -17,6 +18,7 @@ class AbsValue
       int getParamPosition();
       void setParamPosition(int paramPos);
 
+      TR::DataType getDataType();
       TR::VPConstraint* getConstraint();
 
    private:
