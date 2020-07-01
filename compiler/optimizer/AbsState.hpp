@@ -10,23 +10,23 @@
 class AbsState
     {
     public:
-    AbsState(TR::Region &region, TR::ResolvedMethodSymbol* symbol);
-    AbsState(const AbsState&);
+    AbsState(TR::Region &region, unsigned int maxLocalVarArrayDepth, unsigned int maxOpStackDepth);
+    AbsState(AbsState* other);
+
     //For AbsArray
     void set(unsigned int, AbsValue*);
     AbsValue *at(unsigned int);
+
     //For AbsOpStack
     void push(AbsValue *);
     AbsValue* pop();
     AbsValue* top();
-    void merge(AbsState &, TR::ValuePropagation*);
+    void merge(AbsState*, TR::ValuePropagation*);
     size_t getStackSize();
     size_t getArraySize();
     void trace(TR::ValuePropagation*);
 
     private:
-    UDATA maxStack(TR::ResolvedMethodSymbol* symbol);
-    IDATA maxLocal(TR::ResolvedMethodSymbol* symbol);
     TR::Region& _region;
     AbsVarArrayStatic _array;
     AbsOpStackStatic _stack;

@@ -15,19 +15,10 @@ AbsInterpreter::AbsInterpreter(
       _valuePropagation(valuePropagation),
       _bcIterator(node->getResolvedMethodSymbol(),static_cast<TR_ResolvedJ9Method*>(node->getCallTarget()->_calleeMethod),static_cast<TR_J9VMBase*>(this->comp()->fe()), this->comp())
    {
-   _methodSummary = new (_region) MethodSummaryExtension(_region, valuePropagation);
-   TR_ASSERT_FATAL(idtBuilder, "Cannot pass a NULL IDTBuilder!");
-   }
-
-AbsInterpreter::AbsInterpreter(IDTNode* node, TR::ValuePropagation* valuePropagation, TR::Region& region, TR::Compilation* comp):
-      _idtNode(node),
-      _region(region),
-      _comp(comp),
-      _valuePropagation(valuePropagation),
-      _idtBuilder(NULL),
-      _methodSummary(NULL),
-      _bcIterator(node->getResolvedMethodSymbol(),static_cast<TR_ResolvedJ9Method*>(node->getCallTarget()->_calleeMethod),static_cast<TR_J9VMBase*>(this->comp()->fe()), this->comp())
-   {
+   if (idtBuilder)
+       _methodSummary = new (_region) MethodSummaryExtension(_region, valuePropagation);
+   else
+      _methodSummary = NULL;
    }
 
 TR::Compilation* AbsInterpreter::comp()
@@ -38,6 +29,20 @@ TR::Compilation* AbsInterpreter::comp()
 TR::Region& AbsInterpreter::region()
    {
    return _region;
+   }
+
+UDATA AbsInterpreter::maxOpStackDepth(TR::ResolvedMethodSymbol* symbol)
+   {
+   TR_ResolvedJ9Method *method = (TR_ResolvedJ9Method *)symbol->getResolvedMethod();
+   J9ROMMethod *romMethod = method->romMethod();
+   return J9_MAX_STACK_FROM_ROM_METHOD(romMethod);
+   }
+
+IDATA AbsInterpreter::maxLocalVarArrayDepth(TR::ResolvedMethodSymbol* symbol)
+   {
+   TR_ResolvedJ9Method *method = (TR_ResolvedJ9Method *)symbol->getResolvedMethod();
+   J9ROMMethod *romMethod = method->romMethod();
+   return J9_ARG_COUNT_FROM_ROM_METHOD(romMethod) + J9_TEMP_COUNT_FROM_ROM_METHOD(romMethod);
    }
 
 void AbsInterpreter::interpret()
@@ -67,7 +72,7 @@ AbsState* AbsInterpreter::enterMethod(TR::ResolvedMethodSymbol* symbol)
    if (comp()->getOption(TR_TraceAbstractInterpretation)) 
       traceMsg(comp(), "AbsInterpreter: Enter Method: %s\n", symbol->signature(comp()->trMemory()));
 
-   AbsState* absState = new (region()) AbsState(region(), symbol);
+   AbsState* absState = new (region()) AbsState(region(), maxLocalVarArrayDepth(symbol),maxOpStackDepth(symbol));
 
    TR_ResolvedMethod *callerResolvedMethod = _bcIterator.method();
    TR::ResolvedMethodSymbol* callerResolvedMethodSymbol = TR::ResolvedMethodSymbol::create(comp()->trHeapMemory(), callerResolvedMethod, comp());
@@ -250,7 +255,7 @@ void AbsInterpreter::transferAbsStates(TR::Block* block)
       traceMsg(comp(), "There is only one predecessor.\n");
    if (block->hasOnlyOnePredecessor() && block->getPredecessors().front()->getFrom()->asBlock()->_absState) 
       {
-      AbsState *absState = new (this->getRegion()) AbsEnvStatic(*block->getPredecessors().front()->getFrom()->asBlock()->_absState);
+      AbsState *absState = new (region()) AbsState(block->getPredecessors().front()->getFrom()->asBlock()->_absState);
       block->_absState = absState;
       return;
       }
@@ -297,9 +302,9 @@ void AbsInterpreter::transferAbsStates(TR::Block* block)
 
       // how many 
       oldState->trace(_valuePropagation);
-      AbsState *absState = new (region()) AbsState(*oldState);
+      AbsState *absState = new (region()) AbsState(oldState);
     
-      aBlock->_absState->zeroOut(absState);
+      //aBlock->_absState->zeroOut(absState);
       block->_absState = absState;
       return;
       }
@@ -324,7 +329,6 @@ void AbsInterpreter::traverseBasicBlocks(TR::CFG* cfg)
    for (TR::ReversePostorderSnapshotBlockIterator blockIt (startBlock, comp()); blockIt.currentBlock(); ++blockIt)
       {
       TR::Block *block = blockIt.currentBlock();
-      printf("B: %d\n",block->getNumber());
       //set start block's absState
       if (block == startBlock)
          block->_absState = startBlockState;
@@ -350,5 +354,5 @@ void AbsInterpreter::traverseByteCode(TR::Block* block)
    if (block->getNumber() == 3) //Exit block
       return;
 
-   transferAbsStates(block);
+   //transferAbsStates(block);
    }

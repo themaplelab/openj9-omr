@@ -1,31 +1,17 @@
 #include "optimizer/AbsState.hpp"
 
-AbsState::AbsState(TR::Region &region, TR::ResolvedMethodSymbol* symbol) :
+AbsState::AbsState(TR::Region &region, unsigned int maxLocalVarArrayDepth, unsigned int maxOpStackDepth) :
       _region(region),
-      _array(region, maxLocal(symbol)),
-      _stack(region, maxStack(symbol))
+      _array(region, maxLocalVarArrayDepth),
+      _stack(region, maxOpStackDepth)
    {
    }
 
-AbsState::AbsState(const AbsState& other) :
-      _region(other._region),
-      _array(other._array, other._region),
-      _stack(other._stack, other._region)
+AbsState::AbsState(AbsState* other) :
+      _region(other->_region),
+      _array(other->_array, other->_region),
+      _stack(other->_stack, other->_region)
    {
-   }
-
-UDATA AbsState::maxStack(TR::ResolvedMethodSymbol* symbol)
-   {
-   TR_ResolvedJ9Method *method = (TR_ResolvedJ9Method *)symbol->getResolvedMethod();
-   J9ROMMethod *romMethod = method->romMethod();
-   return J9_MAX_STACK_FROM_ROM_METHOD(romMethod);
-   }
-
-IDATA AbsState::maxLocal(TR::ResolvedMethodSymbol* symbol)
-   {
-   TR_ResolvedJ9Method *method = (TR_ResolvedJ9Method *)symbol->getResolvedMethod();
-   J9ROMMethod *romMethod = method->romMethod();
-   return J9_ARG_COUNT_FROM_ROM_METHOD(romMethod) + J9_TEMP_COUNT_FROM_ROM_METHOD(romMethod);
    }
 
 AbsValue* AbsState::at(unsigned int n)
@@ -48,7 +34,7 @@ size_t AbsState::getArraySize()
    return _array.size();
    }
 
-void AbsState::merge(AbsState &other, TR::ValuePropagation *vp)
+void AbsState::merge(AbsState* other, TR::ValuePropagation *vp)
    {
    AbsState copyOfOther(other);
    _array.merge(copyOfOther._array, _region, vp);
