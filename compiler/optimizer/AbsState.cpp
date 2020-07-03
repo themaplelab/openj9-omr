@@ -47,7 +47,10 @@ void AbsState::merge(AbsState* other, TR::ValuePropagation *vp)
 AbsValue* AbsState::pop()
    {
    AbsValue* absValue = _stack.top();
+   printf("pop\n");
+  
    _stack.pop();
+    printf("size %d\n", _stack.size());
    return absValue;
    }
 
@@ -59,7 +62,10 @@ AbsValue* AbsState::top()
 
 void AbsState::push(AbsValue *absValue)
    {
+      printf("push\n");
+     
    _stack.push(absValue);
+    printf("size %d\n", _stack.size());
    }
 
 void AbsState::trace(TR::ValuePropagation *vp)

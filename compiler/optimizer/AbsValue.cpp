@@ -20,10 +20,11 @@ AbsValue* AbsValue::merge(AbsValue *other, TR::Region &region, OMR::ValuePropaga
    // when merging array this isn't true
    if (!this || !other)
       return NULL; // This is necessary :/
-   if (_constraint)
+   if (!_constraint)
       return this;
    if (!other->_constraint)
       return other;
+
    TR::VPConstraint *constraint = _constraint->merge(other->_constraint, vp);
    AbsValue *absVal = new (region) AbsValue(constraint, _dataType);
    absVal->_paramPos = -1; // modified;

@@ -2545,23 +2545,24 @@ OMR::Block::hasOnlyOnePredecessor()
 
 bool
 OMR::Block::hasAbstractInterpretedAllPredecessors()
-  {
-  TR::CFGEdgeList &predecessors = this->getPredecessors();
-  for (auto i = predecessors.begin(), e = predecessors.end(); i != e; ++i)
-  {
-     auto *edge = *i;
-     TR::Block *aBlock = edge->getFrom()->asBlock();
-     TR::Block *check = edge->getTo()->asBlock();
-     if (check != this) {
-        continue;
-     }
-     if (aBlock->_absState == NULL)
-     {
-       return false;
-     }
-  }
-  return true;
-  }
+   {
+   TR::CFGEdgeList &predecessors = this->getPredecessors();
+   for (auto i = predecessors.begin(), e = predecessors.end(); i != e; ++i)
+      {
+         auto *edge = *i;
+         TR::Block *aBlock = edge->getFrom()->asBlock();
+         TR::Block *check = edge->getTo()->asBlock();
+         if (check != this) 
+            {
+            continue;
+            }
+         if (aBlock->_absState == NULL)
+            {
+            return false;
+            }
+      }
+   return true;
+   }
 
 bool
 OMR::Block::isSuperCold()

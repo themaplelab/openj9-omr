@@ -62,7 +62,7 @@ void IDTBuilder::buildIDT()
    bool traceBIIDTGen = comp()->getOption(TR_TraceBIIDTGen);
 
    if (traceBIIDTGen)
-      traceMsg(comp(), "\nIDTBuilder: Start building IDT...\n");
+      traceMsg(comp(), "\n+ IDTBuilder: Start building IDT |\n\n");
    
    //Initialize IDT
    _idt = new (getRegion()) IDT(getRegion(), _rootSymbol, _rootBudget, comp());
@@ -83,7 +83,7 @@ void IDTBuilder::buildIDT()
    buildIDTHelper(root, _rootBudget, NULL);
 
    if (traceBIIDTGen)
-      traceMsg(comp(), "\nIDTBuilder: End building IDT...\n");
+      traceMsg(comp(), "\n+ IDTBuilder: Finish building IDT |\n");
    }
 
 void IDTBuilder::buildIDTHelper(IDTNode* node, int32_t budget, TR_CallStack* callStack)
@@ -113,7 +113,7 @@ void IDTBuilder::buildIDTHelper(IDTNode* node, int32_t budget, TR_CallStack* cal
    //                         static_cast<TR_J9VMBase*>(comp()->fe()), comp()
    //                         );
    if (traceBIIDTGen)
-      traceMsg(comp(), "IDTBuilder: Adding children for IDTNode: %s\n",node->getName(comp()->trMemory()));
+      traceMsg(comp(), "+ IDTBuilder: Adding children for IDTNode: %s\n",node->getName(comp()->trMemory()));
 
    generateCFG(node->getCallTarget());
 

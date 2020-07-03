@@ -50,7 +50,7 @@ void AbsOpStackStatic::merge(const AbsOpStackStatic &stack, TR::Region &regionFo
 
 void AbsOpStackStatic::push(AbsValue *value)
    {
-   TR_ASSERT(value, "null value");
+   TR_ASSERT_FATAL(value, "Push a NULL value");
    _stack.push(value);
    }
 
@@ -79,7 +79,7 @@ size_t AbsOpStackStatic::size()
 void AbsOpStackStatic::trace(OMR::ValuePropagation *vp, TR::Region &region)
    {
    TR::Compilation *comp = TR::comp();
-   traceMsg(comp, "contents of operand stack:\n");
+   traceMsg(comp, "Contents of Abstract Operand Stack:\n");
    int size = this->size();
    if (size == 0)
       {
