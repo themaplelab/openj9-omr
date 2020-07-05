@@ -20,20 +20,20 @@ public:
   TR::Region& getCallSitesRegion();
   virtual bool loadFromIDT() { return false; }
 protected:
-  virtual AbstractState& invokevirtual(AbstractState&, int, int);
-  virtual AbstractState& invokespecial(AbstractState&, int, int);
-  virtual AbstractState& invokestatic(AbstractState&, int, int);
-  virtual AbstractState& invokeinterface(AbstractState&, int, int);
-  //virtual AbstractState& invokeinterface2(AbstractState&, int, int);
-  virtual AbstractState& ifeq(AbstractState&, int, int);
-  virtual AbstractState& ifne(AbstractState&, int, int);
-  virtual AbstractState& ifge(AbstractState&, int, int);
-  virtual AbstractState& ifgt(AbstractState&, int, int);
-  virtual AbstractState& iflt(AbstractState&, int, int);
-  virtual AbstractState& ifle(AbstractState&, int, int);
-  virtual AbstractState& ifnonnull(AbstractState&, int, int);
-  virtual AbstractState& ifnull(AbstractState&, int, int);
-  virtual AbstractState& instanceof(AbstractState&, int, int);
+  virtual AbsState& invokevirtual(AbsState&, int, int);
+  virtual AbsState& invokespecial(AbsState&, int, int);
+  virtual AbsState& invokestatic(AbsState&, int, int);
+  virtual AbsState& invokeinterface(AbsState&, int, int);
+  //virtual AbsState& invokeinterface2(AbsState&, int, int);
+  virtual AbsState& ifeq(AbsState&, int, int);
+  virtual AbsState& ifne(AbsState&, int, int);
+  virtual AbsState& ifge(AbsState&, int, int);
+  virtual AbsState& ifgt(AbsState&, int, int);
+  virtual AbsState& iflt(AbsState&, int, int);
+  virtual AbsState& ifle(AbsState&, int, int);
+  virtual AbsState& ifnonnull(AbsState&, int, int);
+  virtual AbsState& ifnull(AbsState&, int, int);
+  virtual AbsState& instanceof(AbsState&, int, int);
 private:
   void addInstanceof(int, int, AbsValue *);
   void addIfeq(int, int);

@@ -35,7 +35,7 @@ namespace OMR {
    };
 
 
-class AbsEnvInlinerUtil;
+class BenefitInlinerUtil;
 class BenefitInlinerBase: public TR_InlinerBase 
    {
    protected:
@@ -62,9 +62,9 @@ protected:
       IDTNode *_currentChild;
       InliningProposal *_inliningProposal;
    private:
-      AbsEnvInlinerUtil *_util2;
-      void setAbsEnvUtil(AbsEnvInlinerUtil *u) { this->_util2 = u; }
-      AbsEnvInlinerUtil *getAbsEnvUtil() { return this->_util2; }
+      BenefitInlinerUtil *_util2;
+      void setAbsEnvUtil(BenefitInlinerUtil *u) { this->_util2 = u; }
+      BenefitInlinerUtil *getAbsEnvUtil() { return this->_util2; }
    };
 
 
@@ -84,7 +84,7 @@ class BenefitInliner: public BenefitInlinerBase
       void obtainIDT(IDTNodeIndices&, IDTNode*, TR_J9ByteCodeIterator&, TR::Block *, int32_t);
       void obtainIDT(IDTNodeIndices*, IDTNode *, TR_CallSite*, int32_t budget, int cpIndex);
       void traceIDT();
-      TR::Region _holdingProposalRegion;
+      TR::Region& _holdingProposalRegion;
       inline const uint32_t budget() const { return this->_budget; }
    private:
       typedef TR::typed_allocator<std::pair<TR_OpaqueMethodBlock*, IDTNode*>, TR::Region&> MethodSummaryMapAllocator;
@@ -128,13 +128,13 @@ class BenefitInliner: public BenefitInlinerBase
                                     bool allConsts=false);
    };
 
-   class AbsEnvInlinerUtil : public TR_J9InlinerUtil
+   class BenefitInlinerUtil : public TR_J9InlinerUtil
    {
       friend class TR_InlinerBase;
       friend class TR_MultipleCallTargetInliner;
       friend class BenefitInliner;
       public:
-      AbsEnvInlinerUtil(TR::Compilation *comp);
+      BenefitInlinerUtil(TR::Compilation *comp);
       void computeMethodBranchProfileInfo2(TR::Block *, TR_CallTarget *, TR::ResolvedMethodSymbol*, int, TR::Block *, TR::CFG *cfg);
    };
 }

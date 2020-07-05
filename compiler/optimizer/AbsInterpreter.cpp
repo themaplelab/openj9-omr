@@ -5,6 +5,8 @@ AbsInterpreter::AbsInterpreter(
    IDTNode* node, 
    IDTBuilder* idtBuilder, 
    TR::ValuePropagation* valuePropagation,
+   TR_CallStack* callStack,
+   IDTNodeDeque& idtNodeChildren,
    TR::Region& region,
    TR::Compilation* comp
    ):
@@ -13,6 +15,8 @@ AbsInterpreter::AbsInterpreter(
       _region(region),
       _comp(comp),
       _valuePropagation(valuePropagation),
+      _callStack(callStack),
+      _idtNodeChildren(idtNodeChildren),
       _bcIterator(node->getResolvedMethodSymbol(),static_cast<TR_ResolvedJ9Method*>(node->getCallTarget()->_calleeMethod),static_cast<TR_J9VMBase*>(this->comp()->fe()), this->comp())
    {
    if (idtBuilder)
@@ -63,6 +67,8 @@ void AbsInterpreter::interpret()
    TR::CFG* cfg = callTarget->_cfg;
    TR_ASSERT_FATAL(cfg, "CFG is NULL!");
 
+   callTarget->_calleeSymbol->setFlowGraph(cfg);
+   
    traverseBasicBlocks(cfg);
    }
 
@@ -86,7 +92,7 @@ AbsState* AbsInterpreter::enterMethod(TR::ResolvedMethodSymbol* symbol)
    {
    if (comp()->getOption(TR_TraceAbstractInterpretation)) 
       traceMsg(comp(), "- 1. Abstract Interpreter: Enter method: %s\n", symbol->signature(comp()->trMemory()));
-   printf("- 1. Abstract Interpreter: Enter method: %s\n", symbol->signature(comp()->trMemory()));
+   //printf("- 1. Abstract Interpreter: Enter method: %s\n", symbol->signature(comp()->trMemory()));
 
    AbsState* absState = new (region()) AbsState(region(), maxVarArrayDepth(symbol),maxOpStackDepth(symbol));
 
@@ -204,7 +210,7 @@ AbsState* AbsInterpreter::enterMethod(TR::ResolvedMethodSymbol* symbol)
 
 AbsState* AbsInterpreter::mergeAllPredecessors(TR::Block* block)
    {
-   printf("--merge predecessor of block %d\n", block->getNumber());
+   //printf("--merge predecessor of block %d\n", block->getNumber());
    TR::CFGEdgeList &predecessors = block->getPredecessors();
    AbsState* absState = NULL;
 
@@ -220,7 +226,7 @@ AbsState* AbsInterpreter::mergeAllPredecessors(TR::Block* block)
       }
       //TODO: can aBlock->_absState be null?
       TR_ASSERT_FATAL(aBlock->_absState, "absState is NULL, i don't think this is possible");
-      printf(  "   pre : %d\n", aBlock->getNumber());
+      //printf(  "   pre : %d\n", aBlock->getNumber());
       if (first) 
          {
          first = false;
@@ -244,6 +250,7 @@ AbsState* AbsInterpreter::mergeAllPredecessors(TR::Block* block)
 
 void AbsInterpreter::transferAbsStates(TR::Block* block)
    {
+   //printf("-    4. Abstract Interpreter: Transfer abstract states\n");
    bool traceAbstractInterpretion = comp()->getOption(TR_TraceAbstractInterpretation);
 
    if (traceAbstractInterpretion) 
@@ -376,7 +383,7 @@ void AbsInterpreter::traverseBasicBlocks(TR::CFG* cfg)
 
 void AbsInterpreter::traverseByteCode(TR::Block* block)
    {
-      printf("-   3. Abstract Interpreter: Traverse bytecode in basic block #:%d\n",block->getNumber());
+      //printf("-   3. Abstract Interpreter: Traverse bytecode in basic block #:%d\n",block->getNumber());
    bool traceAbstractInterpretation = comp()->getOption(TR_TraceAbstractInterpretation);
    if (traceAbstractInterpretation) 
       traceMsg(comp(), "-   3. Abstract Interpreter: Traverse bytecode in basic block #:%d\n",block->getNumber());
@@ -403,7 +410,7 @@ void AbsInterpreter::traverseByteCode(TR::Block* block)
             traceMsg(comp(),"\n");
             }
             
-         interpretByteCode(block->_absState, bc, _bcIterator); 
+         interpretByteCode(block->_absState, bc, _bcIterator, block); 
          }
       else
          {
@@ -417,7 +424,7 @@ void AbsInterpreter::traverseByteCode(TR::Block* block)
 
    }
 
-void AbsInterpreter::interpretByteCode(AbsState* state, TR_J9ByteCode bc, TR_J9ByteCodeIterator &bci)
+void AbsInterpreter::interpretByteCode(AbsState* state, TR_J9ByteCode bc, TR_J9ByteCodeIterator &bci, TR::Block* block)
    {
       char *J9_ByteCode_Strings[] =
 {
@@ -513,7 +520,7 @@ void AbsInterpreter::interpretByteCode(AbsState* state, TR_J9ByteCode bc, TR_J9B
    bool traceAbstractInterpretation = comp()->getOption(TR_TraceAbstractInterpretation);
    if (traceAbstractInterpretation) 
       traceMsg(comp(), "-     5. Abstract Interpreter: interpret Byte Code\n");
-   printf("+Bytecode: %s\n",J9_ByteCode_Strings[bc]);
+   //printf("+Bytecode: %s\n",J9_ByteCode_Strings[bc]);
    switch(bc)
       {
       //alphabetical order
@@ -626,8 +633,8 @@ void AbsInterpreter::interpretByteCode(AbsState* state, TR_J9ByteCode bc, TR_J9B
       case J9BCiconst4: iconst4(state); break;
       case J9BCiconst5: iconst5(state); break;
       case J9BCidiv: idiv(state); break;
-      case J9BCifacmpeq: ificmpeq(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break; //TODO own function
-      case J9BCifacmpne: ificmpne(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break; //TODO own function
+      case J9BCifacmpeq: ifacmpeq(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break; //TODO own function
+      case J9BCifacmpne: ifacmpne(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break; //TODO own function
       case J9BCificmpeq: ificmpeq(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
       case J9BCificmpge: ificmpge(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
       case J9BCificmpgt: ificmpgt(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
@@ -653,12 +660,12 @@ void AbsInterpreter::interpretByteCode(AbsState* state, TR_J9ByteCode bc, TR_J9B
       case J9BCinstanceof: instanceof(state, bci.next2Bytes(), bci.currentByteCodeIndex(), bci.method()); break;
       // invokes...
       case J9BCinvokedynamic: TR_ASSERT_FATAL(false, "no inoke dynamic"); break;
-      case J9BCinvokeinterface: invokeinterface(state, bci.currentByteCodeIndex(), bci.next2Bytes(),bci.method()); break;
-      case J9BCinvokespecial: invokespecial(state, bci.currentByteCodeIndex(), bci.next2Bytes(),bci.method()); break;
-      case J9BCinvokestatic: invokestatic(state, bci.currentByteCodeIndex(), bci.next2Bytes(),bci.method()); break;
-      case J9BCinvokevirtual: invokevirtual(state, bci.currentByteCodeIndex(), bci.next2Bytes(),bci.method());break;
-      case J9BCinvokespecialsplit: invokespecial(state, bci.currentByteCodeIndex(), bci.next2Bytes() | J9_SPECIAL_SPLIT_TABLE_INDEX_FLAG, bci.method()); break;
-      case J9BCinvokestaticsplit: invokestatic(state, bci.currentByteCodeIndex(), bci.next2Bytes() | J9_STATIC_SPLIT_TABLE_INDEX_FLAG, bci.method()); break;
+      case J9BCinvokeinterface: invokeinterface(state, bci.currentByteCodeIndex(), bci.next2Bytes(),bci.method(), block); break;
+      case J9BCinvokespecial: invokespecial(state, bci.currentByteCodeIndex(), bci.next2Bytes(),bci.method(), block); break;
+      case J9BCinvokestatic: invokestatic(state, bci.currentByteCodeIndex(), bci.next2Bytes(),bci.method(), block); break;
+      case J9BCinvokevirtual: invokevirtual(state, bci.currentByteCodeIndex(), bci.next2Bytes(),bci.method(), block);break;
+      case J9BCinvokespecialsplit: invokespecial(state, bci.currentByteCodeIndex(), bci.next2Bytes() | J9_SPECIAL_SPLIT_TABLE_INDEX_FLAG, bci.method(), block); break;
+      case J9BCinvokestaticsplit: invokestatic(state, bci.currentByteCodeIndex(), bci.next2Bytes() | J9_STATIC_SPLIT_TABLE_INDEX_FLAG, bci.method(), block); break;
       case J9BCior: ior(state); break;
       case J9BCirem: irem(state); break;
       //case J9BCireturn:
@@ -736,22 +743,22 @@ void AbsInterpreter::interpretByteCode(AbsState* state, TR_J9ByteCode bc, TR_J9B
       //TODO: clean me
       case J9BCwide:
       {
-      //TODO: iincw
-      bci.setIndex(bci.currentByteCodeIndex() + 1);
-      TR_J9ByteCode bc2 = bci.current();
-      switch (bc2)
-      {
-      case J9BCiload: iload(state, bci.next2Bytes()); break;
-      case J9BClload: lload(state, bci.next2Bytes()); break;
-      case J9BCfload: fload(state, bci.next2Bytes()); break;
-      case J9BCdload: dload(state, bci.next2Bytes()); break;
-      case J9BCaload: aload(state, bci.next2Bytes()); break;
-      case J9BCistore: istore(state, bci.next2Bytes()); break; 
-      case J9BClstore: dstore(state, bci.next2Bytes()); break;  // TODO: own function?
-      case J9BCfstore: fstore(state, bci.next2Bytes()); break; 
-      case J9BCdstore: dstore(state, bci.next2Bytes()); break; 
-      case J9BCastore: astore(state, bci.next2Bytes()); break; 
-      }
+         //TODO: iincw
+         bci.setIndex(bci.currentByteCodeIndex() + 1);
+         TR_J9ByteCode bc2 = bci.current();
+         switch (bc2)
+            {
+            case J9BCiload: iload(state, bci.next2Bytes()); break;
+            case J9BClload: lload(state, bci.next2Bytes()); break;
+            case J9BCfload: fload(state, bci.next2Bytes()); break;
+            case J9BCdload: dload(state, bci.next2Bytes()); break;
+            case J9BCaload: aload(state, bci.next2Bytes()); break;
+            case J9BCistore: istore(state, bci.next2Bytes()); break; 
+            case J9BClstore: lstore(state, bci.next2Bytes()); break;  // TODO: own function?
+            case J9BCfstore: fstore(state, bci.next2Bytes()); break; 
+            case J9BCdstore: dstore(state, bci.next2Bytes()); break; 
+            case J9BCastore: astore(state, bci.next2Bytes()); break; 
+            }
       }
       break;
       default:
@@ -938,6 +945,7 @@ AbsState* AbsInterpreter::aload(AbsState* absState, int n)
    {
    AbsValue *constraint = absState->at(n);
    absState->push(constraint);
+   return absState;
    }
 
 AbsState* AbsInterpreter::aload0getfield(AbsState* absState, int i)
@@ -2468,28 +2476,24 @@ AbsState* AbsInterpreter::dload(AbsState* absState, int n)
 AbsState* AbsInterpreter::dload0(AbsState* absState)
    {
    dload(absState, 0);
-   dload(absState, 1);
    return absState;
    }
 
 AbsState* AbsInterpreter::dload1(AbsState* absState)
    {
    dload(absState, 1);
-   dload(absState, 2);
    return absState;
    }
 
 AbsState* AbsInterpreter::dload2(AbsState* absState)
    {
    dload(absState, 2);
-   dload(absState, 3);
    return absState;
    }
 
 AbsState* AbsInterpreter::dload3(AbsState* absState)
    {
    dload(absState, 3);
-   dload(absState, 4);
    return absState;
    }
 
@@ -2606,6 +2610,7 @@ AbsState* AbsInterpreter::fload(AbsState* absState, int n)
    {
    AbsValue *constraint = absState->at(n);
    absState->push(constraint);
+   return absState;
    }
 
 AbsState* AbsInterpreter::fload0(AbsState* absState)
@@ -2801,14 +2806,14 @@ AbsState* AbsInterpreter::putfield(AbsState* absState)
    return absState;
    }  
 
-//jack modified
 AbsState* AbsInterpreter::putstatic(AbsState* absState)
    {
    // WONTFIX we do not model the heap
    AbsValue *value1 = absState->pop();
-   if (value1->isType2()) { // category type 2
+   if (value1->getDataType() == TR::NoType)
+      { // category type 2
       AbsValue *value2 = absState->pop();
-   }
+      }
    return absState;
    }
 
@@ -2848,10 +2853,10 @@ void AbsInterpreter::ldcAddress(int cpIndex, TR_ResolvedMethod* method, AbsState
    {
    bool isString = method->isStringConstant(cpIndex);
    if (isString) 
-   {
-   ldcString(cpIndex, method, absState); 
-   return;
-   }
+      {
+      ldcString(cpIndex, method, absState); 
+      return;
+      }
    //TODO: non string case
    TR_OpaqueClassBlock* type = method->getClassFromConstantPool(TR::comp(), cpIndex);
    AbsValue* value = getClassAbsValue(type);
@@ -2865,12 +2870,12 @@ void AbsInterpreter::ldcString(int cpIndex, TR_ResolvedMethod* method, AbsState*
    auto callerResolvedMethodSymbol = TR::ResolvedMethodSymbol::create(comp()->trHeapMemory(), method, comp());
    TR::SymbolReference *symRef = comp()->getSymRefTab()->findOrCreateStringSymbol(callerResolvedMethodSymbol, cpIndex);
    if (symRef->isUnresolved())
-         {
-         TR_OpaqueClassBlock* type = method->getClassFromConstantPool(comp(), cpIndex);
-         AbsValue* value = getClassAbsValue(type);
-         absState->push(value);
-         return;
-         }
+      {
+      TR_OpaqueClassBlock* type = method->getClassFromConstantPool(comp(), cpIndex);
+      AbsValue* value = getClassAbsValue(type);
+      absState->push(value);
+      return;
+      }
    TR::VPConstraint *constraint = TR::VPConstString::create(_valuePropagation, symRef);
    AbsValue *result = new (region()) AbsValue(constraint, TR::Address);
    absState->push(result);
@@ -2980,142 +2985,156 @@ AbsState* AbsInterpreter::newarray(AbsState* absState, int atype)
    return absState;
    }
 
-AbsState* AbsInterpreter::invokevirtual(AbsState* absState, int bcIndex, int cpIndex, TR_ResolvedMethod* method)
+AbsState* AbsInterpreter::invokevirtual(AbsState* absState, int bcIndex, int cpIndex, TR_ResolvedMethod* method, TR::Block* block)
    {
-   invoke(bcIndex, cpIndex, TR::MethodSymbol::Kinds::Virtual, method, absState);
+   invoke(bcIndex, cpIndex, TR::MethodSymbol::Kinds::Virtual, method, absState, block);
    return absState;
    }
 
-AbsState* AbsInterpreter::invokestatic(AbsState* absState, int bcIndex, int cpIndex, TR_ResolvedMethod* method)
+AbsState* AbsInterpreter::invokestatic(AbsState* absState, int bcIndex, int cpIndex, TR_ResolvedMethod* method, TR::Block* block)
    {
-   invoke(bcIndex, cpIndex, TR::MethodSymbol::Kinds::Static, method, absState);
+   invoke(bcIndex, cpIndex, TR::MethodSymbol::Kinds::Static, method, absState, block);
    return absState;
    }
 
-AbsState* AbsInterpreter::invokespecial(AbsState* absState, int bcIndex, int cpIndex, TR_ResolvedMethod* method)
+AbsState* AbsInterpreter::invokespecial(AbsState* absState, int bcIndex, int cpIndex, TR_ResolvedMethod* method, TR::Block* block)
    {
-   invoke(bcIndex, cpIndex, TR::MethodSymbol::Kinds::Special, method, absState);
+   invoke(bcIndex, cpIndex, TR::MethodSymbol::Kinds::Special, method, absState, block);
    return absState;
    }
 
-AbsState* AbsInterpreter::invokedynamic(AbsState* absState, int bcIndex, int cpIndex, TR_ResolvedMethod* method)
+AbsState* AbsInterpreter::invokedynamic(AbsState* absState, int bcIndex, int cpIndex, TR_ResolvedMethod* method, TR::Block* block)
    {
-   invoke(bcIndex, cpIndex, TR::MethodSymbol::Kinds::ComputedVirtual, method, absState);
+   invoke(bcIndex, cpIndex, TR::MethodSymbol::Kinds::ComputedVirtual, method, absState, block);
    return absState;
    }
 
-AbsState* AbsInterpreter::invokeinterface(AbsState* absState, int bcIndex, int cpIndex, TR_ResolvedMethod* method)
+AbsState* AbsInterpreter::invokeinterface(AbsState* absState, int bcIndex, int cpIndex, TR_ResolvedMethod* method, TR::Block* block)
    {
-   invoke(bcIndex, cpIndex, TR::MethodSymbol::Kinds::Interface, method, absState);
+   invoke(bcIndex, cpIndex, TR::MethodSymbol::Kinds::Interface, method, absState, block);
    return absState;
    }
 
-void AbsInterpreter::invoke(int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind, TR_ResolvedMethod* method, AbsState* absState) 
-{
-   printf("invoke!!!\n");
-   printf("Containing method: %s\n",method->signature(comp()->trMemory()));
-  auto callerResolvedMethodSymbol = TR::ResolvedMethodSymbol::create(comp()->trHeapMemory(), method, comp());
+void AbsInterpreter::invoke(int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind, TR_ResolvedMethod* method, AbsState* absState, TR::Block* block) 
+   {
+   //printf("invoke!!!\n");
+   //printf("Containing method: %s\n",method->signature(comp()->trMemory()));
 
-  TR::SymbolReference *symRef;
-  switch(kind) {
-    case TR::MethodSymbol::Kinds::Virtual:
+   //Build IDT
+   if (isForBuildingIDT())
+      {
+     // printf("+++++++++++++++++++++++++++++++++ build IDT\n");
+      _idtBuilder->addChildren(_idtNode, method, bcIndex, cpIndex, kind, _callStack, _idtNodeChildren ,block, _idtNode->getCallTarget()->_cfg);
+      }
+   auto callerResolvedMethodSymbol = TR::ResolvedMethodSymbol::create(comp()->trHeapMemory(), method, comp());
+
+   TR::SymbolReference *symRef;
+   switch(kind) 
+      {
+      case TR::MethodSymbol::Kinds::Virtual:
       symRef = comp()->getSymRefTab()->findOrCreateVirtualMethodSymbol(callerResolvedMethodSymbol, cpIndex);
-    break;
-    case TR::MethodSymbol::Kinds::Interface:
+      break;
+      case TR::MethodSymbol::Kinds::Interface:
       symRef =comp()->getSymRefTab()->findOrCreateInterfaceMethodSymbol(callerResolvedMethodSymbol, cpIndex);
-    break;
-    case TR::MethodSymbol::Kinds::Static:
+      break;
+      case TR::MethodSymbol::Kinds::Static:
       symRef = comp()->getSymRefTab()->findOrCreateStaticMethodSymbol(callerResolvedMethodSymbol, cpIndex);
-    break;
-    case TR::MethodSymbol::Kinds::Special:
+      break;
+      case TR::MethodSymbol::Kinds::Special:
       symRef = comp()->getSymRefTab()->findOrCreateSpecialMethodSymbol(callerResolvedMethodSymbol, cpIndex);
-    break;
-  }
-  TR::Method *j9Method = comp()->fej9()->createMethod(comp()->trMemory(), method->containingClass(), cpIndex);
-  if (comp()->getOption(TR_TraceAbstractInterpretation)) {
-    traceMsg(TR::comp(), "\n%s:%d:%s callsite invariants for %s\n", __FILE__, __LINE__, __func__, j9Method->signature(TR::comp()->trMemory()));
-  }
-  if (false ) {
-    IDTNode * callee = _idtNode->findChildWithBytecodeIndex(bcIndex);
-    if (callee) traceMsg(TR::comp(), "\n%s:%d:%s callsite invariants for (FROM IDT) %s\n", __FILE__, __LINE__, __func__, callee->getName());
-    if (!callee) goto withoutCallee;
-    // TODO: can I place these on the stack?
-    
+      break;
+      }
+   TR::Method *j9Method = comp()->fej9()->createMethod(comp()->trMemory(), method->containingClass(), cpIndex);
+   if (comp()->getOption(TR_TraceAbstractInterpretation)) {
+   traceMsg(TR::comp(), "\n%s:%d:%s callsite invariants for %s\n", __FILE__, __LINE__, __func__, j9Method->signature(TR::comp()->trMemory()));
+   }
+   if (false ) {
+   IDTNode * callee = _idtNode->findChildWithBytecodeIndex(bcIndex);
+   if (callee) traceMsg(TR::comp(), "\n%s:%d:%s callsite invariants for (FROM IDT) %s\n", __FILE__, __LINE__, __func__, callee->getName());
+   if (!callee) goto withoutCallee;
+   // TODO: can I place these on the stack?
+
    //  AbsFrame absFrame(this->getRegion(), callee);
    //  absFrame.interpret(this, kind);
-    //TODO: What I need to do is to create a new AbsEnvStatic with the contents of operand stack as the variable array.
-    // how many pops?
-  
-    return;
-  }
-withoutCallee:
-  // how many pops?
-  uint32_t params = j9Method->numberOfExplicitParameters();
-  AbsValue *absValue = NULL;
-  printf("%s Param #:%d\n",j9Method->signature(comp()->trMemory()),params);
-  for (int i = 0; i < params; i++) {
-    absValue = absState->pop();
-    AbsValue *absValue2 = NULL;
-    TR::DataType datatype = j9Method->parmType(i);
-    switch (datatype) {
-      case TR::Double:
-      case TR::Int64:
-        absValue2 = absState->pop();
-        break;
-      default:
-        break;
-    }
-    if (TR::comp()->getOption(TR_TraceAbstractInterpretation))
-    {
-      traceMsg(TR::comp(), "\n%s:%d:%s \n", __FILE__, __LINE__, __func__);
-      if (absValue) absValue->print(_valuePropagation);
-      if (absValue2) absValue2->print(_valuePropagation);
-    }
-  }
-  int isStatic = kind == TR::MethodSymbol::Kinds::Static;
-  int numberOfImplicitParameters = isStatic ? 0 : 1;
-  if (numberOfImplicitParameters == 1) absValue = absState->pop();
+   //TODO: What I need to do is to create a new AbsEnvStatic with the contents of operand stack as the variable array.
+   // how many pops?
 
-  if (comp()->getOption(TR_TraceAbstractInterpretation) && !isStatic)
-  {
+   return;
+   }
+   withoutCallee:
+   // how many pops?
+   uint32_t params = j9Method->numberOfExplicitParameters();
+   AbsValue *absValue = NULL;
+   //printf("%s Param #:%d\n",j9Method->signature(comp()->trMemory()),params);
+   for (int i = 0; i < params; i++) 
+      {
+      absValue = absState->pop();
+      AbsValue *absValue2 = NULL;
+      TR::DataType datatype = j9Method->parmType(i);
+      switch (datatype) 
+         {
+         case TR::Double:
+         case TR::Int64:
+            absValue2 = absState->pop();
+            break;
+         default:
+            break;
+         }
+      if (TR::comp()->getOption(TR_TraceAbstractInterpretation))
+         {
+         traceMsg(TR::comp(), "\n%s:%d:%s \n", __FILE__, __LINE__, __func__);
+         if (absValue) absValue->print(_valuePropagation);
+         if (absValue2) absValue2->print(_valuePropagation);
+         }
+      }
+   int isStatic = kind == TR::MethodSymbol::Kinds::Static;
+   int numberOfImplicitParameters = isStatic ? 0 : 1;
+   if (numberOfImplicitParameters == 1) absValue = absState->pop();
+
+   if (comp()->getOption(TR_TraceAbstractInterpretation) && !isStatic)
+      {
       traceMsg(comp(), "\n%s:%d:%s \n", __FILE__, __LINE__, __func__);
       if (absValue) absValue->print(_valuePropagation);
-  }
+      }
 
-  //pushes?
-  if (j9Method->returnTypeWidth() == 0) return;
+   //pushes?
+   if (j9Method->returnTypeWidth() == 0) return;
 
-  //how many pushes?
-  TR::DataType datatype = j9Method->returnType();
-  switch(datatype) {
+   //how many pushes?
+   TR::DataType datatype = j9Method->returnType();
+   switch(datatype) 
+      {
       case TR::Float:
       case TR::Int32:
       case TR::Int16:
       case TR::Int8:
       case TR::Address:
-        {
-        AbsValue *result = getTOPAbsValue(datatype);
-        absState->push(result);
-        }
-        break;
+         {
+         AbsValue *result = getTOPAbsValue(datatype);
+         absState->push(result);
+         }
+         break;
       case TR::Double:
       case TR::Int64:
-        {
-        AbsValue *result = getTOPAbsValue(datatype);
-        absState->push(result);
-        AbsValue *result2 = getTOPAbsValue(TR::NoType);
-        absState->push(result2);
-        }
-        break;
+         {
+         AbsValue *result = getTOPAbsValue(datatype);
+         absState->push(result);
+         AbsValue *result2 = getTOPAbsValue(TR::NoType);
+         absState->push(result2);
+         }
+         break;
       case TR::NoType:
          break;
       default:
-        {
-        //TODO: 
-        AbsValue *result = getTOPAbsValue(TR::Address);
-        absState->push(result);
-        }
-        break;
-  }
-  
-}
+         {
+         //TODO: 
+         AbsValue *result = getTOPAbsValue(TR::Address);
+         absState->push(result);
+         }
+         break;
+      }
+
+
+
+
+   }

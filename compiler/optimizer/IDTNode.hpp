@@ -17,6 +17,7 @@ class MethodSummaryExtension;
 class IDTNode;
 
 typedef TR::deque<IDTNode*, TR::Region&> IDTNodeIndices;
+typedef TR::deque<IDTNode*, TR::Region&> IDTNodeDeque;
 typedef TR::vector<IDTNode*, TR::Region&> IDTNodePtrVector;
 struct IDTNodePtrOrder {
    bool operator()(IDTNode *left, IDTNode *right);

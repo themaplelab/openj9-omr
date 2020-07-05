@@ -52,7 +52,7 @@ class TR_BitVector;
 class TR_BlockCloner;
 class TR_BlockFrequencyInfo;
 class TR_ExternalProfiler;
-namespace OMR { class AbsEnvInlinerUtil; }
+namespace OMR { class BenefitInlinerUtil; }
 namespace TR { class Block; }
 namespace TR { class CFG; }
 namespace TR { class CFGEdge; }
@@ -173,7 +173,7 @@ class CFG
    virtual bool isColdCall(TR_ByteCodeInfo &, TR_HasRandomGenerator *r);
    virtual bool isColdTarget(TR_ByteCodeInfo &, TR_CallTarget *, TR_HasRandomGenerator *r);
    virtual bool isColdTarget(TR_ByteCodeInfo &, float, TR_HasRandomGenerator *r);
-   virtual void computeMethodBranchProfileInfo(AbsEnvInlinerUtil *util, TR_CallTarget*, TR::ResolvedMethodSymbol*, int, TR::Block*, TR::CFG* cfg);
+   virtual void computeMethodBranchProfileInfo(BenefitInlinerUtil *util, TR_CallTarget*, TR::ResolvedMethodSymbol*, int, TR::Block*, TR::CFG* cfg);
 
    int32_t getNumberOfNodes() {return _nodes.getSize();}
    int32_t getNextNodeNumber() {return _nextNodeNumber;}

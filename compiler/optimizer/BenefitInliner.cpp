@@ -11,60 +11,76 @@
 #include "infra/SimpleRegex.hpp"
 #include "optimizer/BenefitInliner.hpp"
 #include "optimizer/MethodSummary.hpp"
-#include "optimizer/J9CallGraph.hpp"
 #include "optimizer/J9EstimateCodeSize.hpp"
 #include "optimizer/PriorityPreorder.hpp"
 #include "optimizer/Growable_2d_array.hpp"
 #include "optimizer/InlinerPacking.hpp"
 #include "optimizer/AbsEnvStatic.hpp"
-#include "optimizer/IDTConstructor.hpp"
 #include "optimizer/InliningProposal.hpp"
+#include "optimizer/IDTBuilder.hpp"
 
 
 int32_t OMR::BenefitInlinerWrapper::perform()
    {
+   
    TR::ResolvedMethodSymbol * sym = comp()->getMethodSymbol();
    TR::CFG *prevCFG = sym->getFlowGraph();
    int32_t budget = this->getBudget(sym);
-   if (budget < 0) return 1;
-   OMR::BenefitInliner inliner(optimizer(), this, budget);
-   inliner._rootRms = prevCFG;
-   inliner.initIDT(sym, budget);
-   if (comp()->trace(OMR::benefitInliner))
-     {
-     traceMsg(TR::comp(), "starting benefit inliner for %s, budget = %d, hotness = %s\n", sym->signature(this->comp()->trMemory()), budget, comp()->getHotnessName(comp()->getMethodHotness()));
-     }
-   
-   inliner.obtainIDT(inliner._idt->getRoot(), budget);
-   inliner.traceIDT();
-   if (inliner._idt->getNumNodes() == 1) 
-      {
-      inliner._idt->getRoot()->getResolvedMethodSymbol()->setFlowGraph(inliner._rootRms);
+   if (budget < 0)
       return 1;
-      }
-   inliner._idt->getRoot()->getResolvedMethodSymbol()->setFlowGraph(inliner._rootRms);
-   int recursiveCost = inliner._idt->getRoot()->getRecursiveCost();
-   bool canSkipAbstractInterpretation = recursiveCost < budget;
-   if (!canSkipAbstractInterpretation) {
-       if (TR::comp()->getOption(TR_TraceAbstractInterpretation))
-       {
-       traceMsg(TR::comp(), "STARTXXX: about to start abstract interpretation\n");
-       }
-      inliner.abstractInterpreter();
-       if (TR::comp()->getOption(TR_TraceAbstractInterpretation))
-       {
-       traceMsg(TR::comp(), "ENDXXX: about to end abstract interpretation\n");
-       }
-      inliner.analyzeIDT();
-   } else {
-      inliner.addEverything();
-   }
+   OMR::BenefitInliner inliner(optimizer(), this, budget);
+   
+   IDTBuilder* builder = new (comp()->region()) IDTBuilder(sym,budget,comp()->region(), comp(), &inliner);
+   builder->buildIDT();
+   IDT* idt = builder->getIDT();
+   idt->printTrace();
 
-/*
-   inliner._idt->getRoot()->getResolvedMethodSymbol()->setFlowGraph(inliner._rootRms);
-*/
-   inliner._currentNode = inliner._idt->getRoot();
-   inliner.performInlining(sym);
+   //restore the 'real' CFG since we changed it when contructing IDT. 
+   sym->setFlowGraph(prevCFG);
+
+   if (idt->getNumNodes() == 1)
+      return 1;
+   
+   int recursiveCost = idt->getRoot()->getRecursiveCost(); 
+//    if (budget < 0) return 1;
+//    OMR::BenefitInliner inliner(optimizer(), this, budget);
+//    inliner._rootRms = prevCFG;
+//    inliner.initIDT(sym, budget);
+//    if (comp()->trace(OMR::benefitInliner))
+//      {
+//      traceMsg(TR::comp(), "starting benefit inliner for %s, budget = %d, hotness = %s\n", sym->signature(this->comp()->trMemory()), budget, comp()->getHotnessName(comp()->getMethodHotness()));
+//      }
+   
+//    inliner.obtainIDT(inliner._idt->getRoot(), budget);
+//    inliner.traceIDT();
+//    if (inliner._idt->getNumNodes() == 1) 
+//       {
+//       inliner._idt->getRoot()->getResolvedMethodSymbol()->setFlowGraph(inliner._rootRms);
+//       return 1;
+//       }
+//    inliner._idt->getRoot()->getResolvedMethodSymbol()->setFlowGraph(inliner._rootRms);
+//    int recursiveCost = inliner._idt->getRoot()->getRecursiveCost();
+//    bool canSkipAbstractInterpretation = recursiveCost < budget;
+//    if (!canSkipAbstractInterpretation) {
+//        if (TR::comp()->getOption(TR_TraceAbstractInterpretation))
+//        {
+//        traceMsg(TR::comp(), "STARTXXX: about to start abstract interpretation\n");
+//        }
+//       inliner.abstractInterpreter();
+//        if (TR::comp()->getOption(TR_TraceAbstractInterpretation))
+//        {
+//        traceMsg(TR::comp(), "ENDXXX: about to end abstract interpretation\n");
+//        }
+//       inliner.analyzeIDT();
+//    } else {
+//       inliner.addEverything();
+//    }
+
+// /*
+//    inliner._idt->getRoot()->getResolvedMethodSymbol()->setFlowGraph(inliner._rootRms);
+// */
+//    inliner._currentNode = inliner._idt->getRoot();
+//    inliner.performInlining(sym);
    return 1;
    }
 
@@ -450,7 +466,7 @@ OMR::BenefitInliner::obtainIDT(IDTNodeIndices *Deque, IDTNode *currentNode, TR_C
       bool hasEnoughBudget = 0 < budgetForChild;
       if (!hasEnoughBudget) continue;
 
-      IDTNode *node = currentNode->addChildIfNotExists(this->_idt->getNextGlobalIDTNodeIdx(), callsite->_byteCodeIndex, resolvedMethodSymbol, 100, callsite, callTarget->_callRatioCallerCallee, _idt->getMemoryRegion());
+      IDTNode *node = currentNode->addChildIfNotExists(this->_idt->getNextGlobalIDTNodeIdx(), callsite->_byteCodeIndex, resolvedMethodSymbol, 0, callsite, callTarget->_callRatioCallerCallee, _idt->getMemoryRegion());
       if (node) {
          _idt->increaseGlobalIDTNodeIndex();
          node->setCallStack(this->_inliningCallStack);
@@ -511,22 +527,22 @@ OMR::BenefitInliner::obtainIDT(IDTNode *node, int32_t budget)
    IDTNodeIndices Deque(0, nullptr, this->comp()->trMemory()->currentStackRegion());
    bool shouldInterpret = this->obtainIDT(Deque, node, budget);
    this->_inliningCallStack = new (this->_callSitesRegion) TR_CallStack(this->comp(), resolvedMethodSymbol, resolvedMethod, prevCallStack, budget, true);
-   AbsFrameIDTConstructor constructor(this->_callSitesRegion, node, this->_callerIndex, this->_inliningCallStack, this);
-   //TODO: remove this interface
-   constructor.setDeque(&Deque);
+   // AbsFrameIDTConstructor constructor(this->_callSitesRegion, node, this->_callerIndex, this->_inliningCallStack, this);
+   // //TODO: remove this interface
+   // constructor.setDeque(&Deque);
 
-   if (shouldInterpret)
-      {
-      constructor.interpret();
-      }
+   // if (shouldInterpret)
+   //    {
+   //    constructor.interpret();
+   //    }
 
-   if (TR::comp()->getOption(TR_TraceAbstractInterpretation))
-      {
-      constructor.traceMethodSummary();
-      }
+   // if (TR::comp()->getOption(TR_TraceAbstractInterpretation))
+   //    {
+   //    constructor.traceMethodSummary();
+   //    }
 
 
-   node->_summary = constructor._summary;
+   //node->_summary = constructor._summary;
 
    while (!Deque.empty())
       {
@@ -1003,10 +1019,6 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
    for (int32_t i=0; i<callsite->numTargets(); i++)
       {
       TR_CallTarget *calltarget = callsite->getTarget(i);
-      TR::ResolvedMethodSymbol * hello1 = calltarget->_calleeSymbol;
-      char nameBuffer[1024];
-      const char *calleeName = NULL;
-      calleeName = comp()->fej9()->sampleSignature(calltarget->_calleeMethod->getPersistentIdentifier(), nameBuffer, 1024, comp()->trMemory());
       if (!supportsMultipleTargetInlining () && i > 0)
          {
          if (comp()->getOption(TR_TraceBIIDTGen))
@@ -1184,6 +1196,7 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
          //int frequency1 = comp()->convertNonDeterministicInput(comp()->fej9()->getIProfilerCallCount(callsite->_bcInfo, comp()), MAX_BLOCK_COUNT + MAX_COLD_BLOCK_COUNT, randomGenerator(), 0);
          int frequency2 = comp()->convertNonDeterministicInput(callblock->getFrequency(), MAX_BLOCK_COUNT + MAX_COLD_BLOCK_COUNT, randomGenerator(), 0);
          bool isColdCall = cfg->isColdCall(callsite->_bcInfo, this);
+
          bool isCold = (isColdCall &&  (frequency2 <= MAX_COLD_BLOCK_COUNT));
          if (!allowInliningColdCallSites && isCold)
             {
@@ -1197,22 +1210,6 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
             continue;
             }
 
-
-/*
-         if (!allowInliningColdTargets && cfg->isColdTarget(callsite->_bcInfo, calltarget, this))
-            {
-            if (comp()->getOption(TR_TraceBIIDTGen))
-                {
-                traceMsg(TR::comp(), "not considering %s cold target\n", calltarget->_calleeMethod->signature(this->comp()->trMemory()));
-                }
-            tracer()->insertCounter(DontInline_Callee,callsite->_callNodeTreeTop);
-            callsite->removecalltarget(i,tracer(),DontInline_Callee);
-            i--;
-            continue;
-            }
-*/
-         // TODO: This was sometimes not set, why?
-         //calltarget->_calleeSymbol = calltarget->_calleeSymbol ? calltarget->_calleeSymbol : calltarget->_calleeMethod->findOrCreateJittedMethodSymbol(this->comp());
          if (!calltarget->_calleeSymbol)
             {
             if (comp()->getOption(TR_TraceBIIDTGen))
@@ -1224,24 +1221,7 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
             return;
             }
 
-         TR_J9EstimateCodeSize *cfgGen = (TR_J9EstimateCodeSize*)TR_EstimateCodeSize::get(this, this->tracer(), 0);
-         // From this moment on, we are on the realm of the experimental.
-         // Why is that you may ask?
-         // Well... the way the cfg is generated by the generatedCFG function is apparently distinct from the way the cfg is generated for every other way.
-         // The generateCFG is a modified function based on J9EstimateCodeSize::realEstimateCodeSize
-         // that was used for partial inlining (?)
-         // anyhow... it produces a control flow graph and I saved it.
-         // however, now is the question, what about the profiling information that is supposedly linked with the blocks in the CFG?
-         // is that accurate?
-         // I am not sure!
-         TR::CFG *cfg2 = cfgGen->generateCFG(calltarget, callStack, this->_cfgRegion);
-         //Not yet completely functionsl. Need some basic blocks...
-         // now we have the call block
-         TR_ASSERT_FATAL(cfg2 != nullptr, "cfg2 is null\n");
-         cfg2->computeMethodBranchProfileInfo(this->getAbsEnvUtil(), calltarget, caller, this->_nodes, callblock, callerCFG);
-         this->_nodes++;
-         //Now the frequencies should have been set...
-         //bool allowInliningColdTargets = false;
+       
          if (!allowInliningColdTargets && callblock->getFrequency() <= 6)
             {
             if (comp()->getOption(TR_TraceBIIDTGen))
@@ -1252,16 +1232,15 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
             i--;
             continue;
             }
-         // the + 1 is to make sure that this in non zero.
-         calltarget->_callRatioCallerCallee = ((float)callblock->getFrequency() / (float) cfg->getStartBlockFrequency());
+        
       }
    return;
    }
 
-OMR::AbsEnvInlinerUtil::AbsEnvInlinerUtil(TR::Compilation *c) : TR_J9InlinerUtil(c) {}
+OMR::BenefitInlinerUtil::BenefitInlinerUtil(TR::Compilation *c) : TR_J9InlinerUtil(c) {}
 
 void
-OMR::AbsEnvInlinerUtil::computeMethodBranchProfileInfo2(TR::Block *cfgBlock, TR_CallTarget * calltarget, TR::ResolvedMethodSymbol* callerSymbol, int callerIndex, TR::Block *callblock, TR::CFG * callerCFG)
+OMR::BenefitInlinerUtil::computeMethodBranchProfileInfo2(TR::Block *cfgBlock, TR_CallTarget * calltarget, TR::ResolvedMethodSymbol* callerSymbol, int callerIndex, TR::Block *callblock, TR::CFG * callerCFG)
    {
    if (cfgBlock) //isn't this equal to genILSucceeded?? Nope. cfgBlock comes from ecs
       {
@@ -1317,7 +1296,7 @@ OMR::BenefitInlinerBase::BenefitInlinerBase(TR::Optimizer *optimizer, TR::Optimi
    _currentChild(NULL),
    _inliningProposal(NULL)
    {
-      AbsEnvInlinerUtil *absEnvUtil = new (comp()->allocator()) AbsEnvInlinerUtil(this->comp());
+      BenefitInlinerUtil *absEnvUtil = new (comp()->allocator()) BenefitInlinerUtil(this->comp());
       this->setAbsEnvUtil(absEnvUtil);
    }
 

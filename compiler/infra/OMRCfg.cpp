@@ -3339,7 +3339,7 @@ OMR::CFG::isColdTarget(TR_ByteCodeInfo &info, float frequencyAdjustment, TR_HasR
    }
 
 void
-OMR::CFG::computeMethodBranchProfileInfo(AbsEnvInlinerUtil *util, TR_CallTarget* calltarget, TR::ResolvedMethodSymbol* callerSymbol, int callerIndex, TR::Block *callBlock, TR::CFG* callerCfg)
+OMR::CFG::computeMethodBranchProfileInfo(BenefitInlinerUtil *util, TR_CallTarget* calltarget, TR::ResolvedMethodSymbol* callerSymbol, int callerIndex, TR::Block *callBlock, TR::CFG* callerCfg)
    {
       TR::Block *cfgBlock = NULL;
 
@@ -3348,7 +3348,7 @@ OMR::CFG::computeMethodBranchProfileInfo(AbsEnvInlinerUtil *util, TR_CallTarget*
          auto asBlock = cfgNode->asBlock();
          if (!asBlock) continue;
          if (cfgNode->getNumber() == 4)
-         cfgBlock = asBlock;
+            cfgBlock = asBlock;
       }
 
       util->computeMethodBranchProfileInfo2(cfgBlock, calltarget, callerSymbol, callerIndex, callBlock, callerCfg);

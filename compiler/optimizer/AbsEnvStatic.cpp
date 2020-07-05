@@ -14,41 +14,9 @@
 #include "compiler/optimizer/MethodSummary.hpp"
 
 
-AbstractState::AbstractState(TR::Region &region, IDTNode *node) :
-  _region(region),
-  _array(region, node->maxLocals()),
-  _stack(region, node->maxStack())
-{
-}
-
-AbsValue*
-AbstractState::at(unsigned int n)
-{
-  return this->_array.at(n);
-}
-
-void
-AbstractState::at(unsigned int n, AbsValue* absValue)
-{
-  this->_array.at(n, absValue);
-}
-
-AbstractState::AbstractState(const AbstractState& other) :
-  _region(other._region),
-  _array(other._array, other._region),
-  _stack(other._stack, other._region)
-{
-}
-
-size_t
-AbstractState::getStackSize() const
-{
-  return this->_stack.size();
-}
-
 
 TR::Region&
-AbsEnvStatic::getRegion() const
+AbsEnvStatic::getRegion() 
 {
   TR::Region & region = this->_absFrame->getRegion();
   TR_ASSERT(&region != NULL, "region is null");
@@ -56,34 +24,34 @@ AbsEnvStatic::getRegion() const
 }
 
 TR::ResolvedMethodSymbol*
-AbsEnvStatic::getResolvedMethodSymbol() const
+AbsEnvStatic::getResolvedMethodSymbol() 
 {
   return this->_absFrame->getResolvedMethodSymbol();
 }
 
 TR::ResolvedMethodSymbol*
-AbsFrame::getResolvedMethodSymbol() const
+AbsFrame::getResolvedMethodSymbol() 
 {
   return this->_rms;
 }
 
 TR::ValuePropagation *
-AbsEnvStatic::getVP() const
+AbsEnvStatic::getVP() 
 {
   return this->_absFrame->_vp;
 }
 
 IDTNode*
-AbsEnvStatic::getNode() const
+AbsEnvStatic::getNode() 
 {
    return this->_absFrame->_node;
 }
 
 AbsEnvStatic::AbsEnvStatic(TR::Region &region, IDTNode *node, AbsFrame* absFrame) :
   
-  _absState(region, node),
+  _absState(region, 1,1),
   _absFrame(absFrame),
-  _block(nullptr)
+  _block(NULL)
 {
    TR_ASSERT(&(region) != NULL, "we have a null region\n");
 }
@@ -92,7 +60,7 @@ void
 AbsEnvStatic::zeroOut(AbsEnvStatic *other)
 {
   this->trace("tracing this block\n");
-  AbstractState &absState = this->getState();
+  AbsState &absState = this->getState();
   TR::Region &region = other->getRegion();
   size_t stackSize = absState.getStackSize();
   AbsValue *array[stackSize];
@@ -104,7 +72,7 @@ AbsEnvStatic::zeroOut(AbsEnvStatic *other)
   for (size_t i = 0; i < stackSize; i++)
      {
      AbsValue *a = array[i];
-     other->getState().push(this->getTopDataType(a ? array[i]->_dt : TR::Address));
+     other->getState().push(this->getTopDataType(a ? array[i]->getDataType() : TR::Address));
      absState.push(array[i]);
      }
 
@@ -112,14 +80,14 @@ AbsEnvStatic::zeroOut(AbsEnvStatic *other)
   for (size_t i = 0; i < arraySize; i++)
      {
      AbsValue *a = absState.at(i);
-     AbsValue *value1 = this->getTopDataType(a ? absState.at(i)->_dt : TR::Address);
-     other->getState().at(i, value1);
+     AbsValue *value1 = this->getTopDataType(a ? absState.at(i)->getDataType() : TR::Address);
+     other->getState().set(i, value1);
      }
   other->trace("tracing other block\n");
 }
 
 AbsEnvStatic::AbsEnvStatic(AbsEnvStatic &other) :
-  _absState(other._absState),
+  _absState(&other._absState),
   _absFrame(other._absFrame),
   _block(other._block)
 {
@@ -127,41 +95,10 @@ AbsEnvStatic::AbsEnvStatic(AbsEnvStatic &other) :
 
 
 void
-AbstractState::merge(AbstractState &other, TR::ValuePropagation *vp)
-{
-   TR::Region &region = TR::comp()->trMemory()->currentStackRegion();
-   AbstractState copyOfOther(other);
-   this->_array.merge(copyOfOther._array, this->_region, vp);
-   this->_stack.merge(copyOfOther._stack, this->_region, vp);
-   if (!TR::comp()->trace(OMR::benefitInliner)) return;
-   this->trace(vp);
-}
-
-void
 AbsEnvStatic::merge(AbsEnvStatic &other)
 {
-   getState().merge(other._absState, this->getVP());
+   //getState().merge(other._absState, this->getVP());
 }
-
-AbsValue*
-AbstractState::pop()
-  {
-  AbsValue *absValue = this->_stack.top();
-  this->_stack.pop();
-  return absValue;
-  }
-
-AbsValue*
-AbstractState::top()
-{
-  return this->_stack.top();
-}
-
-void
-AbstractState::push(AbsValue *absValue)
-  {
-  this->_stack.push(absValue);
-  }
 
 void
 AbsEnvStatic::pushNull()
@@ -170,7 +107,7 @@ AbsEnvStatic::pushNull()
   }
 
 void
-AbsEnvStatic::pushConstInt(AbstractState& absState, int n)
+AbsEnvStatic::pushConstInt(AbsState& absState, int n)
   {
   TR::VPIntConst *intConst = TR::VPIntConst::create(this->getVP(), n);
   absState.push(new (this->getRegion()) AbsValue(intConst, TR::Int32));
@@ -185,8 +122,8 @@ AbsEnvStatic::getTopDataType(TR::DataType dt)
   }
 
 
-AbstractState&
-AbsEnvStatic::aload0getfield(AbstractState &absState, int i) {
+AbsState&
+AbsEnvStatic::aload0getfield(AbsState &absState, int i) {
   this->aload0(absState);
   return absState;
 }
@@ -198,7 +135,8 @@ AbsEnvStatic::interpret(TR_J9ByteCode bc, TR_J9ByteCodeIterator &bci)
   TR::Compilation *comp = TR::comp();
   if (TR::comp()->getOption(TR_TraceAbstractInterpretation))
   {
-     bci.printByteCode();
+    traceMsg(comp, "AbsEnvStatic: interpret\n");
+    bci.printByteCode();
   }
   switch(bc)
      {
@@ -458,15 +396,8 @@ AbsEnvStatic::trace(const char* methodName)
   this->getState().trace(this->getVP());
   }
 
-void
-AbstractState::trace(TR::ValuePropagation *vp)
-{
-   this->_array.trace(vp);
-   this->_stack.trace(vp, this->_region);
-}
-
-AbstractState&
-AbsEnvStatic::multianewarray(AbstractState & absState, int cpIndex, int dimensions)
+AbsState&
+AbsEnvStatic::multianewarray(AbsState & absState, int cpIndex, int dimensions)
 {
   for (int i = 0; i < dimensions; i++)
     {
@@ -476,8 +407,8 @@ AbsEnvStatic::multianewarray(AbstractState & absState, int cpIndex, int dimensio
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::caload(AbstractState& absState)
+AbsState&
+AbsEnvStatic::caload(AbsState& absState)
 {
   AbsValue *index = absState.pop();
   AbsValue *arrayRef = absState.pop();
@@ -487,8 +418,8 @@ AbsEnvStatic::caload(AbstractState& absState)
 }
 
 
-AbstractState&
-AbsEnvStatic::faload(AbstractState & absState)
+AbsState&
+AbsEnvStatic::faload(AbsState & absState)
   {
   AbsValue *index = absState.pop();
   AbsValue *arrayRef = absState.pop();
@@ -497,8 +428,8 @@ AbsEnvStatic::faload(AbstractState & absState)
   return absState;
   }
 
-AbstractState&
-AbsEnvStatic::iaload(AbstractState & absState)
+AbsState&
+AbsEnvStatic::iaload(AbsState & absState)
   {
   AbsValue *index = absState.pop();
   AbsValue *arrayRef = absState.pop();
@@ -507,8 +438,8 @@ AbsEnvStatic::iaload(AbstractState & absState)
   return absState;
   }
 
-AbstractState&
-AbsEnvStatic::saload(AbstractState & absState)
+AbsState&
+AbsEnvStatic::saload(AbsState & absState)
   {
   AbsValue *index = absState.pop();
   AbsValue *arrayRef = absState.pop();
@@ -517,12 +448,12 @@ AbsEnvStatic::saload(AbstractState & absState)
   return absState;
   }
 
-AbstractState&
-AbsEnvStatic::aaload(AbstractState & absState)
+AbsState&
+AbsEnvStatic::aaload(AbsState & absState)
   {
   AbsValue *index = absState.pop();
   AbsValue *arrayRef = absState.pop();
-  if (!arrayRef || !arrayRef->_vp) {
+  if (!arrayRef || !arrayRef->getConstraint()) {
     AbsValue *value1 = this->getTopDataType(TR::Address);
     absState.push(value1);
     return absState;
@@ -537,8 +468,8 @@ AbsEnvStatic::aaload(AbstractState & absState)
   return absState;
   }
 
-AbstractState&
-AbsEnvStatic::laload(AbstractState &absState)
+AbsState&
+AbsEnvStatic::laload(AbsState &absState)
   {
   AbsValue *index = absState.pop();
   AbsValue *arrayRef = absState.pop();
@@ -549,8 +480,8 @@ AbsEnvStatic::laload(AbstractState &absState)
   return absState;
   }
 
-AbstractState&
-AbsEnvStatic::daload(AbstractState &absState)
+AbsState&
+AbsEnvStatic::daload(AbsState &absState)
   {
   AbsValue *index = absState.pop();
   AbsValue *arrayRef = absState.pop();
@@ -561,8 +492,8 @@ AbsEnvStatic::daload(AbstractState &absState)
   return absState;
   }
 
-AbstractState&
-AbsEnvStatic::castore(AbstractState &absState)
+AbsState&
+AbsEnvStatic::castore(AbsState &absState)
 {
   //TODO:
   AbsValue *value = absState.pop();
@@ -573,8 +504,8 @@ AbsEnvStatic::castore(AbstractState &absState)
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::dastore(AbstractState &absState)
+AbsState&
+AbsEnvStatic::dastore(AbsState &absState)
 {
   //TODO:
   AbsValue *value1 = absState.pop();
@@ -586,8 +517,8 @@ AbsEnvStatic::dastore(AbstractState &absState)
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::fastore(AbstractState &absState)
+AbsState&
+AbsEnvStatic::fastore(AbsState &absState)
   {
   //TODO:
   AbsValue *value = absState.pop();
@@ -598,8 +529,8 @@ AbsEnvStatic::fastore(AbstractState &absState)
   return absState;
   }
 
-AbstractState&
-AbsEnvStatic::iastore(AbstractState &absState)
+AbsState&
+AbsEnvStatic::iastore(AbsState &absState)
   {
   //TODO:
   AbsValue *value = absState.pop();
@@ -610,8 +541,8 @@ AbsEnvStatic::iastore(AbstractState &absState)
   return absState;
   }
 
-AbstractState&
-AbsEnvStatic::lastore(AbstractState &absState)
+AbsState&
+AbsEnvStatic::lastore(AbsState &absState)
   {
   //TODO:
   AbsValue *value = absState.pop();
@@ -623,8 +554,8 @@ AbsEnvStatic::lastore(AbstractState &absState)
   return absState;
   }
 
-AbstractState&
-AbsEnvStatic::sastore(AbstractState &absState)
+AbsState&
+AbsEnvStatic::sastore(AbsState &absState)
   {
   //TODO:
   AbsValue *value = absState.pop();
@@ -635,8 +566,8 @@ AbsEnvStatic::sastore(AbstractState &absState)
   return absState;
   }
 
-AbstractState&
-AbsEnvStatic::aastore(AbstractState &absState)
+AbsState&
+AbsEnvStatic::aastore(AbsState &absState)
   {
   //TODO:
   AbsValue *value = absState.pop();
@@ -647,83 +578,83 @@ AbsEnvStatic::aastore(AbstractState &absState)
   return absState;
   }
 
-AbstractState&
-AbsEnvStatic::aconstnull(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::aconstnull(AbsState &absState) {
   TR::VPConstraint *null = TR::VPNullObject::create(this->getVP());
   AbsValue *absValue = new (getRegion()) AbsValue(null, TR::Address);
   absState.push(absValue);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::aload(AbstractState &absState, int n) {
+AbsState&
+AbsEnvStatic::aload(AbsState &absState, int n) {
   this->aloadn(absState, n);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::aload0(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::aload0(AbsState &absState) {
   this->aloadn(absState, 0);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::aload1(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::aload1(AbsState &absState) {
   this->aloadn(absState, 1);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::aload2(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::aload2(AbsState &absState) {
   this->aloadn(absState, 2);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::aload3(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::aload3(AbsState &absState) {
   this->aloadn(absState, 3);
   return absState;
 }
 
 void
-AbsEnvStatic::aloadn(AbstractState& absState, int n) {
+AbsEnvStatic::aloadn(AbsState& absState, int n) {
   AbsValue *constraint = absState.at(n);
   absState.push(constraint);
 }
 
-AbstractState&
-AbsEnvStatic::astore(AbstractState &absState, int varIndex) {
+AbsState&
+AbsEnvStatic::astore(AbsState &absState, int varIndex) {
   AbsValue* constraint = absState.pop();
-  absState.at(varIndex, constraint);
+  absState.set(varIndex, constraint);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::astore0(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::astore0(AbsState &absState) {
   this->astore(absState, 0);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::astore1(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::astore1(AbsState &absState) {
   this->astore(absState, 1);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::astore2(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::astore2(AbsState &absState) {
   this->astore(absState, 2);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::astore3(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::astore3(AbsState &absState) {
   this->astore(absState, 3);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::bipush(AbstractState &absState, int byte) {
+AbsState&
+AbsEnvStatic::bipush(AbsState &absState, int byte) {
   TR::VPShortConst *data = TR::VPShortConst::create(this->getVP(), byte);
   //TODO: should I use TR::Int32 or something else?
   AbsValue *absValue = new (getRegion()) AbsValue(data, TR::Int32);
@@ -731,20 +662,20 @@ AbsEnvStatic::bipush(AbstractState &absState, int byte) {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::bastore(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::bastore(AbsState &absState) {
   this->aastore(absState);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::baload(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::baload(AbsState &absState) {
   this->aaload(absState);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::checkcast(AbstractState &absState, int cpIndex, int bytecodeIndex) {
+AbsState&
+AbsEnvStatic::checkcast(AbsState &absState, int cpIndex, int bytecodeIndex) {
   AbsValue *absValue = absState.pop();
   if (!absValue)
     {
@@ -752,7 +683,7 @@ AbsEnvStatic::checkcast(AbstractState &absState, int cpIndex, int bytecodeIndex)
     absState.push(absValue);
     return absState;
     }
-  TR::VPConstraint *objectRef = absValue->_vp;
+  TR::VPConstraint *objectRef = absValue->getConstraint();
   if (!objectRef)
     {
     absState.push(absValue);
@@ -785,16 +716,16 @@ AbsEnvStatic::checkcast(AbstractState &absState, int cpIndex, int bytecodeIndex)
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::dup(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::dup(AbsState &absState) {
   AbsValue *value = absState.pop();
   absState.push(value);
   absState.push(value); 
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::dupx1(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::dupx1(AbsState &absState) {
   AbsValue *value1 = absState.pop();
   AbsValue *value2 = absState.pop();
   absState.push(value1);
@@ -803,8 +734,8 @@ AbsEnvStatic::dupx1(AbstractState &absState) {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::dupx2(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::dupx2(AbsState &absState) {
   AbsValue *value1 = absState.pop();
   AbsValue *value2 = absState.pop();
   AbsValue *value3 = absState.pop();
@@ -815,8 +746,8 @@ AbsEnvStatic::dupx2(AbstractState &absState) {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::dup2(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::dup2(AbsState &absState) {
   AbsValue *value1 = absState.pop();
   AbsValue *value2 = absState.pop();
   absState.push(value2);
@@ -826,8 +757,8 @@ AbsEnvStatic::dup2(AbstractState &absState) {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::dup2x1(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::dup2x1(AbsState &absState) {
   AbsValue *value1 = absState.pop();
   AbsValue *value2 = absState.pop();
   AbsValue *value3 = absState.pop();
@@ -839,8 +770,8 @@ AbsEnvStatic::dup2x1(AbstractState &absState) {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::dup2x2(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::dup2x2(AbsState &absState) {
   AbsValue *value1 = absState.pop();
   AbsValue *value2 = absState.pop();
   AbsValue *value3 = absState.pop();
@@ -854,21 +785,21 @@ AbsEnvStatic::dup2x2(AbstractState &absState) {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::_goto(AbstractState &absState, int branch)
+AbsState&
+AbsEnvStatic::_goto(AbsState &absState, int branch)
 {
   return absState;
 }
 
 
-AbstractState&
-AbsEnvStatic::_gotow(AbstractState &absState, int branch)
+AbsState&
+AbsEnvStatic::_gotow(AbsState &absState, int branch)
 {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::getstatic(AbstractState &absState, int cpIndex) {
+AbsState&
+AbsEnvStatic::getstatic(AbsState &absState, int cpIndex) {
    void* staticAddress;
    TR::DataType type = TR::NoType;
    bool isVolatile;
@@ -924,8 +855,8 @@ AbsEnvStatic::getstatic(AbstractState &absState, int cpIndex) {
 }
 
 
-AbstractState&
-AbsEnvStatic::getfield(AbstractState &absState, int cpIndex) {
+AbsState&
+AbsEnvStatic::getfield(AbsState &absState, int cpIndex) {
    AbsValue *objectref = absState.pop();
    uint32_t fieldOffset;
    TR::DataType type = TR::NoType;
@@ -959,11 +890,11 @@ AbsEnvStatic::getfield(AbstractState &absState, int cpIndex) {
    
 }
 
-AbstractState&
-AbsEnvStatic::iand(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::iand(AbsState &absState) {
   AbsValue *value1 = absState.pop();
   AbsValue* value2 = absState.pop();
-  bool nonnull = value1->_vp && value2->_vp;
+  bool nonnull = value1->getConstraint() && value2->getConstraint();
   if (!nonnull)
      {
      AbsValue *result = this->getTopDataType(TR::Int32);
@@ -971,7 +902,7 @@ AbsEnvStatic::iand(AbstractState &absState) {
      return absState;
      }
 
-  bool allConstants = value1->_vp->asIntConst() && value2->_vp->asIntConst();
+  bool allConstants = value1->getConstraint()->asIntConst() && value2->getConstraint()->asIntConst();
   if (!allConstants)
      {
      AbsValue *result = this->getTopDataType(TR::Int32);
@@ -979,15 +910,15 @@ AbsEnvStatic::iand(AbstractState &absState) {
      return absState;
      }
 
-  int result = value1->_vp->asIntConst()->getLow() & value2->_vp->asIntConst()->getLow();
+  int result = value1->getConstraint()->asIntConst()->getLow() & value2->getConstraint()->asIntConst()->getLow();
   absState.push(new (getRegion()) AbsValue(TR::VPIntConst::create(this->getVP(), result), TR::Int32));
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::instanceof(AbstractState &absState, int cpIndex, int byteCodeIndex) {
+AbsState&
+AbsEnvStatic::instanceof(AbsState &absState, int cpIndex, int byteCodeIndex) {
   AbsValue *objectRef = absState.pop();
-  if (!objectRef->_vp)
+  if (!objectRef->getConstraint())
      {
      absState.push(new (getRegion()) AbsValue(TR::VPIntConst::create(this->getVP(), 0), TR::Int32));
      return absState;
@@ -1015,13 +946,13 @@ AbsEnvStatic::instanceof(AbstractState &absState, int cpIndex, int byteCodeIndex
   /*
    * If S is an ordinary (nonarray) class, then:
    */
-  if (objectRef->_vp->asClass())
+  if (objectRef->getConstraint()->asClass())
      {
      /*
       * If T is a class type, then S must be the same class as T, or S
       * must be a subclass of T;
       */
-     if(typeConstraint->intersect(objectRef->_vp, this->getVP()))
+     if(typeConstraint->intersect(objectRef->getConstraint(), this->getVP()))
         absState.push(new (getRegion()) AbsValue(TR::VPIntConst::create(this->getVP(), 1), TR::Int32));
      else
         absState.push(new (getRegion()) AbsValue(TR::VPIntConst::create(this->getVP(), 0), TR::Int32));
@@ -1046,11 +977,11 @@ AbsEnvStatic::instanceof(AbstractState &absState, int cpIndex, int byteCodeIndex
    return absState;
 }
 
-AbstractState&
-AbsEnvStatic::ior(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::ior(AbsState &absState) {
   AbsValue *value1 = absState.pop();
   AbsValue* value2 = absState.pop();
-  bool nonnull = value1->_vp && value2->_vp;
+  bool nonnull = value1->getConstraint() && value2->getConstraint();
   if (!nonnull)
      {
      AbsValue *result = this->getTopDataType(TR::Int32);
@@ -1058,7 +989,7 @@ AbsEnvStatic::ior(AbstractState &absState) {
      return absState;
      }
 
-  bool allConstants = value1->_vp->asIntConst() && value2->_vp->asIntConst();
+  bool allConstants = value1->getConstraint()->asIntConst() && value2->getConstraint()->asIntConst();
   if (!allConstants)
      {
      AbsValue *result = this->getTopDataType(TR::Int32);
@@ -1066,16 +997,16 @@ AbsEnvStatic::ior(AbstractState &absState) {
      return absState;
      }
 
-  int result = value1->_vp->asIntConst()->getLow() | value2->_vp->asIntConst()->getLow();
+  int result = value1->getConstraint()->asIntConst()->getLow() | value2->getConstraint()->asIntConst()->getLow();
   absState.push(new (getRegion()) AbsValue(TR::VPIntConst::create(this->getVP(), result), TR::Int32));
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::ixor(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::ixor(AbsState &absState) {
   AbsValue *value1 = absState.pop();
   AbsValue* value2 = absState.pop();
-  bool nonnull = value1->_vp && value2->_vp;
+  bool nonnull = value1->getConstraint() && value2->getConstraint();
   if (!nonnull)
      {
      AbsValue *result = this->getTopDataType(TR::Int32);
@@ -1083,7 +1014,7 @@ AbsEnvStatic::ixor(AbstractState &absState) {
      return absState;
      }
 
-  bool allConstants = value1->_vp->asIntConst() && value2->_vp->asIntConst();
+  bool allConstants = value1->getConstraint()->asIntConst() && value2->getConstraint()->asIntConst();
   if (!allConstants)
      {
      AbsValue *result = this->getTopDataType(TR::Int32);
@@ -1091,23 +1022,23 @@ AbsEnvStatic::ixor(AbstractState &absState) {
      return absState;
      }
 
-  int result = value1->_vp->asIntConst()->getLow() ^ value2->_vp->asIntConst()->getLow();
+  int result = value1->getConstraint()->asIntConst()->getLow() ^ value2->getConstraint()->asIntConst()->getLow();
   absState.push(new (getRegion()) AbsValue(TR::VPIntConst::create(this->getVP(), result), TR::Int32));
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::irem(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::irem(AbsState &absState) {
   AbsValue *value1 = absState.pop();
   AbsValue* value2 = absState.pop();
-  bool nonnull = value1->_vp && value2->_vp;
+  bool nonnull = value1->getConstraint() && value2->getConstraint();
   if (!nonnull)
      {
      AbsValue *result = this->getTopDataType(TR::Int32);
      absState.push(result);
      return absState;
      }
-  bool allConstants = value1->_vp->asIntConst() && value2->_vp->asIntConst();
+  bool allConstants = value1->getConstraint()->asIntConst() && value2->getConstraint()->asIntConst();
   if (!allConstants)
      {
      AbsValue *result = this->getTopDataType(TR::Int32);
@@ -1115,25 +1046,25 @@ AbsEnvStatic::irem(AbstractState &absState) {
      return absState;
      }
 
-  int int1 = value1->_vp->asIntConst()->getLow();
-  int int2 = value2->_vp->asIntConst()->getLow();
+  int int1 = value1->getConstraint()->asIntConst()->getLow();
+  int int2 = value2->getConstraint()->asIntConst()->getLow();
   int result = int1 - (int1/ int2) * int2;
   absState.push(new (getRegion()) AbsValue(TR::VPIntConst::create(this->getVP(), result), TR::Int32));
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::ishl(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::ishl(AbsState &absState) {
   AbsValue *value1 = absState.pop();
   AbsValue* value2 = absState.pop();
-  bool nonnull = value1->_vp && value2->_vp;
+  bool nonnull = value1->getConstraint() && value2->getConstraint();
   if (!nonnull)
      {
      AbsValue *result = this->getTopDataType(TR::Int32);
      absState.push(result);
      return absState;
      }
-  bool allConstants = value1->_vp->asIntConst() && value2->_vp->asIntConst();
+  bool allConstants = value1->getConstraint()->asIntConst() && value2->getConstraint()->asIntConst();
   if (!allConstants)
      {
      AbsValue *result = this->getTopDataType(TR::Int32);
@@ -1141,26 +1072,26 @@ AbsEnvStatic::ishl(AbstractState &absState) {
      return absState;
      }
 
-  int int1 = value1->_vp->asIntConst()->getLow();
-  int int2 = value2->_vp->asIntConst()->getLow() & 0x1f;
+  int int1 = value1->getConstraint()->asIntConst()->getLow();
+  int int2 = value2->getConstraint()->asIntConst()->getLow() & 0x1f;
   int result = int1 << int2;
   absState.push(new (getRegion()) AbsValue(TR::VPIntConst::create(this->getVP(), result), TR::Int32));
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::ishr(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::ishr(AbsState &absState) {
 
   AbsValue *value1 = absState.pop();
   AbsValue* value2 = absState.pop();
-  bool nonnull = value1->_vp && value2->_vp;
+  bool nonnull = value1->getConstraint() && value2->getConstraint();
   if (!nonnull)
      {
      AbsValue *result = this->getTopDataType(TR::Int32);
      absState.push(result);
      return absState;
      }
-  bool allConstants = value1->_vp->asIntConst() && value2->_vp->asIntConst();
+  bool allConstants = value1->getConstraint()->asIntConst() && value2->getConstraint()->asIntConst();
   if (!allConstants)
      {
      AbsValue *result = this->getTopDataType(TR::Int32);
@@ -1168,8 +1099,8 @@ AbsEnvStatic::ishr(AbstractState &absState) {
      return absState;
      }
 
-  int int1 = value1->_vp->asIntConst()->getLow();
-  int int2 = value2->_vp->asIntConst()->getLow() & 0x1f;
+  int int1 = value1->getConstraint()->asIntConst()->getLow();
+  int int2 = value2->getConstraint()->asIntConst()->getLow() & 0x1f;
 
   //arithmetic shift.
   int result = int1 >> int2;
@@ -1178,18 +1109,18 @@ AbsEnvStatic::ishr(AbstractState &absState) {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::iushr(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::iushr(AbsState &absState) {
   AbsValue *value1 = absState.pop();
   AbsValue* value2 = absState.pop();
-  bool nonnull = value1->_vp && value2->_vp;
+  bool nonnull = value1->getConstraint() && value2->getConstraint();
   if (!nonnull)
      {
      AbsValue *result = this->getTopDataType(TR::Int32);
      absState.push(result);
      return absState;
      }
-  bool allConstants = value1->_vp->asIntConst() && value2->_vp->asIntConst();
+  bool allConstants = value1->getConstraint()->asIntConst() && value2->getConstraint()->asIntConst();
   if (!allConstants)
      {
      AbsValue *result = this->getTopDataType(TR::Int32);
@@ -1197,8 +1128,8 @@ AbsEnvStatic::iushr(AbstractState &absState) {
      return absState;
      }
 
-  int int1 = value1->_vp->asIntConst()->getLow();
-  int int2 = value2->_vp->asIntConst()->getLow() & 0x1f;
+  int int1 = value1->getConstraint()->asIntConst()->getLow();
+  int int2 = value2->getConstraint()->asIntConst()->getLow() & 0x1f;
   int result = int1 >> int2;
   //logical shift, gets rid of the sign.
   result &= 0x7FFFFFFF;
@@ -1206,18 +1137,18 @@ AbsEnvStatic::iushr(AbstractState &absState) {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::idiv(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::idiv(AbsState &absState) {
   AbsValue *value1 = absState.pop();
   AbsValue* value2 = absState.pop();
-  bool nonnull = value1->_vp && value2->_vp;
+  bool nonnull = value1->getConstraint() && value2->getConstraint();
   if (!nonnull)
      {
      AbsValue *result = this->getTopDataType(TR::Int32);
      absState.push(result);
      return absState;
      }
-  bool allConstants = value1->_vp->asIntConst() && value2->_vp->asIntConst();
+  bool allConstants = value1->getConstraint()->asIntConst() && value2->getConstraint()->asIntConst();
   if (!allConstants)
      {
      AbsValue *result = this->getTopDataType(TR::Int32);
@@ -1225,8 +1156,8 @@ AbsEnvStatic::idiv(AbstractState &absState) {
      return absState;
      }
 
-  int int1 = value1->_vp->asIntConst()->getLow();
-  int int2 = value2->_vp->asIntConst()->getLow();
+  int int1 = value1->getConstraint()->asIntConst()->getLow();
+  int int2 = value2->getConstraint()->asIntConst()->getLow();
   if (int2 == 0)
     {
      // this should throw an exception.
@@ -1239,18 +1170,18 @@ AbsEnvStatic::idiv(AbstractState &absState) {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::imul(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::imul(AbsState &absState) {
   AbsValue *value1 = absState.pop();
   AbsValue* value2 = absState.pop();
-  bool nonnull = value1->_vp && value2->_vp;
+  bool nonnull = value1->getConstraint() && value2->getConstraint();
   if (!nonnull)
      {
      AbsValue *result = this->getTopDataType(TR::Int32);
      absState.push(result);
      return absState;
      }
-  bool allConstants = value1->_vp->asIntConst() && value2->_vp->asIntConst();
+  bool allConstants = value1->getConstraint()->asIntConst() && value2->getConstraint()->asIntConst();
   if (!allConstants)
      {
      AbsValue *result = this->getTopDataType(TR::Int32);
@@ -1258,17 +1189,17 @@ AbsEnvStatic::imul(AbstractState &absState) {
      return absState;
      }
 
-  int int1 = value1->_vp->asIntConst()->getLow();
-  int int2 = value2->_vp->asIntConst()->getLow();
+  int int1 = value1->getConstraint()->asIntConst()->getLow();
+  int int2 = value2->getConstraint()->asIntConst()->getLow();
   int result = int1 * int2;
   absState.push(new (getRegion()) AbsValue(TR::VPIntConst::create(this->getVP(), result), TR::Int32));
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::ineg(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::ineg(AbsState &absState) {
   AbsValue *value1 = absState.pop();
-  bool allConstants = value1->_vp && value1->_vp->asIntConst();
+  bool allConstants = value1->getConstraint() && value1->getConstraint()->asIntConst();
   if (!allConstants)
      {
      AbsValue *result = this->getTopDataType(TR::Int32);
@@ -1277,228 +1208,228 @@ AbsEnvStatic::ineg(AbstractState &absState) {
      }
 
   //TODO: more precision for ranges, subtract VPIntConst 0 from value1
-  int int1 = value1->_vp->asIntConst()->getLow();
+  int int1 = value1->getConstraint()->asIntConst()->getLow();
   int result = -int1;
   absState.push(new (getRegion()) AbsValue(TR::VPIntConst::create(this->getVP(), result), TR::Int32));
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::iconstm1(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::iconstm1(AbsState &absState) {
   this->iconst(absState, -1);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::iconst0(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::iconst0(AbsState &absState) {
   this->iconst(absState, 0);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::iconst1(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::iconst1(AbsState &absState) {
   this->iconst(absState, 1);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::iconst2(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::iconst2(AbsState &absState) {
   this->iconst(absState, 2);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::iconst3(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::iconst3(AbsState &absState) {
   this->iconst(absState, 3);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::iconst4(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::iconst4(AbsState &absState) {
   this->iconst(absState, 4);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::iconst5(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::iconst5(AbsState &absState) {
   this->iconst(absState, 5);
   return absState;
 }
 
 void
-AbsEnvStatic::iconst(AbstractState &absState, int n) {
+AbsEnvStatic::iconst(AbsState &absState, int n) {
   this->pushConstInt(absState, n);
 }
 
-AbstractState&
-AbsEnvStatic::ifeq(AbstractState& absState, int branchOffset, int bytecodeIndex) {
+AbsState&
+AbsEnvStatic::ifeq(AbsState& absState, int branchOffset, int bytecodeIndex) {
   absState.pop();
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::ifne(AbstractState& absState, int branchOffset, int bytecodeIndex) {
+AbsState&
+AbsEnvStatic::ifne(AbsState& absState, int branchOffset, int bytecodeIndex) {
   absState.pop();
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::iflt(AbstractState& absState, int branchOffset, int bytecodeIndex) {
+AbsState&
+AbsEnvStatic::iflt(AbsState& absState, int branchOffset, int bytecodeIndex) {
   absState.pop();
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::ifle(AbstractState& absState, int branchOffset, int bytecodeIndex) {
+AbsState&
+AbsEnvStatic::ifle(AbsState& absState, int branchOffset, int bytecodeIndex) {
   absState.pop();
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::ifgt(AbstractState& absState, int branchOffset, int bytecodeIndex) {
+AbsState&
+AbsEnvStatic::ifgt(AbsState& absState, int branchOffset, int bytecodeIndex) {
   absState.pop();
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::ifge(AbstractState& absState, int branchOffset, int bytecodeIndex) {
+AbsState&
+AbsEnvStatic::ifge(AbsState& absState, int branchOffset, int bytecodeIndex) {
   absState.pop();
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::ifnull(AbstractState& absState, int branchOffset, int bytecodeIndex) {
+AbsState&
+AbsEnvStatic::ifnull(AbsState& absState, int branchOffset, int bytecodeIndex) {
   absState.pop();
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::ifnonnull(AbstractState& absState, int branchOffset, int bytecodeIndex) {
+AbsState&
+AbsEnvStatic::ifnonnull(AbsState& absState, int branchOffset, int bytecodeIndex) {
   absState.pop();
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::ificmpge(AbstractState& absState, int branchOffset, int bytecodeIndex) {
-  absState.pop();
-  absState.pop();
-  return absState;
-}
-
-AbstractState&
-AbsEnvStatic::ificmpeq(AbstractState& absState, int branchOffset, int bytecodeIndex) {
+AbsState&
+AbsEnvStatic::ificmpge(AbsState& absState, int branchOffset, int bytecodeIndex) {
   absState.pop();
   absState.pop();
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::ificmpne(AbstractState& absState, int branchOffset, int bytecodeIndex) {
+AbsState&
+AbsEnvStatic::ificmpeq(AbsState& absState, int branchOffset, int bytecodeIndex) {
   absState.pop();
   absState.pop();
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::ificmplt(AbstractState& absState, int branchOffset, int bytecodeIndex) {
+AbsState&
+AbsEnvStatic::ificmpne(AbsState& absState, int branchOffset, int bytecodeIndex) {
   absState.pop();
   absState.pop();
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::ificmpgt(AbstractState& absState, int branchOffset, int bytecodeIndex) {
+AbsState&
+AbsEnvStatic::ificmplt(AbsState& absState, int branchOffset, int bytecodeIndex) {
   absState.pop();
   absState.pop();
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::ificmple(AbstractState& absState, int branchOffset, int bytecodeIndex) {
+AbsState&
+AbsEnvStatic::ificmpgt(AbsState& absState, int branchOffset, int bytecodeIndex) {
   absState.pop();
   absState.pop();
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::ifacmpeq(AbstractState& absState, int branchOffset, int bytecodeIndex) {
+AbsState&
+AbsEnvStatic::ificmple(AbsState& absState, int branchOffset, int bytecodeIndex) {
   absState.pop();
   absState.pop();
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::ifacmpne(AbstractState& absState, int branchOffset, int bytecodeIndex) {
+AbsState&
+AbsEnvStatic::ifacmpeq(AbsState& absState, int branchOffset, int bytecodeIndex) {
   absState.pop();
   absState.pop();
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::iload(AbstractState& absState, int n) {
+AbsState&
+AbsEnvStatic::ifacmpne(AbsState& absState, int branchOffset, int bytecodeIndex) {
+  absState.pop();
+  absState.pop();
+  return absState;
+}
+
+AbsState&
+AbsEnvStatic::iload(AbsState& absState, int n) {
   this->aloadn(absState, n);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::iload0(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::iload0(AbsState& absState) {
   this->iload(absState, 0);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::iload1(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::iload1(AbsState& absState) {
   this->iload(absState, 1);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::iload2(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::iload2(AbsState& absState) {
   this->iload(absState, 2);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::iload3(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::iload3(AbsState& absState) {
   this->iload(absState, 3);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::istore(AbstractState& absState, int n) {
-  absState.at(n, absState.pop());
+AbsState&
+AbsEnvStatic::istore(AbsState& absState, int n) {
+  absState.set(n, absState.pop());
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::istore0(AbstractState& absState) {
-  absState.at(0, absState.pop());
+AbsState&
+AbsEnvStatic::istore0(AbsState& absState) {
+  absState.set(0, absState.pop());
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::istore1(AbstractState& absState) {
-  absState.at(1, absState.pop());
+AbsState&
+AbsEnvStatic::istore1(AbsState& absState) {
+  absState.set(1, absState.pop());
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::istore2(AbstractState& absState) {
-  absState.at(2, absState.pop());
+AbsState&
+AbsEnvStatic::istore2(AbsState& absState) {
+  absState.set(2, absState.pop());
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::istore3(AbstractState& absState) {
-  absState.at(3, absState.pop());
+AbsState&
+AbsEnvStatic::istore3(AbsState& absState) {
+  absState.set(3, absState.pop());
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::isub(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::isub(AbsState& absState) {
   AbsValue *value1 = absState.pop();
   AbsValue *value2 = absState.pop();
-  bool nonnull = value1->_vp && value2->_vp;
+  bool nonnull = value1->getConstraint() && value2->getConstraint();
   if (!nonnull)
     {
     AbsValue *result = this->getTopDataType(TR::Int32);
@@ -1506,17 +1437,17 @@ AbsEnvStatic::isub(AbstractState& absState) {
     return absState;
     }
 
-  TR::VPConstraint *result_vp = value1->_vp->subtract(value2->_vp, value2->_dt, this->getVP());
-  AbsValue *result = new (getRegion()) AbsValue(result_vp, value2->_dt);
+  TR::VPConstraint *result_vp = value1->getConstraint()->subtract(value2->getConstraint(), value2->getDataType(), this->getVP());
+  AbsValue *result = new (getRegion()) AbsValue(result_vp, value2->getDataType());
   absState.push(result);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::iadd(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::iadd(AbsState& absState) {
   AbsValue *value1 = absState.pop();
   AbsValue *value2 = absState.pop();
-  bool nonnull = value1->_vp && value2->_vp;
+  bool nonnull = value1->getConstraint() && value2->getConstraint();
   if (!nonnull)
     {
     AbsValue *result = this->getTopDataType(TR::Int32);
@@ -1524,14 +1455,14 @@ AbsEnvStatic::iadd(AbstractState& absState) {
     return absState;
     }
 
-  TR::VPConstraint *result_vp = value1->_vp->add(value2->_vp, value2->_dt, this->getVP());
-  AbsValue *result = new (getRegion()) AbsValue(result_vp, value2->_dt);
+  TR::VPConstraint *result_vp = value1->getConstraint()->add(value2->getConstraint(), value2->getDataType(), this->getVP());
+  AbsValue *result = new (getRegion()) AbsValue(result_vp, value2->getDataType());
   absState.push(result);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::i2d(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::i2d(AbsState& absState) {
   AbsValue *value = absState.pop();
   AbsValue *result = this->getTopDataType(TR::Double);
   absState.push(result);
@@ -1540,16 +1471,16 @@ AbsEnvStatic::i2d(AbstractState& absState) {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::i2f(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::i2f(AbsState& absState) {
   AbsValue *value = absState.pop();
   AbsValue *result = this->getTopDataType(TR::Float);
   absState.push(result);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::i2l(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::i2l(AbsState& absState) {
   AbsValue *value = absState.pop();
   AbsValue *result = this->getTopDataType(TR::Int64);
   absState.push(result);
@@ -1558,26 +1489,26 @@ AbsEnvStatic::i2l(AbstractState& absState) {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::i2s(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::i2s(AbsState& absState) {
   //empty?
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::i2c(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::i2c(AbsState& absState) {
   //empty?
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::i2b(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::i2b(AbsState& absState) {
   // empty?
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::dadd(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::dadd(AbsState& absState) {
   AbsValue *value1 = absState.pop();
   AbsValue *value2 = absState.pop();
   AbsValue *value3 = absState.pop();
@@ -1589,8 +1520,8 @@ AbsEnvStatic::dadd(AbstractState& absState) {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::dsub(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::dsub(AbsState& absState) {
   AbsValue *value1 = absState.pop();
   AbsValue *value2 = absState.pop();
   AbsValue *value3 = absState.pop();
@@ -1602,8 +1533,8 @@ AbsEnvStatic::dsub(AbstractState& absState) {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::fsub(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::fsub(AbsState& absState) {
   AbsValue *value1 = absState.pop();
   AbsValue *value2 = absState.pop();
   AbsValue *result = this->getTopDataType(TR::Float);
@@ -1611,8 +1542,8 @@ AbsEnvStatic::fsub(AbstractState& absState) {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::fadd(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::fadd(AbsState& absState) {
   AbsValue *value1 = absState.pop();
   AbsValue *value2 = absState.pop();
   AbsValue *result = this->getTopDataType(TR::Float);
@@ -1620,13 +1551,13 @@ AbsEnvStatic::fadd(AbstractState& absState) {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::ladd(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::ladd(AbsState& absState) {
   AbsValue *value1 = absState.pop();
   AbsValue *value2 = absState.pop();
   AbsValue *value3 = absState.pop();
   AbsValue *value4 = absState.pop();
-  bool nonnull = value2->_vp && value4->_vp;
+  bool nonnull = value2->getConstraint() && value4->getConstraint();
   if (!nonnull)
     {
     AbsValue *result1 = this->getTopDataType(TR::Int64);
@@ -1636,20 +1567,20 @@ AbsEnvStatic::ladd(AbstractState& absState) {
     return absState;
     }
 
-  TR::VPConstraint *result_vp = value2->_vp->add(value4->_vp, value4->_dt, this->getVP());
+  TR::VPConstraint *result_vp = value2->getConstraint()->add(value4->getConstraint(), value4->getDataType(), this->getVP());
   AbsValue *result = new (getRegion()) AbsValue(result_vp, TR::Int64);
   absState.push(result);
   this->getTopDataType(TR::NoType);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::lsub(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::lsub(AbsState& absState) {
   AbsValue *value1 = absState.pop();
   AbsValue *value2 = absState.pop();
   AbsValue *value3 = absState.pop();
   AbsValue *value4 = absState.pop();
-  bool nonnull = value2->_vp && value4->_vp;
+  bool nonnull = value2->getConstraint() && value4->getConstraint();
   if (!nonnull)
     {
     AbsValue *result1 = this->getTopDataType(TR::Int64);
@@ -1659,18 +1590,18 @@ AbsEnvStatic::lsub(AbstractState& absState) {
     return absState;
     }
 
-  TR::VPConstraint *result_vp = value2->_vp->subtract(value4->_vp, value4->_dt, this->getVP());
+  TR::VPConstraint *result_vp = value2->getConstraint()->subtract(value4->getConstraint(), value4->getDataType(), this->getVP());
   AbsValue *result = new (getRegion()) AbsValue(result_vp, TR::Int64);
   absState.push(result);
   this->getTopDataType(TR::NoType);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::l2i(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::l2i(AbsState& absState) {
   AbsValue *value1 = absState.pop();
   AbsValue *value2 = absState.pop();
-  bool nonnull = value2->_vp;
+  bool nonnull = value2->getConstraint();
   if (!nonnull)
     {
     AbsValue *result1 = this->getTopDataType(TR::Int32);
@@ -1678,7 +1609,7 @@ AbsEnvStatic::l2i(AbstractState& absState) {
     return absState;
     }
 
-  bool canCompute = value2->_vp && value2->_vp->asLongConstraint();
+  bool canCompute = value2->getConstraint() && value2->getConstraint()->asLongConstraint();
   if (!canCompute)
      {
      AbsValue *result = this->getTopDataType(TR::Int32);
@@ -1686,19 +1617,19 @@ AbsEnvStatic::l2i(AbstractState& absState) {
      return absState;
      }
 
-  TR::VPConstraint *intConst = TR::VPIntRange::create(this->getVP(), value2->_vp->asLongConstraint()->getLow(), value2->_vp->asLongConstraint()->getHigh());
+  TR::VPConstraint *intConst = TR::VPIntRange::create(this->getVP(), value2->getConstraint()->asLongConstraint()->getLow(), value2->getConstraint()->asLongConstraint()->getHigh());
   AbsValue *result = new (getRegion()) AbsValue(intConst, TR::Int32);
   absState.push(result);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::land(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::land(AbsState& absState) {
   AbsValue *value1 = absState.pop();
   AbsValue* value2 = absState.pop();
   AbsValue *value3 = absState.pop();
   AbsValue *value4 = absState.pop();
-  bool nonnull = value2->_vp && value4->_vp;
+  bool nonnull = value2->getConstraint() && value4->getConstraint();
   if (!nonnull)
     {
     AbsValue *result1 = this->getTopDataType(TR::Int64);
@@ -1707,7 +1638,7 @@ AbsEnvStatic::land(AbstractState& absState) {
     absState.push(result2);
     return absState;
     }
-  bool allConstants = value2->_vp->asLongConst() && value4->_vp->asLongConst();
+  bool allConstants = value2->getConstraint()->asLongConst() && value4->getConstraint()->asLongConst();
   if (!allConstants)
      {
      AbsValue *result1 = this->getTopDataType(TR::Int64);
@@ -1717,20 +1648,20 @@ AbsEnvStatic::land(AbstractState& absState) {
      return absState;
      }
 
-  int result = value2->_vp->asLongConst()->getLow() & value4->_vp->asLongConst()->getLow();
+  int result = value2->getConstraint()->asLongConst()->getLow() & value4->getConstraint()->asLongConst()->getLow();
   absState.push(new (getRegion()) AbsValue(TR::VPLongConst::create(this->getVP(), result), TR::Int64));
   AbsValue *result2 = this->getTopDataType(TR::NoType);
   absState.push(result2);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::ldiv(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::ldiv(AbsState& absState) {
   AbsValue *value1 = absState.pop();
   AbsValue* value2 = absState.pop();
   AbsValue* value3 = absState.pop();
   AbsValue* value4 = absState.pop();
-  bool nonnull = value2->_vp && value4->_vp;
+  bool nonnull = value2->getConstraint() && value4->getConstraint();
   if (!nonnull)
     {
     AbsValue *result1 = this->getTopDataType(TR::Int64);
@@ -1739,7 +1670,7 @@ AbsEnvStatic::ldiv(AbstractState& absState) {
     absState.push(result2);
      return absState;
     }
-  bool allConstants = value2->_vp->asLongConst() && value4->_vp->asLongConst();
+  bool allConstants = value2->getConstraint()->asLongConst() && value4->getConstraint()->asLongConst();
   if (!allConstants)
      {
      AbsValue *result1 = this->getTopDataType(TR::Int64);
@@ -1749,8 +1680,8 @@ AbsEnvStatic::ldiv(AbstractState& absState) {
      return absState;
      }
 
-  long int1 = value2->_vp->asLongConst()->getLow();
-  long int2 = value4->_vp->asLongConst()->getLow();
+  long int1 = value2->getConstraint()->asLongConst()->getLow();
+  long int2 = value4->getConstraint()->asLongConst()->getLow();
   if (int2 == 0)
     {
      // this should throw an exception.
@@ -1767,13 +1698,13 @@ AbsEnvStatic::ldiv(AbstractState& absState) {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::lmul(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::lmul(AbsState& absState) {
   AbsValue *value1 = absState.pop();
   AbsValue* value2 = absState.pop();
   AbsValue* value3 = absState.pop();
   AbsValue* value4 = absState.pop();
-  bool nonnull = value2->_vp && value4->_vp;
+  bool nonnull = value2->getConstraint() && value4->getConstraint();
   if (!nonnull)
     {
     AbsValue *result1 = this->getTopDataType(TR::Int64);
@@ -1782,7 +1713,7 @@ AbsEnvStatic::lmul(AbstractState& absState) {
     absState.push(result2);
      return absState;
     }
-  bool allConstants = value2->_vp->asLongConst() && value4->_vp->asLongConst();
+  bool allConstants = value2->getConstraint()->asLongConst() && value4->getConstraint()->asLongConst();
   if (!allConstants)
      {
      AbsValue *result1 = this->getTopDataType(TR::Int64);
@@ -1792,8 +1723,8 @@ AbsEnvStatic::lmul(AbstractState& absState) {
      return absState;
      }
 
-  long int1 = value1->_vp->asLongConst()->getLow();
-  long int2 = value2->_vp->asLongConst()->getLow();
+  long int1 = value1->getConstraint()->asLongConst()->getLow();
+  long int2 = value2->getConstraint()->asLongConst()->getLow();
   long result = int1 * int2;
   absState.push(new (getRegion()) AbsValue(TR::VPLongConst::create(this->getVP(), result), TR::Int64));
   AbsValue *result2 = this->getTopDataType(TR::NoType);
@@ -1801,32 +1732,32 @@ AbsEnvStatic::lmul(AbstractState& absState) {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::lookupswitch(AbstractState& absState)
+AbsState&
+AbsEnvStatic::lookupswitch(AbsState& absState)
 {
   absState.pop();
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::tableswitch(AbstractState& absState)
+AbsState&
+AbsEnvStatic::tableswitch(AbsState& absState)
 {
   absState.pop();
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::lneg(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::lneg(AbsState& absState) {
   AbsValue *value1 = absState.pop();
   AbsValue *value2 = absState.pop();
-  bool nonnull = value2->_vp;
+  bool nonnull = value2->getConstraint();
   if (!nonnull)
     {
     absState.push(value2);
     absState.push(value1);
      return absState;
     }
-  bool allConstants = value2->_vp->asLongConst();
+  bool allConstants = value2->getConstraint()->asLongConst();
   if (!allConstants)
      {
      AbsValue *result1 = this->getTopDataType(TR::Int64);
@@ -1836,7 +1767,7 @@ AbsEnvStatic::lneg(AbstractState& absState) {
      return absState;
      }
 
-  long int1 = value1->_vp->asLongConst()->getLow();
+  long int1 = value1->getConstraint()->asLongConst()->getLow();
   long result = -int1;
   absState.push(new (getRegion()) AbsValue(TR::VPLongConst::create(this->getVP(), result), TR::Int64));
   AbsValue *result2 = this->getTopDataType(TR::NoType);
@@ -1844,13 +1775,13 @@ AbsEnvStatic::lneg(AbstractState& absState) {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::lor(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::lor(AbsState& absState) {
   AbsValue *value1 = absState.pop();
   AbsValue* value2 = absState.pop();
   AbsValue* value3 = absState.pop();
   AbsValue* value4 = absState.pop();
-  bool nonnull = value2->_vp && value4->_vp;
+  bool nonnull = value2->getConstraint() && value4->getConstraint();
   if (!nonnull)
     {
     AbsValue *result1 = this->getTopDataType(TR::Int64);
@@ -1859,7 +1790,7 @@ AbsEnvStatic::lor(AbstractState& absState) {
     absState.push(result2);
      return absState;
     }
-  bool allConstants = value2->_vp->asLongConst() && value2->_vp->asLongConst();
+  bool allConstants = value2->getConstraint()->asLongConst() && value2->getConstraint()->asLongConst();
   if (!allConstants)
      {
      AbsValue *result1 = this->getTopDataType(TR::Int64);
@@ -1869,20 +1800,20 @@ AbsEnvStatic::lor(AbstractState& absState) {
      return absState;
      }
 
-  long result = value1->_vp->asLongConst()->getLow() | value2->_vp->asLongConst()->getLow();
+  long result = value1->getConstraint()->asLongConst()->getLow() | value2->getConstraint()->asLongConst()->getLow();
   absState.push(new (getRegion()) AbsValue(TR::VPLongConst::create(this->getVP(), result), TR::Int64));
   AbsValue *result2 = this->getTopDataType(TR::NoType);
   absState.push(result2);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::lrem(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::lrem(AbsState& absState) {
   AbsValue *value1 = absState.pop();
   AbsValue* value2 = absState.pop();
   AbsValue* value3 = absState.pop();
   AbsValue* value4 = absState.pop();
-  bool nonnull = value2->_vp && value4->_vp;
+  bool nonnull = value2->getConstraint() && value4->getConstraint();
   if (!nonnull)
     {
     AbsValue *result1 = this->getTopDataType(TR::Int64);
@@ -1891,7 +1822,7 @@ AbsEnvStatic::lrem(AbstractState& absState) {
     absState.push(result2);
      return absState;
     }
-  bool allConstants = value2->_vp->asLongConst() && value4->_vp->asLongConst();
+  bool allConstants = value2->getConstraint()->asLongConst() && value4->getConstraint()->asLongConst();
   if (!allConstants)
      {
      AbsValue *result1 = this->getTopDataType(TR::Int64);
@@ -1901,8 +1832,8 @@ AbsEnvStatic::lrem(AbstractState& absState) {
      return absState;
      }
 
-  long int1 = value2->_vp->asLongConst()->getLow();
-  long int2 = value4->_vp->asLongConst()->getLow();
+  long int1 = value2->getConstraint()->asLongConst()->getLow();
+  long int2 = value4->getConstraint()->asLongConst()->getLow();
   long result = int1 - (int1/ int2) * int2;
   absState.push(new (getRegion()) AbsValue(TR::VPLongConst::create(this->getVP(), result), TR::Int64));
   AbsValue *result2 = this->getTopDataType(TR::NoType);
@@ -1910,12 +1841,12 @@ AbsEnvStatic::lrem(AbstractState& absState) {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::lshl(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::lshl(AbsState& absState) {
   AbsValue *value2 = absState.pop(); // int
   AbsValue* value0 = absState.pop(); // nothing
   AbsValue* value1 = absState.pop(); // long
-  bool nonnull = value2->_vp && value1->_vp;
+  bool nonnull = value2->getConstraint() && value1->getConstraint();
   if (!nonnull)
     {
     AbsValue *result1 = this->getTopDataType(TR::Int64);
@@ -1924,7 +1855,7 @@ AbsEnvStatic::lshl(AbstractState& absState) {
     absState.push(result2);
      return absState;
     }
-  bool allConstants = value2->_vp->asIntConst() && value1->_vp->asLongConst();
+  bool allConstants = value2->getConstraint()->asIntConst() && value1->getConstraint()->asLongConst();
   if (!allConstants)
      {
      AbsValue *result1 = this->getTopDataType(TR::Int64);
@@ -1934,8 +1865,8 @@ AbsEnvStatic::lshl(AbstractState& absState) {
      return absState;
      }
 
-  long int1 = value1->_vp->asLongConst()->getLow();
-  long int2 = value2->_vp->asIntConst()->getLow() & 0x1f;
+  long int1 = value1->getConstraint()->asLongConst()->getLow();
+  long int2 = value2->getConstraint()->asIntConst()->getLow() & 0x1f;
   long result = int1 << int2;
   absState.push(new (getRegion()) AbsValue(TR::VPLongConst::create(this->getVP(), result), TR::Int64));
   AbsValue *result2 = this->getTopDataType(TR::NoType);
@@ -1943,12 +1874,12 @@ AbsEnvStatic::lshl(AbstractState& absState) {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::lshr(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::lshr(AbsState& absState) {
   AbsValue *value2 = absState.pop(); // int
   AbsValue* value0 = absState.pop(); // nothing
   AbsValue* value1 = absState.pop(); // long
-  bool nonnull = value2->_vp && value1->_vp;
+  bool nonnull = value2->getConstraint() && value1->getConstraint();
   if (!nonnull)
     {
     AbsValue *result1 = this->getTopDataType(TR::Int64);
@@ -1957,7 +1888,7 @@ AbsEnvStatic::lshr(AbstractState& absState) {
     absState.push(result2);
      return absState;
     }
-  bool allConstants = value2->_vp->asIntConst() && value1->_vp->asLongConst();
+  bool allConstants = value2->getConstraint()->asIntConst() && value1->getConstraint()->asLongConst();
   if (!allConstants)
      {
      AbsValue *result1 = this->getTopDataType(TR::Int64);
@@ -1967,8 +1898,8 @@ AbsEnvStatic::lshr(AbstractState& absState) {
      return absState;
      }
 
-  long int1 = value1->_vp->asLongConst()->getLow();
-  long int2 = value2->_vp->asIntConst()->getLow() & 0x1f;
+  long int1 = value1->getConstraint()->asLongConst()->getLow();
+  long int2 = value2->getConstraint()->asIntConst()->getLow() & 0x1f;
   long result = int1 >> int2;
   absState.push(new (getRegion()) AbsValue(TR::VPLongConst::create(this->getVP(), result), TR::Int64));
   AbsValue *result2 = this->getTopDataType(TR::NoType);
@@ -1976,19 +1907,19 @@ AbsEnvStatic::lshr(AbstractState& absState) {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::lushr(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::lushr(AbsState& absState) {
   this->lshr(absState);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::lxor(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::lxor(AbsState& absState) {
   AbsValue *value1 = absState.pop();
   AbsValue* value2 = absState.pop();
   AbsValue* value3 = absState.pop();
   AbsValue* value4 = absState.pop();
-  bool nonnull = value2->_vp && value4->_vp;
+  bool nonnull = value2->getConstraint() && value4->getConstraint();
   if (!nonnull)
     {
     AbsValue *result1 = this->getTopDataType(TR::Int64);
@@ -1997,7 +1928,7 @@ AbsEnvStatic::lxor(AbstractState& absState) {
     absState.push(result2);
     return absState;
     }
-  bool allConstants = value2->_vp->asLongConst() && value4->_vp->asLongConst();
+  bool allConstants = value2->getConstraint()->asLongConst() && value4->getConstraint()->asLongConst();
   if (!allConstants)
      {
      AbsValue *result1 = this->getTopDataType(TR::Int64);
@@ -2007,13 +1938,13 @@ AbsEnvStatic::lxor(AbstractState& absState) {
      return absState;
      }
 
-  long result = value1->_vp->asLongConst()->getLow() ^ value2->_vp->asLongConst()->getLow();
+  long result = value1->getConstraint()->asLongConst()->getLow() ^ value2->getConstraint()->asLongConst()->getLow();
   absState.push(new (getRegion()) AbsValue(TR::VPLongConst::create(this->getVP(), result), TR::Int64));
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::l2d(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::l2d(AbsState& absState) {
   absState.pop();
   absState.pop();
   AbsValue *result = this->getTopDataType(TR::Double);
@@ -2023,8 +1954,8 @@ AbsEnvStatic::l2d(AbstractState& absState) {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::l2f(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::l2f(AbsState& absState) {
   absState.pop();
   absState.pop();
   AbsValue *result = this->getTopDataType(TR::Float);
@@ -2032,8 +1963,8 @@ AbsEnvStatic::l2f(AbstractState& absState) {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::d2f(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::d2f(AbsState& absState) {
   absState.pop();
   absState.pop();
   AbsValue *result = this->getTopDataType(TR::Float);
@@ -2041,8 +1972,8 @@ AbsEnvStatic::d2f(AbstractState& absState) {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::f2d(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::f2d(AbsState& absState) {
   absState.pop();
   AbsValue *result1 = this->getTopDataType(TR::Double);
   AbsValue *result2 = this->getTopDataType(TR::NoType);
@@ -2051,16 +1982,16 @@ AbsEnvStatic::f2d(AbstractState& absState) {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::f2i(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::f2i(AbsState& absState) {
   absState.pop();
   AbsValue *result1 = this->getTopDataType(TR::Int32);
   absState.push(result1);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::f2l(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::f2l(AbsState& absState) {
   absState.pop();
   AbsValue *result1 = this->getTopDataType(TR::Int64);
   AbsValue *result2 = this->getTopDataType(TR::NoType);
@@ -2069,8 +2000,8 @@ AbsEnvStatic::f2l(AbstractState& absState) {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::d2i(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::d2i(AbsState& absState) {
   absState.pop();
   absState.pop();
   AbsValue *result = this->getTopDataType(TR::Int32);
@@ -2078,8 +2009,8 @@ AbsEnvStatic::d2i(AbstractState& absState) {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::d2l(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::d2l(AbsState& absState) {
   absState.pop();
   absState.pop();
   AbsValue *result1 = this->getTopDataType(TR::Int64);
@@ -2089,43 +2020,43 @@ AbsEnvStatic::d2l(AbstractState& absState) {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::lload(AbstractState& absState, int n) {
+AbsState&
+AbsEnvStatic::lload(AbsState& absState, int n) {
   aload(absState, n);
   aload(absState, n + 1);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::lload0(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::lload0(AbsState& absState) {
   aload(absState, 0);
   aload(absState, 1);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::lload1(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::lload1(AbsState &absState) {
   aload(absState, 1);
   aload(absState, 2);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::lload2(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::lload2(AbsState &absState) {
   aload(absState, 2);
   aload(absState, 3);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::lload3(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::lload3(AbsState &absState) {
   aload(absState, 3);
   aload(absState, 4);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::dconst0(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::dconst0(AbsState &absState) {
   AbsValue *result1 = this->getTopDataType(TR::Double);
   AbsValue *result2 = this->getTopDataType(TR::NoType);
   absState.push(result1);
@@ -2133,8 +2064,8 @@ AbsEnvStatic::dconst0(AbstractState &absState) {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::dconst1(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::dconst1(AbsState &absState) {
   AbsValue *result1 = this->getTopDataType(TR::Double);
   AbsValue *result2 = this->getTopDataType(TR::NoType);
   absState.push(result1);
@@ -2142,142 +2073,142 @@ AbsEnvStatic::dconst1(AbstractState &absState) {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::fconst0(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::fconst0(AbsState &absState) {
   AbsValue *result1 = this->getTopDataType(TR::Float);
   absState.push(result1);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::fconst1(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::fconst1(AbsState &absState) {
   AbsValue *result1 = this->getTopDataType(TR::Float);
   absState.push(result1);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::fconst2(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::fconst2(AbsState &absState) {
   AbsValue *result1 = this->getTopDataType(TR::Float);
   absState.push(result1);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::dload(AbstractState &absState, int n) {
+AbsState&
+AbsEnvStatic::dload(AbsState &absState, int n) {
   aload(absState, n);
   aload(absState, n + 1);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::dload0(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::dload0(AbsState &absState) {
   aload(absState, 0);
   aload(absState, 1);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::dload1(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::dload1(AbsState &absState) {
   aload(absState, 1);
   aload(absState, 2);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::dload2(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::dload2(AbsState &absState) {
   aload(absState, 2);
   aload(absState, 3);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::dload3(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::dload3(AbsState &absState) {
   aload(absState, 3);
   aload(absState, 4);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::lstorew(AbstractState &absState, int n)
+AbsState&
+AbsEnvStatic::lstorew(AbsState &absState, int n)
 {
   lstore(absState, n);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::lstore0(AbstractState &absState)
+AbsState&
+AbsEnvStatic::lstore0(AbsState &absState)
 {
   lstore(absState, 0);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::lstore1(AbstractState &absState)
+AbsState&
+AbsEnvStatic::lstore1(AbsState &absState)
 {
   lstore(absState, 1);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::lstore2(AbstractState &absState)
+AbsState&
+AbsEnvStatic::lstore2(AbsState &absState)
 {
   lstore(absState, 2);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::lstore3(AbstractState &absState)
+AbsState&
+AbsEnvStatic::lstore3(AbsState &absState)
 {
   lstore(absState, 3);
   return absState;
 }
 
 
-AbstractState&
-AbsEnvStatic::lstore(AbstractState &absState, int n) {
+AbsState&
+AbsEnvStatic::lstore(AbsState &absState, int n) {
   AbsValue *top = absState.pop();
   AbsValue *bottom = absState.pop();
-  absState.at(n, bottom);
-  absState.at(n + 1, top);
+  absState.set(n, bottom);
+  absState.set(n + 1, top);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::dstore(AbstractState &absState, int n) {
+AbsState&
+AbsEnvStatic::dstore(AbsState &absState, int n) {
   AbsValue *top = absState.pop();
   AbsValue *bottom = absState.pop();
-  absState.at(n, bottom);
-  absState.at(n + 1, top);
+  absState.set(n, bottom);
+  absState.set(n + 1, top);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::dstore0(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::dstore0(AbsState& absState) {
   this->dstore(absState, 0);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::dstore1(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::dstore1(AbsState& absState) {
   this->dstore(absState, 1);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::dstore2(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::dstore2(AbsState& absState) {
   this->dstore(absState, 2);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::dstore3(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::dstore3(AbsState& absState) {
   this->dstore(absState, 3);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::lconst0(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::lconst0(AbsState& absState) {
   AbsValue *result = this->getTopDataType(TR::Int64);
   absState.push(result);
   AbsValue *result2 = this->getTopDataType(TR::NoType);
@@ -2285,8 +2216,8 @@ AbsEnvStatic::lconst0(AbstractState& absState) {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::lconst1(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::lconst1(AbsState& absState) {
   AbsValue *result = this->getTopDataType(TR::Int64);
   absState.push(result);
   AbsValue *result2 = this->getTopDataType(TR::NoType);
@@ -2294,8 +2225,8 @@ AbsEnvStatic::lconst1(AbstractState& absState) {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::lcmp(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::lcmp(AbsState& absState) {
   absState.pop();
   absState.pop();
   absState.pop();
@@ -2305,45 +2236,45 @@ AbsEnvStatic::lcmp(AbstractState& absState) {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::pop2(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::pop2(AbsState& absState) {
   absState.pop();
   absState.pop();
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::fload(AbstractState& absState, int n) {
+AbsState&
+AbsEnvStatic::fload(AbsState& absState, int n) {
   aload(absState, n);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::fload0(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::fload0(AbsState& absState) {
   this->fload(absState, 0);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::fload1(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::fload1(AbsState& absState) {
   this->fload(absState, 1);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::fload2(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::fload2(AbsState& absState) {
   this->fload(absState, 2);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::fload3(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::fload3(AbsState& absState) {
   this->fload(absState, 3);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::swap(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::swap(AbsState& absState) {
   AbsValue *value1 = absState.pop();
   AbsValue *value2 = absState.pop();
   absState.push(value1);
@@ -2351,58 +2282,58 @@ AbsEnvStatic::swap(AbstractState& absState) {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::fstore(AbstractState& absState, int n) {
-  absState.at(n, absState.pop());
+AbsState&
+AbsEnvStatic::fstore(AbsState& absState, int n) {
+  absState.set(n, absState.pop());
   return absState;
 }
 
 
-AbstractState&
-AbsEnvStatic::fstore0(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::fstore0(AbsState& absState) {
   this->fstore(absState, 0);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::fstore1(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::fstore1(AbsState& absState) {
   this->fstore(absState, 1);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::fstore2(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::fstore2(AbsState& absState) {
   this->fstore(absState, 2);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::fstore3(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::fstore3(AbsState &absState) {
   this->fstore(absState, 3);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::fmul(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::fmul(AbsState &absState) {
   AbsValue *value1 = absState.pop();
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::dmul(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::dmul(AbsState &absState) {
   AbsValue *value1 = absState.pop();
   AbsValue* value2 = absState.pop();
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::dneg(AbstractState &absState)
+AbsState&
+AbsEnvStatic::dneg(AbsState &absState)
 {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::dcmpl(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::dcmpl(AbsState &absState) {
   AbsValue *value1 = absState.pop();
   AbsValue* value2 = absState.pop();
   AbsValue *value3 = absState.pop();
@@ -2412,8 +2343,8 @@ AbsEnvStatic::dcmpl(AbstractState &absState) {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::dcmpg(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::dcmpg(AbsState &absState) {
   AbsValue *value1 = absState.pop();
   AbsValue* value2 = absState.pop();
   AbsValue *value3 = absState.pop();
@@ -2423,8 +2354,8 @@ AbsEnvStatic::dcmpg(AbstractState &absState) {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::fcmpg(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::fcmpg(AbsState &absState) {
   AbsValue *value1 = absState.pop();
   AbsValue* value2 = absState.pop();
   AbsValue *result = this->getTopDataType(TR::Int32);
@@ -2432,8 +2363,8 @@ AbsEnvStatic::fcmpg(AbstractState &absState) {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::fcmpl(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::fcmpl(AbsState &absState) {
   AbsValue *value1 = absState.pop();
   AbsValue* value2 = absState.pop();
   AbsValue *result = this->getTopDataType(TR::Int32);
@@ -2441,56 +2372,56 @@ AbsEnvStatic::fcmpl(AbstractState &absState) {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::ddiv(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::ddiv(AbsState &absState) {
   AbsValue *value1 = absState.pop();
   AbsValue* value2 = absState.pop();
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::fdiv(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::fdiv(AbsState &absState) {
   AbsValue *value1 = absState.pop();
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::drem(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::drem(AbsState &absState) {
   AbsValue *value1 = absState.pop();
   AbsValue* value2 = absState.pop();
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::fneg(AbstractState &absState)
+AbsState&
+AbsEnvStatic::fneg(AbsState &absState)
 {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::freturn(AbstractState &absState)
+AbsState&
+AbsEnvStatic::freturn(AbsState &absState)
 {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::frem(AbstractState &absState) {
+AbsState&
+AbsEnvStatic::frem(AbsState &absState) {
   AbsValue *value = absState.pop();
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::sipush(AbstractState &absState, int16_t _short) {
+AbsState&
+AbsEnvStatic::sipush(AbsState &absState, int16_t _short) {
   TR::VPShortConst *data = TR::VPShortConst::create(this->getVP(), _short);
   AbsValue *result = new (getRegion()) AbsValue(data, TR::Int16);
   absState.push(result);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::iinc(AbstractState& absState, int index, int incval) {
+AbsState&
+AbsEnvStatic::iinc(AbsState& absState, int index, int incval) {
   AbsValue *value1 = absState.at(index);
-  TR::VPIntConstraint *value = value1->_vp ? value1->_vp->asIntConstraint() : nullptr;
+  TR::VPIntConstraint *value = value1->getConstraint() ? value1->getConstraint()->asIntConstraint() : nullptr;
   if (!value)
     {
     return absState;
@@ -2499,12 +2430,12 @@ AbsEnvStatic::iinc(AbstractState& absState, int index, int incval) {
   TR::VPIntConst *inc = TR::VPIntConst::create(this->getVP(), incval);
   TR::VPConstraint *result = value->add(inc, TR::Int32, this->getVP());
   AbsValue *result2 = new (getRegion()) AbsValue(result, TR::Int32);
-  absState.at(index, result2);
+  absState.set(index, result2);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::putfield(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::putfield(AbsState& absState) {
   // WONTFIX we do not model the heap
   AbsValue *value1 = absState.pop();
   AbsValue *value2 = absState.pop();
@@ -2514,11 +2445,11 @@ AbsEnvStatic::putfield(AbstractState& absState) {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::putstatic(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::putstatic(AbsState& absState) {
   // WONTFIX we do not model the heap
   AbsValue *value1 = absState.pop();
-  if (value1->_dt == TR::NoType) { // category type 2
+  if (value1->getDataType() == TR::NoType) { // category type 2
     AbsValue *value2 = absState.pop();
   }
   return absState;
@@ -2574,7 +2505,7 @@ AbsEnvStatic::ldcAddress(int cpIndex) {
 void
 AbsEnvStatic::ldcString(int cpIndex) {
    // TODO: we might need the resolved method symbol here
-   // TODO: aAbstractState& _rms    
+   // TODO: aAbsState& _rms    
    TR_ResolvedMethod *callerResolvedMethod = this->getFrame()->_bci.method();
    auto callerResolvedMethodSymbol = TR::ResolvedMethodSymbol::create(TR::comp()->trHeapMemory(), callerResolvedMethod, TR::comp());
    TR::SymbolReference *symRef = TR::comp()->getSymRefTab()->findOrCreateStringSymbol(callerResolvedMethodSymbol, cpIndex);
@@ -2595,15 +2526,15 @@ AbsEnvStatic::ldcString(int cpIndex) {
    this->getState().push(result);
 }
 
-AbstractState&
-AbsEnvStatic::ldcw(AbstractState &absState, int cpIndex)
+AbsState&
+AbsEnvStatic::ldcw(AbsState &absState, int cpIndex)
 {
   ldc(absState, cpIndex);
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::ldc(AbstractState& absState, int cpIndex) {
+AbsState&
+AbsEnvStatic::ldc(AbsState& absState, int cpIndex) {
    TR::DataType datatype = this->getFrame()->_bci.method()->getLDCType(cpIndex);
    switch(datatype) {
      case TR::Int32: this->ldcInt32(cpIndex); break;
@@ -2620,47 +2551,47 @@ AbsEnvStatic::ldc(AbstractState& absState, int cpIndex) {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::monitorenter(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::monitorenter(AbsState& absState) {
   // TODO: possible optimization
   absState.pop();
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::monitorexit(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::monitorexit(AbsState& absState) {
   // TODO: possible optimization
   absState.pop();
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::areturn(AbstractState& absState)
+AbsState&
+AbsEnvStatic::areturn(AbsState& absState)
 {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::dreturn(AbstractState& absState)
+AbsState&
+AbsEnvStatic::dreturn(AbsState& absState)
 {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::athrow(AbstractState& absState)
+AbsState&
+AbsEnvStatic::athrow(AbsState& absState)
 {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::anewarray(AbstractState& absState, int cpIndex) {
+AbsState&
+AbsEnvStatic::anewarray(AbsState& absState, int cpIndex) {
   TR_ResolvedMethod *method = this->getFrame()->_bci.method();
   TR_OpaqueClassBlock* type = method->getClassFromConstantPool(TR::comp(), cpIndex);
   TR::VPNonNullObject *nonnull = TR::VPNonNullObject::create(this->getFrame()->getValuePropagation());
   AbsValue *count = absState.pop();
 
-  if (count->_vp && count->_vp->asIntConstraint()) {
-    TR::VPArrayInfo *info = TR::VPArrayInfo::create(this->getFrame()->getValuePropagation(),  ((TR::VPIntConstraint*)count->_vp)->getLow(), ((TR::VPIntConstraint*)count->_vp)->getHigh(), 4);
+  if (count->getConstraint() && count->getConstraint()->asIntConstraint()) {
+    TR::VPArrayInfo *info = TR::VPArrayInfo::create(this->getFrame()->getValuePropagation(),  ((TR::VPIntConstraint*)count->getConstraint())->getLow(), ((TR::VPIntConstraint*)count->getConstraint())->getHigh(), 4);
     AbsValue* value = AbsEnvStatic::getClassConstraint(type, this->getFrame()->getValuePropagation(), this->getRegion(), nonnull, info);
     if(value) value->print(this->getFrame()->getValuePropagation());
     absState.push(value);
@@ -2674,8 +2605,8 @@ AbsEnvStatic::anewarray(AbstractState& absState, int cpIndex) {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::arraylength(AbstractState& absState) {
+AbsState&
+AbsEnvStatic::arraylength(AbsState& absState) {
   //TODO: actually make use of the value
   absState.pop();
   AbsValue *result = this->getTopDataType(TR::Int32);
@@ -2683,8 +2614,8 @@ AbsEnvStatic::arraylength(AbstractState& absState) {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::_new(AbstractState& absState, int cpIndex) {
+AbsState&
+AbsEnvStatic::_new(AbsState& absState, int cpIndex) {
   //TODO: actually look at the semantics
   TR_ResolvedMethod *method = this->getFrame()->_bci.method();
   TR_OpaqueClassBlock* type = method->getClassFromConstantPool(TR::comp(), cpIndex);
@@ -2698,8 +2629,8 @@ AbsEnvStatic::_new(AbstractState& absState, int cpIndex) {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::newarray(AbstractState& absState, int atype) {
+AbsState&
+AbsEnvStatic::newarray(AbsState& absState, int atype) {
   //TODO: actually impement the sematncis
   absState.pop();
   AbsValue *result = this->getTopDataType(TR::Address);
@@ -2707,32 +2638,32 @@ AbsEnvStatic::newarray(AbstractState& absState, int atype) {
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::invokevirtual(AbstractState& absState, int bcIndex, int cpIndex) {
+AbsState&
+AbsEnvStatic::invokevirtual(AbsState& absState, int bcIndex, int cpIndex) {
   invoke(bcIndex, cpIndex, TR::MethodSymbol::Kinds::Virtual, this->loadFromIDT());
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::invokestatic(AbstractState& absState, int bcIndex, int cpIndex) {
+AbsState&
+AbsEnvStatic::invokestatic(AbsState& absState, int bcIndex, int cpIndex) {
   invoke(bcIndex, cpIndex, TR::MethodSymbol::Kinds::Static, this->loadFromIDT());
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::invokespecial(AbstractState& absState, int bcIndex, int cpIndex) {
+AbsState&
+AbsEnvStatic::invokespecial(AbsState& absState, int bcIndex, int cpIndex) {
   invoke(bcIndex, cpIndex, TR::MethodSymbol::Kinds::Special, this->loadFromIDT());
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::invokedynamic(AbstractState& absState, int bcIndex, int cpIndex) {
+AbsState&
+AbsEnvStatic::invokedynamic(AbsState& absState, int bcIndex, int cpIndex) {
   invoke(bcIndex, cpIndex, TR::MethodSymbol::Kinds::ComputedVirtual, this->loadFromIDT());
   return absState;
 }
 
-AbstractState&
-AbsEnvStatic::invokeinterface(AbstractState& absState, int bcIndex, int cpIndex) {
+AbsState&
+AbsEnvStatic::invokeinterface(AbsState& absState, int bcIndex, int cpIndex) {
   invoke(bcIndex, cpIndex, TR::MethodSymbol::Kinds::Interface, this->loadFromIDT());
   return absState;
 }
@@ -2761,7 +2692,7 @@ AbsEnvStatic::invoke(int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind, boo
   if (TR::comp()->getOption(TR_TraceAbstractInterpretation)) {
     traceMsg(TR::comp(), "\n%s:%d:%s callsite invariants for %s\n", __FILE__, __LINE__, __func__, method->signature(TR::comp()->trMemory()));
   }
-  if (loadFromIDT && TR::comp()->getOption(TR_TraceAbstractInterpretation)) {
+  if (loadFromIDT ) {
     IDTNode * callee = this->getNode()->findChildWithBytecodeIndex(bcIndex);
     if (callee) traceMsg(TR::comp(), "\n%s:%d:%s callsite invariants for (FROM IDT) %s\n", __FILE__, __LINE__, __func__, callee->getName());
     if (!callee) goto withoutCallee;
@@ -2872,7 +2803,7 @@ AbsEnvStatic* AbsEnvStatic::enterMethod(TR::Region& region, IDTNode* node, AbsFr
      {
      TR_OpaqueClassBlock *implicitParameterClass = resolvedMethod->containingClass();
      AbsValue* value = AbsEnvStatic::getClassConstraint(implicitParameterClass, absFrame->getValuePropagation(), region);
-     absEnv->getState().at(0, value);
+     absEnv->getState().set(0, value);
      }
 
   TR_MethodParameterIterator *parameterIterator = resolvedMethod->getParameterIterator(*TR::comp());
@@ -2885,47 +2816,47 @@ AbsEnvStatic* AbsEnvStatic::enterMethod(TR::Region& region, IDTNode* node, AbsFr
      switch (dataType) {
         case TR::Int8:
           temp = new (region) AbsValue(NULL, TR::Int32);
-          temp->_param = i;
-          absEnv->getState().at(i, temp);
+          temp->setParamPosition(i);
+          absEnv->getState().set(i, temp);
           continue;
         break;
 
         case TR::Int16:
           temp = new (region) AbsValue(NULL, TR::Int32);
-          temp->_param = i;
-          absEnv->getState().at(i, temp);
+          temp->setParamPosition(i);
+          absEnv->getState().set(i, temp);
           continue;
         break;
 
         case TR::Int32:
           temp = new (region) AbsValue(NULL, dataType);
-          temp->_param = i;
-          absEnv->getState().at(i, temp);
+          temp->setParamPosition(i);
+          absEnv->getState().set(i, temp);
           continue;
         break;
 
         case TR::Int64:
           temp = new (region) AbsValue(NULL, dataType);
-          temp->_param = i;
-          absEnv->getState().at(i, temp);
+          temp->setParamPosition(i);
+          absEnv->getState().set(i, temp);
           i = i+1;
-          absEnv->getState().at(i, new (region) AbsValue(NULL, TR::NoType));
+          absEnv->getState().set(i, new (region) AbsValue(NULL, TR::NoType));
           continue;
         break;
 
         case TR::Float:
           temp = new (region) AbsValue(NULL, dataType);
-          temp->_param = i;
-          absEnv->getState().at(i, temp);
+          temp->setParamPosition(i);
+          absEnv->getState().set(i, temp);
           continue;
         break;
 
         case TR::Double:
           temp = new (region) AbsValue(NULL, dataType);
-          temp->_param = i;
-          absEnv->getState().at(i, temp);
+          temp->setParamPosition(i);
+          absEnv->getState().set(i, temp);
           i = i+1;
-          absEnv->getState().at(i, new (region) AbsValue(NULL, TR::NoType));
+          absEnv->getState().set(i, new (region) AbsValue(NULL, TR::NoType));
         continue;
         break;
 
@@ -2937,8 +2868,8 @@ AbsEnvStatic* AbsEnvStatic::enterMethod(TR::Region& region, IDTNode* node, AbsFr
      if (!isClass)
        {
           temp = new (region) AbsValue(NULL, TR::Address);
-          temp->_param = i;
-          absEnv->getState().at(i, temp);
+          temp->setParamPosition(i);
+          absEnv->getState().set(i, temp);
        //absEnv->getState().at(i, new (region) AbsValue(NULL, TR::Address));
        continue;
        }
@@ -2947,15 +2878,15 @@ AbsEnvStatic* AbsEnvStatic::enterMethod(TR::Region& region, IDTNode* node, AbsFr
      if (!parameterClass)
        {
           temp = new (region) AbsValue(NULL, TR::Address);
-          temp->_param = i;
-          absEnv->getState().at(i, temp);
+          temp->setParamPosition(i);
+          absEnv->getState().set(i, temp);
        //absEnv->getState().at(i, new (region) AbsValue(NULL, TR::Address));
        continue;
        }
 
       AbsValue* value = AbsEnvStatic::getClassConstraint(parameterClass, absFrame->getValuePropagation(), region);
-      value->_param = i;
-      absEnv->getState().at(i, value);
+      value->setParamPosition(i);
+      absEnv->getState().set(i, value);
      }
   return absEnv;
 }
@@ -3024,18 +2955,18 @@ AbsFrame::interpret(AbsEnvStatic *absEnvStatic, TR::MethodSymbol::Kinds kind)
      {
      if (paramsArray[i]) paramsArray[i]->print(absEnvStatic->getVP());
      //this->aloadn
-     if (paramsArray[i]) paramsArray[i]->_param = i;
+     if (paramsArray[i]) paramsArray[i]->setParamPosition(i);
 
       AbsValue *param = paramsArray[i];
-      value += this->_node->_summary ?  this->_node->_summary->predicate(param, i) : 0;
+      value += this->_node->getMethodSummary() ?  this->_node->getMethodSummary()->predicate(param, i) : 0;
       if (TR::comp()->getOption(TR_TraceAbstractInterpretation)) {
           traceMsg(TR::comp(), "%s:%d:%s AAAA benefit %d\n", __FILE__, __LINE__, __func__, value);
       }
 
      
 
-     innerAbsEnvStatic.getState().at(j, paramsArray[i]);
-     if (paramsArray[i]->isType2()) innerAbsEnvStatic.getState().at(++j, new (this->getRegion()) AbsValue(NULL, TR::NoType));
+     innerAbsEnvStatic.getState().set(j, paramsArray[i]);
+     if (paramsArray[i]->isType2()) innerAbsEnvStatic.getState().set(++j, new (this->getRegion()) AbsValue(NULL, TR::NoType));
      }
 
   this->_node->setBenefit(value);

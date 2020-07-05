@@ -10,50 +10,60 @@ IDTBuilder::IDTBuilder(TR::ResolvedMethodSymbol* symbol, int32_t budget, TR::Reg
       _inliner(inliner),
       _idt(NULL),
       _cfgGen(NULL),
-      _valuePropagation(NULL)
+      _valuePropagation(NULL),
+      _util(NULL),
+      _callerIndex(-1),
+      _callSiteIndex(0)
    {
    }
 
-IDT* IDTBuilder::getIDT() const
+IDT* IDTBuilder::getIDT() 
    {
    TR_ASSERT_FATAL(_idt, "Call buildIDT() before calling getIDT()!");
    return _idt;
    }
 
-TR::Compilation* IDTBuilder::comp() const
+TR::Compilation* IDTBuilder::comp() 
    {
    return _comp;
    }
 
-TR::Region& IDTBuilder::getRegion() const
+TR::Region& IDTBuilder::getRegion() 
    {
    return _region;
    }
 
-OMR::BenefitInliner* IDTBuilder::getInliner() const
+OMR::BenefitInliner* IDTBuilder::getInliner() 
    {
    return _inliner;
    }
 
-TR::CFG* IDTBuilder::generateCFG(TR_CallTarget* callTarget)
+OMR::BenefitInlinerUtil* IDTBuilder::getUtil()
    {
-      if (!_cfgGen)
-         {
-         _cfgGen = (TR_J9EstimateCodeSize *)TR_EstimateCodeSize::get(_inliner, _inliner->tracer(), 0);   
-         }
+   if (!_util)
+      _util = new (comp()->allocator()) OMR::BenefitInlinerUtil(comp());
+   return _util;
+   }
 
-      TR::CFG* cfg = _cfgGen->generateCFG(callTarget, NULL, _region);
-      return cfg;
+TR::CFG* IDTBuilder::generateCFG(TR_CallTarget* callTarget, TR_CallStack* callStack)
+   {
+   if (!_cfgGen)
+      {
+      _cfgGen = (TR_J9EstimateCodeSize *)TR_EstimateCodeSize::get(getInliner(), getInliner()->tracer(), 0);   
+      }
+
+   TR::CFG* cfg = _cfgGen->generateCFG(callTarget, callStack, _region);
+   return cfg;
    }
 
 TR::ValuePropagation* IDTBuilder::getValuePropagation()
    {
-   if (_valuePropagation)
-      return _valuePropagation;
-   
-   TR::OptimizationManager* manager = comp()->getOptimizer()->getOptimization(OMR::globalValuePropagation);
-   _valuePropagation = (TR::ValuePropagation*) manager->factory()(manager);
-   _valuePropagation->initialize();
+   if (!_valuePropagation)
+      {
+      TR::OptimizationManager* manager = comp()->getOptimizer()->getOptimization(OMR::globalValuePropagation);
+      _valuePropagation = (TR::ValuePropagation*) manager->factory()(manager);
+      _valuePropagation->initialize();
+      }
    return _valuePropagation;
    }
    
@@ -77,6 +87,7 @@ void IDTBuilder::buildIDT()
                                     NULL, 
                                     rootMethod->containingClass(), 
                                     NULL);
+
    root->setCallTarget(rootCallTarget);
 
    //add the decendants
@@ -93,300 +104,288 @@ void IDTBuilder::buildIDTHelper(IDTNode* node, int32_t budget, TR_CallStack* cal
       return;
 
    TR::ResolvedMethodSymbol* symbol = node->getResolvedMethodSymbol();
-   
    TR_ResolvedMethod* method = symbol->getResolvedMethod();
    
    bool recursiveCall = callStack && callStack->isAnywhereOnTheStack(method, 1);
 
-   TR_CallStack* nextCallStack = new (getRegion()) TR_CallStack(comp(), symbol, method, callStack, budget, true);
-
-   // stop building for recursive call
+   // stop for recursive call
    if (recursiveCall)
       return;
 
    bool traceBIIDTGen = comp()->getOption(TR_TraceBIIDTGen);
-
-   // // Walk the bytecode and adding children
-   // TR_J9ByteCodeIterator bcIterator(
-   //                         symbol,
-   //                         static_cast<TR_ResolvedJ9Method*>(node->getCallTarget()->_calleeMethod),
-   //                         static_cast<TR_J9VMBase*>(comp()->fe()), comp()
-   //                         );
    if (traceBIIDTGen)
       traceMsg(comp(), "+ IDTBuilder: Adding children for IDTNode: %s\n",node->getName(comp()->trMemory()));
-
-   generateCFG(node->getCallTarget());
-
-
-   //Perform abstract interpretation while building the IDT
-   AbsInterpreter interpretor(node, this, getValuePropagation(), getRegion(), comp());
-   interpretor.interpret();
+   
+   if (callStack == NULL) //This is the root method
+      {
+      TR::CFG* cfg = generateCFG(node->getCallTarget());
+      cfg->computeInitialBlockFrequencyBasedOnExternalProfiler(comp());
+      cfg->setFrequencies();
+      symbol->setFlowGraph(cfg);
+      cfg->getStartForReverseSnapshot()->setFrequency(cfg->getStartBlockFrequency());
+      }
+   else //cfg has already been set somewhere else
+      {
+      TR::CFG* cfg = node->getCallTarget()->_cfg;
+      cfg->getStartForReverseSnapshot()->setFrequency(cfg->getStartBlockFrequency());
+      }
    
 
-   // for (TR_J9ByteCode bc = bcIterator.first(); bc != J9BCunknown; bc = bcIterator.next())
-   //    {
-   //    if (traceBIIDTGen)
-   //       bcIterator.printByteCode();
+   TR_CallStack* nextCallStack = new (getRegion()) TR_CallStack(comp(), symbol, method, callStack, budget, true);
+   //This will be passed a long way...
+   //Here -> AbstractInterpreter -> IDTBuilder::addChildren
+   //It stores the children added to the current IDTNode, waiting to be precessed.
+   IDTNodeDeque idtNodeChildren(getRegion());
 
-   //    InvokeByteCodeInfo info;
-   //    if (isInvocation(bc,bcIterator, info))
-   //       {
-   //       TR_ResolvedMethod *method = bcIterator.method();
-        
-   //       TR::ResolvedMethodSymbol *symbol = TR::ResolvedMethodSymbol::create(comp()->trHeapMemory(), method, comp());
-   //       //printf("99 %s\n",symbol->signature(comp()->trMemory()));
-   //       TR_CallSite *callsite = findCallSiteTargets(symbol, info.bcIndex, info.cpIndex, info.kind, node->getCalleeIndex(),nextCallStack);
-       
-   //       if (!callsite)
-   //          continue;
-   //       //printf("%s %d }}\n",callsite->signature(comp()->trMemory()),callsite->numTargets());
-        
-   //       for (int i = 0; i < callsite->numTargets(); i ++)
-   //          {
-              
-   //          TR_CallTarget *callTarget = callsite->getTarget(i);
-            
-   //          TR::ResolvedMethodSymbol * resolvedMethodSymbol = TR::ResolvedMethodSymbol::create(comp()->trHeapMemory(), callTarget->_calleeMethod, comp());
-           
-   //          int remainingBudget = node->getBudget() - callTarget->_calleeMethod->maxBytecodeIndex();
-   //          if (remainingBudget < 0) 
-   //             continue;
-   //          IDTNode* child = node->addChildIfNotExists(
-   //                                  _idt->getNextGlobalIDTNodeIdx(),
-   //                                  callsite->_byteCodeIndex,
-   //                                  resolvedMethodSymbol,
-   //                                  0,
-   //                                  callsite,
-   //                                  0,
-   //                                  _idt->getMemoryRegion()
-   //                                  );
-           
-   //          if (child)
-   //             {
-   //             _idt->increaseGlobalIDTNodeIndex();
-   //             child->setCallStack(nextCallStack);
-   //             child->setCallTarget(callTarget);
-               
-   //             if (traceBIIDTGen)
-   //                traceMsg(comp(), "IDTBuilder: add child: %s to parent: %s\n",child->getName(comp()->trMemory()),node->getName(comp()->trMemory()));
-   //             //add the decendants
-   //             // if (!comp()->incInlineDepth(resolvedMethodSymbol, child->getCallSite()->_bcInfo, child->getCallSite()->_cpIndex, NULL, !child->getCallSite()->isIndirectCall(), 0))
-   //             //    continue;
-   //             // buildIDTHelper(child, remainingBudget, nextCallStack);
+   performAbstractInterpretation(node, nextCallStack, idtNodeChildren);
 
-   //             // comp()->decInlineDepth(true);
-   //             }
-   //          }
-   //       }
-   //    }
+   //At this point, idtNodeChildren has the children of the current IDTNode
+   while (!idtNodeChildren.empty())
+      {
+      IDTNode* child = idtNodeChildren.front();
+      idtNodeChildren.pop_front();
+      TR_ASSERT_FATAL(child && child->getCallSite(),"Call Site is NULL!");
+      TR::ResolvedMethodSymbol* symbol = TR::ResolvedMethodSymbol::create(comp()->trHeapMemory(), child->getCallTarget()->_calleeMethod, comp());
+      if (!comp()->incInlineDepth(symbol, child->getCallSite()->_bcInfo, child->getCallSite()->_cpIndex,NULL, !child->getCallSite()->isIndirectCall(),0))
+         continue;
+      _callerIndex ++;
+      buildIDTHelper(child, child->getBudget(), nextCallStack);
+      _callerIndex --;
+      comp()->decInlineDepth(true);
+      }
    }
 
-   bool IDTBuilder::isInvocation(TR_J9ByteCode bc,TR_J9ByteCodeIterator bcIterator, InvokeByteCodeInfo &info)
+//Perform abstract interpretation while building the IDT (adding children)
+void IDTBuilder::performAbstractInterpretation(IDTNode* node, TR_CallStack* callStack, IDTNodeDeque& idtNodeChildren)
+   {
+   AbsInterpreter interpretor(node, this, getValuePropagation(), callStack, idtNodeChildren, getRegion(), comp());
+   interpretor.interpret();
+   }
+
+void IDTBuilder::addChildren(IDTNode*node, TR_ResolvedMethod*method, int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind, TR_CallStack* callStack, IDTNodeDeque& idtNodeChildren, TR::Block* block, TR::CFG* callerCfg)
+   {
+   bool traceBIIDTGen = comp()->getOption(TR_TraceBIIDTGen);
+
+   TR::ResolvedMethodSymbol* symbol = TR::ResolvedMethodSymbol::create(comp()->trHeapMemory(), method, comp());
+
+   TR_CallSite* callsite = findCallSiteTargets(symbol, bcIndex, cpIndex, kind, node->getCalleeIndex(), callStack, block, callerCfg);
+   
+   if (!callsite)
+      return;
+
+   //At this point we have the callsite, next thing is to compute the call ratio of each call target of this call site.
+   computeCallRatio(callsite, callStack, node->getCalleeIndex(), block, callerCfg);
+
+   //Adding all call targets as Child IDTNodes to the current IDTNode
+   for (int32_t i = 0; i < callsite->numTargets(); i ++)
       {
-      switch(bc)
+      TR_CallTarget *callTarget = callsite->getTarget(i);
+      TR::ResolvedMethodSymbol * resolvedMethodSymbol = TR::ResolvedMethodSymbol::create(comp()->trHeapMemory(), callTarget->_calleeMethod, comp());
+      int remainingBudget = node->getBudget() - callTarget->_calleeMethod->maxBytecodeIndex();
+
+      if (remainingBudget < 0)
+         continue;
+      
+      IDTNode* child = node->addChildIfNotExists(
+                              _idt->getNextGlobalIDTNodeIdx(),
+                              callsite->_byteCodeIndex,
+                              resolvedMethodSymbol,
+                              0,
+                              callsite,
+                              callTarget->_callRatioCallerCallee,
+                              _idt->getMemoryRegion()
+                              );
+
+      //If successfully add this child to the IDT
+      if (child)
          {
-         case J9BCinvokedynamic: 
+         _idt->increaseGlobalIDTNodeIndex();
+         child->setCallStack(callStack);
+         child->setCallTarget(callTarget);
+         idtNodeChildren.push_back(child);
+
+         if (traceBIIDTGen)
+            traceMsg(comp(), "+ IDTBuilder: add child: %s to parent: %s\n",child->getName(comp()->trMemory()),node->getName(comp()->trMemory()));
+         }
+      } 
+   }
+
+void IDTBuilder::computeCallRatio(TR_CallSite* callsite, TR_CallStack* callStack, int callerIndex, TR::Block* block, TR::CFG* callerCfg)
+   {
+   TR_ASSERT_FATAL(callsite, "Call Site is NULL!");
+   for (int32_t i=0; i<callsite->numTargets(); i++)
+      {
+      TR_CallTarget *callTarget = callsite->getTarget(i);
+      TR_ASSERT_FATAL(callTarget, "callTarget is NULL");
+      TR::CFG* cfg = generateCFG(callTarget, callStack); //Now the callTarget has its own CFG
+      TR::ResolvedMethodSymbol *caller = callStack->_methodSymbol;
+      cfg->computeMethodBranchProfileInfo(getUtil(), callTarget, caller, _callSiteIndex++, block, callerCfg);
+      callTarget->_callRatioCallerCallee = ((float)block->getFrequency() / (float) callerCfg->getStartBlockFrequency());
+      }
+  
+   }
+
+TR_CallSite* IDTBuilder::findCallSiteTargets(
+      TR::ResolvedMethodSymbol *callerSymbol, 
+      int bcIndex, int cpIndex,
+      TR::MethodSymbol::Kinds kind, 
+      int callerIndex, 
+      TR_CallStack* callStack,
+      TR::Block* block,
+      TR::CFG* cfg
+      )
+   {
+   TR_ByteCodeInfo *infoMem = new (getRegion()) TR_ByteCodeInfo();
+   TR_ByteCodeInfo &info = *infoMem;
+
+   TR_ResolvedMethod *caller = callerSymbol->getResolvedMethod();
+   uint32_t methodSize = TR::Compiler->mtd.bytecodeSize(caller->getPersistentIdentifier());
+   TR::SymbolReference *symRef = getSymbolReference(callerSymbol, cpIndex, kind);
+   TR::Symbol *sym = symRef->getSymbol();
+   bool isInterface = kind == TR::MethodSymbol::Kinds::Interface;
+
+   if (symRef->isUnresolved() && !isInterface) 
+      {
+      //TODO: remove TR::comp()
+      if (TR::comp()->getOption(TR_TraceBIIDTGen))
+         {
+         traceMsg(TR::comp(), "not considering: method is unresolved and is not interface\n");
+         }
+      return NULL;
+      }
+
+   TR::ResolvedMethodSymbol *calleeSymbol = !isInterface ? sym->castToResolvedMethodSymbol() : NULL;
+   TR_ResolvedMethod *callee = !isInterface ? calleeSymbol->getResolvedMethod() : NULL;
+
+   TR::Method *calleeMethod = !isInterface ? calleeSymbol->getMethod() : comp()->fej9()->createMethod(comp()->trMemory(), caller->containingClass(), cpIndex);
+   info.setByteCodeIndex(bcIndex);
+   info.setDoNotProfile(false);
+   info.setCallerIndex(_callerIndex);
+   TR_OpaqueClassBlock *callerClass = caller->classOfMethod();
+   TR_OpaqueClassBlock *calleeClass = callee ? callee->classOfMethod() : NULL;
+   info.setIsSameReceiver(callerClass == calleeClass);
+   
+   bool isIndirect = kind == TR::MethodSymbol::Kinds::Static || TR::MethodSymbol::Kinds::Special;
+   int32_t offset = kind == TR::MethodSymbol::Virtual ? symRef->getOffset() : -1;
+
+   TR_CallSite *callsite = getCallSite
+      (
+         kind,
+         caller,
+         NULL,
+         NULL,
+         NULL,
+         calleeMethod,
+         calleeClass,
+         offset,
+         cpIndex,
+         callee,
+         calleeSymbol,
+         isIndirect,
+         isInterface,
+         info,
+         comp(),
+         -1,
+         false,
+         symRef
+      );
+
+   //TODO: Sometimes these were not set, why?
+   callsite->_byteCodeIndex = bcIndex;
+   callsite->_bcInfo = info; //info has to be a reference, so it is being deleted after node exits.
+   callsite->_cpIndex= cpIndex;
+   callsite->findCallSiteTarget(callStack, getInliner());
+
+   //TODO: Sometimes these were not set, why?
+   callStack->_methodSymbol = callStack->_methodSymbol ? callStack->_methodSymbol : callerSymbol;
+   
+   //This elimiates all the call targets that do not satisfy the inlining policy
+   getInliner()->applyPolicyToTargets(callStack, callsite, block, cfg);
+   return callsite;   
+   }
+
+
+TR_CallSite* IDTBuilder::getCallSite(TR::MethodSymbol::Kinds kind,
+                                       TR_ResolvedMethod *callerResolvedMethod,
+                                       TR::TreeTop *callNodeTreeTop,
+                                       TR::Node *parent,
+                                       TR::Node *callNode,
+                                       TR::Method * interfaceMethod,
+                                       TR_OpaqueClassBlock *receiverClass,
+                                       int32_t vftSlot,
+                                       int32_t cpIndex,
+                                       TR_ResolvedMethod *initialCalleeMethod,
+                                       TR::ResolvedMethodSymbol * initialCalleeSymbol,
+                                       bool isIndirectCall,
+                                       bool isInterface,
+                                       TR_ByteCodeInfo & bcInfo,
+                                       TR::Compilation *comp,
+                                       int32_t depth,
+                                       bool allConsts,
+                                       TR::SymbolReference *symRef)
+   {
+   TR::ResolvedMethodSymbol *rms = TR::ResolvedMethodSymbol::create(TR::comp()->trHeapMemory(), callerResolvedMethod, TR::comp());
+   auto owningMethod = (TR_ResolvedJ9Method*) callerResolvedMethod;
+   bool unresolvedInCP;
+   if (kind == TR::MethodSymbol::Kinds::Virtual)
+      {
+      TR_ResolvedMethod *method = owningMethod->getResolvedPossiblyPrivateVirtualMethod(
+         comp,
+         cpIndex,
+         /* ignoreRtResolve = */ false,
+         &unresolvedInCP);
+
+      bool opposite = !(method != NULL && method->isPrivate());
+      TR::SymbolReference * somesymref = NULL;
+      if (!opposite) 
+         {
+         somesymref = comp->getSymRefTab()->findOrCreateMethodSymbol(
+         rms->getResolvedMethodIndex(),
+         cpIndex,
+         method,
+         TR::MethodSymbol::Special,
+         /* isUnresolvedInCP = */ false);
+         }
+      else 
+         {
+         somesymref = comp->getSymRefTab()->findOrCreateVirtualMethodSymbol(rms, cpIndex);
+         if (!somesymref->isUnresolved())
             {
-            TR_ASSERT_FATAL(0, "Invoke dynamic is not implemented!");
+            method = somesymref->getSymbol()->castToResolvedMethodSymbol()->getResolvedMethod();
             }
-         case J9BCinvokeinterface: 
-            {
-            info.bcIndex = bcIterator.currentByteCodeIndex();
-            info.cpIndex = bcIterator.next2Bytes();
-            info.kind = TR::MethodSymbol::Kinds::Interface;
-            return true;
-            }
-         case J9BCinvokespecial: 
-            {
-            info.bcIndex = bcIterator.currentByteCodeIndex();
-            info.cpIndex = bcIterator.next2Bytes();
-            info.kind = TR::MethodSymbol::Kinds::Special;
-            return true;
-            }
-         case J9BCinvokestatic: 
-            {
-            info.bcIndex = bcIterator.currentByteCodeIndex();
-            info.cpIndex = bcIterator.next2Bytes();
-            info.kind = TR::MethodSymbol::Kinds::Static;
-            return true;
-            }
-         case J9BCinvokevirtual: 
-            {
-            info.bcIndex = bcIterator.currentByteCodeIndex();
-            info.cpIndex = bcIterator.next2Bytes();
-            info.kind = TR::MethodSymbol::Kinds::Virtual;
-            return true;
-            }
-            
-         case J9BCinvokespecialsplit: 
-            {
-            info.bcIndex = bcIterator.currentByteCodeIndex();
-            info.cpIndex = bcIterator.next2Bytes() | J9_SPECIAL_SPLIT_TABLE_INDEX_FLAG;
-            info.kind = TR::MethodSymbol::Kinds::Special;
-            return true;
-            }
-         case J9BCinvokestaticsplit:
-            {
-            info.bcIndex = bcIterator.currentByteCodeIndex();
-            info.cpIndex = bcIterator.next2Bytes() | J9_STATIC_SPLIT_TABLE_INDEX_FLAG;
-            info.kind = TR::MethodSymbol::Kinds::Static;
-            return true;
-            }
-            
-         default:
-            return false;
+         }
+      if (method) 
+         {
+         kind = somesymref->getSymbol()->isFinal() ||
+         method->isPrivate() ||
+         (debug("omitVirtualGuard") && !method->virtualMethodIsOverridden()) ? TR::MethodSymbol::Kinds::Static : kind;
          }
       }
 
-// TR_CallSite* IDTBuilder::findCallSiteTargets(TR::ResolvedMethodSymbol *callerSymbol, int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind, int callerIndex, TR_CallStack* callStack)
-//    {
-//    TR_ByteCodeInfo *infoMem = new (getRegion()) TR_ByteCodeInfo();
-//    TR_ByteCodeInfo &info = *infoMem;
-
-//    TR_ResolvedMethod *caller = callerSymbol->getResolvedMethod();
-//    uint32_t methodSize = TR::Compiler->mtd.bytecodeSize(caller->getPersistentIdentifier());
-//    TR::SymbolReference *symRef = getSymbolReference(callerSymbol, cpIndex, kind);
-//    TR::Symbol *sym = symRef->getSymbol();
-//    bool isInterface = kind == TR::MethodSymbol::Kinds::Interface;
-
-//    if (symRef->isUnresolved() && !isInterface) 
-//       {
-//       //TODO: remove TR::comp()
-//       if (TR::comp()->getOption(TR_TraceBIIDTGen))
-//          {
-//          traceMsg(TR::comp(), "not considering: method is unresolved and is not interface\n");
-//          }
-//       return NULL;
-//       }
-
-//    TR::ResolvedMethodSymbol *calleeSymbol = !isInterface ? sym->castToResolvedMethodSymbol() : NULL;
-//    TR_ResolvedMethod *callee = !isInterface ? calleeSymbol->getResolvedMethod() : NULL;
-//    //TODO: fixme TR::comp
-//    TR::Method *calleeMethod = !isInterface ? calleeSymbol->getMethod() : comp()->fej9()->createMethod(comp()->trMemory(), caller->containingClass(), cpIndex);
-//    info.setByteCodeIndex(bcIndex);
-//    info.setDoNotProfile(false);
-//    info.setCallerIndex(callerIndex);
-//    TR_OpaqueClassBlock *callerClass = caller->classOfMethod();
-//    TR_OpaqueClassBlock *calleeClass = callee ? callee->classOfMethod() : NULL;
-//    info.setIsSameReceiver(callerClass == calleeClass);
    
-//    bool isIndirect = kind == TR::MethodSymbol::Kinds::Static || TR::MethodSymbol::Kinds::Special;
-//    int32_t offset = kind == TR::MethodSymbol::Virtual ? symRef->getOffset() : -1;
+   if (initialCalleeMethod)
+      {
+      kind = symRef->getSymbol()->isFinal() ||
+      initialCalleeMethod->isPrivate() ||
+      (debug("omitVirtualGuard") && !initialCalleeMethod->virtualMethodIsOverridden()) ? TR::MethodSymbol::Kinds::Static : kind;
+      }
 
-//    TR_CallSite *callsite = getCallSite
-//       (
-//          kind,
-//          caller,
-//          NULL,
-//          NULL,
-//          NULL,
-//          calleeMethod,
-//          calleeClass,
-//          offset,
-//          cpIndex,
-//          callee,
-//          calleeSymbol,
-//          isIndirect,
-//          isInterface,
-//          info,
-//          comp(),
-//          -1,
-//          false,
-//          symRef
-//       );
-
-//    //TODO: Sometimes these were not set, why?
-//    callsite->_byteCodeIndex = bcIndex;
-//    callsite->_bcInfo = info; //info has to be a reference, so it is being deleted after node exits.
-//    callsite->_cpIndex= cpIndex;
-//    callsite->findCallSiteTarget(callStack, _inliner);
-//    //TODO: Sometimes these were not set, why?
-//    callStack->_methodSymbol = callStack->_methodSymbol ? callStack->_methodSymbol : callerSymbol;
-//    return callsite;   
-//    }
-
-
-// TR_CallSite* IDTBuilder::getCallSite(TR::MethodSymbol::Kinds kind,
-//                                        TR_ResolvedMethod *callerResolvedMethod,
-//                                        TR::TreeTop *callNodeTreeTop,
-//                                        TR::Node *parent,
-//                                        TR::Node *callNode,
-//                                        TR::Method * interfaceMethod,
-//                                        TR_OpaqueClassBlock *receiverClass,
-//                                        int32_t vftSlot,
-//                                        int32_t cpIndex,
-//                                        TR_ResolvedMethod *initialCalleeMethod,
-//                                        TR::ResolvedMethodSymbol * initialCalleeSymbol,
-//                                        bool isIndirectCall,
-//                                        bool isInterface,
-//                                        TR_ByteCodeInfo & bcInfo,
-//                                        TR::Compilation *comp,
-//                                        int32_t depth,
-//                                        bool allConsts,
-//                                        TR::SymbolReference *symRef)
-//    {
-//    TR::ResolvedMethodSymbol *rms = TR::ResolvedMethodSymbol::create(TR::comp()->trHeapMemory(), callerResolvedMethod, TR::comp());
-//    auto owningMethod = (TR_ResolvedJ9Method*) callerResolvedMethod;
-//    bool unresolvedInCP;
-//    if (kind == TR::MethodSymbol::Kinds::Virtual)
-//       {
-//       TR_ResolvedMethod *method = owningMethod->getResolvedPossiblyPrivateVirtualMethod(
-//          comp,
-//          cpIndex,
-//          /* ignoreRtResolve = */ false,
-//          &unresolvedInCP);
-
-//       bool opposite = !(method != NULL && method->isPrivate());
-//       TR::SymbolReference * somesymref = NULL;
-//       if (!opposite) 
-//          {
-//          somesymref = comp->getSymRefTab()->findOrCreateMethodSymbol(
-//          rms->getResolvedMethodIndex(),
-//          cpIndex,
-//          method,
-//          TR::MethodSymbol::Special,
-//          /* isUnresolvedInCP = */ false);
-//          }
-//       else 
-//          {
-//          somesymref = comp->getSymRefTab()->findOrCreateVirtualMethodSymbol(rms, cpIndex);
-//          if (!somesymref->isUnresolved())
-//             {
-//             method = somesymref->getSymbol()->castToResolvedMethodSymbol()->getResolvedMethod();
-//             }
-//          }
-//       if (method) 
-//          {
-//          kind = somesymref->getSymbol()->isFinal() ||
-//          method->isPrivate() ||
-//          (debug("omitVirtualGuard") && !method->virtualMethodIsOverridden()) ? TR::MethodSymbol::Kinds::Static : kind;
-//          }
-//       }
-
-   
-//    if (initialCalleeMethod)
-//       {
-//       kind = symRef->getSymbol()->isFinal() ||
-//       initialCalleeMethod->isPrivate() ||
-//       (debug("omitVirtualGuard") && !initialCalleeMethod->virtualMethodIsOverridden()) ? TR::MethodSymbol::Kinds::Static : kind;
-//       }
-
-//    TR_CallSite *callsite = NULL;
-//    switch (kind) 
-//       {
-//       case TR::MethodSymbol::Kinds::Virtual:
-//          callsite = new (getRegion()) TR_J9VirtualCallSite(callerResolvedMethod, callNodeTreeTop, parent, callNode, interfaceMethod, receiverClass, vftSlot, cpIndex, initialCalleeMethod, initialCalleeSymbol, isIndirectCall, isInterface, bcInfo, comp, depth, allConsts);
-//          break;
-//       case TR::MethodSymbol::Kinds::Static:
-//       case TR::MethodSymbol::Kinds::Special:
-//          callsite = new (getRegion()) TR_DirectCallSite(callerResolvedMethod, callNodeTreeTop, parent, callNode, interfaceMethod, receiverClass, vftSlot, cpIndex, initialCalleeMethod, initialCalleeSymbol, isIndirectCall, isInterface, bcInfo, comp, depth, allConsts);
-//          break;
-//       case TR::MethodSymbol::Kinds::Interface:
-//          callsite = new (getRegion()) TR_J9InterfaceCallSite(callerResolvedMethod, callNodeTreeTop, parent, callNode, interfaceMethod, receiverClass, vftSlot, cpIndex, initialCalleeMethod, initialCalleeSymbol, isIndirectCall, isInterface, bcInfo, comp, depth, allConsts);
-//          break;
-//       }
-//    return callsite;
-//    }
+   TR_CallSite *callsite = NULL;
+   switch (kind) 
+      {
+      case TR::MethodSymbol::Kinds::Virtual:
+         callsite = new (getRegion()) TR_J9VirtualCallSite(callerResolvedMethod, callNodeTreeTop, parent, callNode, interfaceMethod, receiverClass, vftSlot, cpIndex, initialCalleeMethod, initialCalleeSymbol, isIndirectCall, isInterface, bcInfo, comp, depth, allConsts);
+         break;
+      case TR::MethodSymbol::Kinds::Static:
+      case TR::MethodSymbol::Kinds::Special:
+         callsite = new (getRegion()) TR_DirectCallSite(callerResolvedMethod, callNodeTreeTop, parent, callNode, interfaceMethod, receiverClass, vftSlot, cpIndex, initialCalleeMethod, initialCalleeSymbol, isIndirectCall, isInterface, bcInfo, comp, depth, allConsts);
+         break;
+      case TR::MethodSymbol::Kinds::Interface:
+         callsite = new (getRegion()) TR_J9InterfaceCallSite(callerResolvedMethod, callNodeTreeTop, parent, callNode, interfaceMethod, receiverClass, vftSlot, cpIndex, initialCalleeMethod, initialCalleeSymbol, isIndirectCall, isInterface, bcInfo, comp, depth, allConsts);
+         break;
+      }
+   return callsite;
+   }
 
 TR::SymbolReference* IDTBuilder::getSymbolReference(TR::ResolvedMethodSymbol *callerSymbol, int cpIndex, TR::MethodSymbol::Kinds kind)
    {
