@@ -13,7 +13,9 @@
 #include "compiler/ilgen/J9ByteCodeIterator.hpp"
 
 
+
 class InliningProposal;
+class IDTBuilder;
 
 namespace OMR {
 
@@ -39,14 +41,12 @@ class BenefitInlinerUtil;
 class BenefitInlinerBase: public TR_InlinerBase 
    {
    protected:
-      void loopThroughIDT(IDTNode*);
-      void debugTrees(TR::ResolvedMethodSymbol*);
       void getSymbolAndFindInlineTargets(TR_CallStack *callStack, TR_CallSite *callsite, bool findNewTargets=true);
       virtual inline void updateBenefitInliner();
       virtual inline void popBenefitInlinerInformation();
       virtual bool analyzeCallSite(TR_CallStack *, TR::TreeTop *, TR::Node *, TR::Node *, TR_CallTarget*);
       BenefitInlinerBase(TR::Optimizer *optimizer, TR::Optimization *optimization);
-      TR::Region& _cfgRegion;
+      TR::Region _cfgRegion;
    public:
       virtual bool supportsMultipleTargetInlining () { return false; }
       virtual void applyPolicyToTargets(TR_CallStack *, TR_CallSite *, TR::Block *block=NULL, TR::CFG* callerCFG=NULL);
@@ -74,16 +74,13 @@ class BenefitInliner: public BenefitInlinerBase
    friend class BenefitInlinerWrapper;
       void addEverything();
       void addEverythingRecursively(IDTNode*);
-      BenefitInliner(TR::Optimizer *, TR::Optimization *, uint32_t);
-      void initIDT(TR::ResolvedMethodSymbol *root, int);
-      void analyzeIDT();
-      void abstractInterpreter();
-      void obtainIDT(IDTNode *node, int32_t budget);
+      void buildIDT();
+      void updateIDT();
       
-      bool obtainIDT(IDTNodeIndices&, IDTNode*, int32_t budget);
-      void obtainIDT(IDTNodeIndices&, IDTNode*, TR_J9ByteCodeIterator&, TR::Block *, int32_t);
-      void obtainIDT(IDTNodeIndices*, IDTNode *, TR_CallSite*, int32_t budget, int cpIndex);
-      void traceIDT();
+      BenefitInliner(TR::Optimizer *, TR::Optimization *, uint32_t);
+      
+      void analyzeIDT();
+      
       TR::Region& _holdingProposalRegion;
       inline const uint32_t budget() const { return this->_budget; }
    private:
@@ -91,41 +88,18 @@ class BenefitInliner: public BenefitInlinerBase
       typedef std::less<TR_OpaqueMethodBlock*> MethodSummaryMapComparator;
       typedef std::map<TR_OpaqueMethodBlock *, IDTNode*, MethodSummaryMapComparator, MethodSummaryMapAllocator> MethodSummaryMap;
 
+      IDTBuilder* _idtBuilder;
       TR::CFG *_rootRms;
-      TR::Region& _absEnvRegion;
-      TR::Region& _callSitesRegion;
-      TR::Region& _callStacksRegion;
-      TR::Region& _mapRegion;
-      TR::Region& _IDTConstructorRegion;
+      TR::Region _absEnvRegion;
+      TR::Region _callSitesRegion;
+      TR::Region _callStacksRegion;
+      TR::Region _mapRegion;
+      TR::Region _IDTConstructorRegion;
       MethodSummaryMap _methodSummaryMap;
       TR_CallStack *_inliningCallStack;
       const uint32_t _budget;
 
-      TR_CallSite *findCallSiteTarget(TR::ResolvedMethodSymbol *resolvedMethodSymbol, int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind, TR::Block *block, TR::CFG* cfg = NULL);
-      void printTargets(TR::ResolvedMethodSymbol *resolvedMethodSymbol, int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind);
-      void printInterfaceTargets(TR::ResolvedMethodSymbol *resolvedMethodSymbol, int bcIndex, int cpIndex);
-      void printVirtualTargets(TR::ResolvedMethodSymbol *resolvedMethodSymbol, int bcIndex, int cpIndex);
-      void printStaticTargets(TR::ResolvedMethodSymbol *resolvedMethodSymbol, int bcIndex, int cpIndex);
-      void printSpecialTargets(TR::ResolvedMethodSymbol *resolvedMethodSymbol, int bcIndex, int cpIndex);
-      // TODO: delete me
-      TR::SymbolReference* getSymbolReference(TR::ResolvedMethodSymbol *callerSymbol, int cpIndex, TR::MethodSymbol::Kinds kind);
-      TR_CallSite * getCallSite(TR::MethodSymbol::Kinds kind,
-                                    TR_ResolvedMethod *callerResolvedMethod,
-                                    TR::TreeTop *callNodeTreeTop,
-                                    TR::Node *parent,
-                                    TR::Node *callNode,
-                                    TR::Method * interfaceMethod,
-                                    TR_OpaqueClassBlock *receiverClass,
-                                    int32_t vftSlot,
-                                    int32_t cpIndex,
-                                    TR_ResolvedMethod *initialCalleeMethod,
-                                    TR::ResolvedMethodSymbol * initialCalleeSymbol,
-                                    bool isIndirectCall,
-                                    bool isInterface,
-                                    TR_ByteCodeInfo & bcInfo,
-                                    TR::Compilation *comp,
-                                    int32_t depth=-1,
-                                    bool allConsts=false);
+     
    };
 
    class BenefitInlinerUtil : public TR_J9InlinerUtil

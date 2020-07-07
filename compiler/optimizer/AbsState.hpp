@@ -2,7 +2,6 @@
 #define ABS_STATE_INCL
 
 #include "env/Region.hpp"
-#include "optimizer/IDTNode.hpp"
 #include "optimizer/AbsVarArrayStatic.hpp"
 #include "optimizer/AbsOpStackStatic.hpp"
 #include "optimizer/AbsValue.hpp"

@@ -17,7 +17,7 @@
 #include "optimizer/InlinerPacking.hpp"
 #include "optimizer/AbsEnvStatic.hpp"
 #include "optimizer/InliningProposal.hpp"
-#include "optimizer/IDTBuilder.hpp"
+
 
 
 int32_t OMR::BenefitInlinerWrapper::perform()
@@ -28,20 +28,19 @@ int32_t OMR::BenefitInlinerWrapper::perform()
    int32_t budget = this->getBudget(sym);
    if (budget < 0)
       return 1;
+
    OMR::BenefitInliner inliner(optimizer(), this, budget);
-   
-   IDTBuilder* builder = new (comp()->region()) IDTBuilder(sym,budget,comp()->region(), comp(), &inliner);
-   builder->buildIDT();
-   IDT* idt = builder->getIDT();
-   idt->printTrace();
 
-   //restore the 'real' CFG since we changed it when contructing IDT. 
-   sym->setFlowGraph(prevCFG);
+   inliner.buildIDT();
 
-   if (idt->getNumNodes() == 1)
+  
+   if (inliner._idt->getNumNodes() == 1)
+      {
+      sym->setFlowGraph(prevCFG);
       return 1;
+      }
+      
    
-   int recursiveCost = idt->getRoot()->getRecursiveCost(); 
 //    if (budget < 0) return 1;
 //    OMR::BenefitInliner inliner(optimizer(), this, budget);
 //    inliner._rootRms = prevCFG;
@@ -59,28 +58,31 @@ int32_t OMR::BenefitInlinerWrapper::perform()
 //       return 1;
 //       }
 //    inliner._idt->getRoot()->getResolvedMethodSymbol()->setFlowGraph(inliner._rootRms);
-//    int recursiveCost = inliner._idt->getRoot()->getRecursiveCost();
-//    bool canSkipAbstractInterpretation = recursiveCost < budget;
-//    if (!canSkipAbstractInterpretation) {
-//        if (TR::comp()->getOption(TR_TraceAbstractInterpretation))
-//        {
-//        traceMsg(TR::comp(), "STARTXXX: about to start abstract interpretation\n");
-//        }
-//       inliner.abstractInterpreter();
-//        if (TR::comp()->getOption(TR_TraceAbstractInterpretation))
-//        {
-//        traceMsg(TR::comp(), "ENDXXX: about to end abstract interpretation\n");
-//        }
-//       inliner.analyzeIDT();
-//    } else {
-//       inliner.addEverything();
-//    }
-
-// /*
-//    inliner._idt->getRoot()->getResolvedMethodSymbol()->setFlowGraph(inliner._rootRms);
-// */
-//    inliner._currentNode = inliner._idt->getRoot();
-//    inliner.performInlining(sym);
+    int recursiveCost = inliner._idt->getRoot()->getRecursiveCost();
+    bool canSkipAbstractInterpretation = recursiveCost < budget;
+    if (!canSkipAbstractInterpretation) {
+      //  if (TR::comp()->getOption(TR_TraceAbstractInterpretation))
+      //  {
+      //  traceMsg(TR::comp(), "STARTXXX: about to start abstract interpretation\n");
+      //  }
+      // inliner.abstractInterpreter();
+      //  if (TR::comp()->getOption(TR_TraceAbstractInterpretation))
+      //  {
+      //  traceMsg(TR::comp(), "ENDXXX: about to end abstract interpretation\n");
+      //  }
+      //inliner.updateIDT();
+      inliner.analyzeIDT();
+   } else {
+      inliner.addEverything();
+   }
+    //restore the 'real' CFG since we changed it. 
+   sym->setFlowGraph(prevCFG);
+/*
+   inliner._idt->getRoot()->getResolvedMethodSymbol()->setFlowGraph(inliner._rootRms);
+*/ 
+   inliner._idt->printTrace();
+   inliner._currentNode = inliner._idt->getRoot();
+   inliner.performInlining(sym);
    return 1;
    }
 
@@ -104,36 +106,16 @@ OMR::BenefitInliner::addEverythingRecursively(IDTNode *node)
       }
    }
 
-void
-OMR::BenefitInlinerBase::loopThroughIDT(IDTNode* node) {
-  traceMsg(TR::comp(), "looping through %s\n", node->getName());
-  // We don't really need to have a flow graph for _calleeSymbol since the _calleeSymbol might not be the target _calleeMethod
-  //TR_ASSERT(node->getCallTarget()->_calleeSymbol->getFlowGraph(), "we have a flow graph");
-  node->printByteCode();
-  for (int i = 0; i < node->getNumChildren(); i++)
-  {
-    IDTNode *child = node->getChild(i);
-    loopThroughIDT(child);
-  }
-}
+void OMR::BenefitInliner::buildIDT()
+   {
+   _idt = _idtBuilder->buildIDT();
 
-void
-OMR::BenefitInlinerBase::debugTrees(TR::ResolvedMethodSymbol *rms)
-{
-      for (TR::TreeTop * tt = rms->getFirstTreeTop(); tt; tt = tt->getNextTreeTop())
-         {
-         TR::Node * parent = tt->getNode();
-         if (!parent->getNumChildren()) continue;
+   }
 
-         TR::Node * node = parent->getChild(0);
-         if (!node->getOpCode().isCall()) continue;
-         traceMsg(TR::comp(), "name of node ? %s\n", node->getOpCode().getName());
-         TR_ByteCodeInfo &bcInfo = node->getByteCodeInfo();
-         traceMsg(TR::comp(), "bytecodeIndex %d\n", bcInfo.getByteCodeIndex());
-         traceMsg(comp(), "is call indirect? %s\n", node->getOpCode().isCallIndirect() ? "true" : "false");
-         }
-}
-
+void OMR::BenefitInliner::updateIDT()
+   {
+   _idtBuilder->updateIDT(_idt);
+   }
 
 bool
 OMR::BenefitInlinerBase::inlineCallTargets(TR::ResolvedMethodSymbol *rms, TR_CallStack *prevCallStack, TR_InnerPreexistenceInfo *info)
@@ -385,16 +367,6 @@ OMR::BenefitInlinerBase::inlineCallTarget(TR_CallStack *callStack, TR_CallTarget
 
 
 
-
-void
-OMR::BenefitInliner::abstractInterpreter()
-   {
-   AbsFrame absFrame(_absEnvRegion, this->_idt->getRoot());
-   AbsEnvStatic absEnvStatic(_absEnvRegion, this->_idt->getRoot(), &absFrame);
-   absFrame.interpret();
-   this->_idt->getRoot()->getResolvedMethodSymbol()->setFlowGraph(this->_rootRms);
-   }
-
 void
 OMR::BenefitInliner::analyzeIDT()
    {
@@ -440,563 +412,6 @@ OMR::BenefitInlinerWrapper::getBudget(TR::ResolvedMethodSymbol *resolvedMethodSy
       return 25;
    }
 
-void OMR::BenefitInliner::initIDT(TR::ResolvedMethodSymbol *root, int budget)
-   {
-   //TODO: can we do this in the initialization list?
-   _idt = new (comp()->trMemory()->currentStackRegion()) IDT(comp()->trMemory()->currentStackRegion(), root, budget, comp());
-   }
-
-void OMR::BenefitInliner::traceIDT()
-   {
-      if (!TR::comp()->getOption(TR_TraceBIIDTGen)) return;
-      _idt->printTrace();
-   } 
-
-void
-OMR::BenefitInliner::obtainIDT(IDTNodeIndices *Deque, IDTNode *currentNode, TR_CallSite *callsite, int32_t budget, int cpIndex)
-   {
-   if (!callsite) return;
-   for (int i = 0; i < callsite->numTargets(); i++)
-      {
-      TR_CallTarget *callTarget = callsite->getTarget(i);
-      TR::ResolvedMethodSymbol * resolvedMethodSymbol = TR::ResolvedMethodSymbol::create(comp()->trHeapMemory(), callTarget->_calleeMethod, comp());
-
-      int budgetForChild = currentNode->getBudget() - callTarget->_calleeMethod->maxBytecodeIndex();
-      
-      bool hasEnoughBudget = 0 < budgetForChild;
-      if (!hasEnoughBudget) continue;
-
-      IDTNode *node = currentNode->addChildIfNotExists(this->_idt->getNextGlobalIDTNodeIdx(), callsite->_byteCodeIndex, resolvedMethodSymbol, 0, callsite, callTarget->_callRatioCallerCallee, _idt->getMemoryRegion());
-      if (node) {
-         _idt->increaseGlobalIDTNodeIndex();
-         node->setCallStack(this->_inliningCallStack);
-         node->setCallTarget(callTarget);
-         TR::CFGNode *cfgNode = callTarget->_calleeSymbol->getFlowGraph()->getStartForReverseSnapshot();
-         TR::Block *startBlock = cfgNode->asBlock();
-         Deque->push_back(node);
-      }
-      if (node && comp()->trace(OMR::benefitInliner))
-         {
-         traceMsg(TR::comp(), "adding %d %s into %d %s budget for child %d\n", node->getCalleeIndex(), node->getName(), currentNode->getCalleeIndex(), currentNode->getName(), budgetForChild);
-         trfflush(comp()->getOutFile());
-         callTarget = node->getCallTarget();
-         traceMsg(comp(), "with guard kind=%s and type=%s\n",
-                              tracer()->getGuardKindString(callTarget->_guard),
-                              tracer()->getGuardTypeString(callTarget->_guard));
-         }
-      }
-
-   }
-
-void
-OMR::BenefitInliner::obtainIDT(IDTNode *node, int32_t budget)
-   {
-      if (budget < 0) return;
-
-      TR::ResolvedMethodSymbol *resolvedMethodSymbol = node->getResolvedMethodSymbol();
-      TR_ResolvedMethod *resolvedMethod = resolvedMethodSymbol->getResolvedMethod();
-
-      TR_CallStack *prevCallStack = this->_inliningCallStack;
-      bool isRecursiveCall = prevCallStack && this->_inliningCallStack->isAnywhereOnTheStack(resolvedMethod, 1);
-      if (isRecursiveCall) { return; }
-
-      TR::CFG *cfg = NULL;
-      TR::CFG *prevCFG = resolvedMethodSymbol->getFlowGraph();
-      int32_t maxBytecodeIndex = resolvedMethodSymbol->getResolvedMethod()->maxBytecodeIndex();
-      if (!prevCallStack)
-      {
-            TR_CallTarget *calltarget = new (this->comp()->trHeapMemory()) TR_CallTarget(NULL, resolvedMethodSymbol, resolvedMethod, NULL, resolvedMethod->containingClass(), NULL);
-            TR_J9EstimateCodeSize *cfgGen = (TR_J9EstimateCodeSize *)TR_EstimateCodeSize::get(this, this->tracer(), 0);
-            cfg = cfgGen->generateCFG(calltarget, NULL, this->_cfgRegion);
-            cfg->computeInitialBlockFrequencyBasedOnExternalProfiler(comp());
-            //cfg->setBlockFrequenciesBasedOnInterpreterProfiler();
-            //uint32_t firstBlockFreq = cfg->getInitialBlockFrequency();
-            //traceMsg(TR::comp(), "initialBlockFrequency = %d\n", firstBlockFreq);
-            cfg->setFrequencies();
-            traceMsg(TR::comp(), "cfg->getStartBlockFrequency() = %d\n", cfg->getStartBlockFrequency());
-            resolvedMethodSymbol->setFlowGraph(cfg);
-            cfg->getStartForReverseSnapshot()->setFrequency(cfg->getStartBlockFrequency());
-            node->setCallTarget(calltarget);
-      } 
-      else 
-      {
-            cfg = resolvedMethodSymbol->getFlowGraph();
-            cfg->getStartForReverseSnapshot()->setFrequency(cfg->getStartBlockFrequency());
-      }
-
-   IDTNodeIndices Deque(0, nullptr, this->comp()->trMemory()->currentStackRegion());
-   bool shouldInterpret = this->obtainIDT(Deque, node, budget);
-   this->_inliningCallStack = new (this->_callSitesRegion) TR_CallStack(this->comp(), resolvedMethodSymbol, resolvedMethod, prevCallStack, budget, true);
-   // AbsFrameIDTConstructor constructor(this->_callSitesRegion, node, this->_callerIndex, this->_inliningCallStack, this);
-   // //TODO: remove this interface
-   // constructor.setDeque(&Deque);
-
-   // if (shouldInterpret)
-   //    {
-   //    constructor.interpret();
-   //    }
-
-   // if (TR::comp()->getOption(TR_TraceAbstractInterpretation))
-   //    {
-   //    constructor.traceMethodSummary();
-   //    }
-
-
-   //node->_summary = constructor._summary;
-
-   while (!Deque.empty())
-      {
-      IDTNode *node2 = Deque.front();
-      Deque.pop_front();
-      TR_ASSERT(node2 && node2->getCallSite(), "call site is null");
-      TR::ResolvedMethodSymbol * resolvedMethodSymbol = TR::ResolvedMethodSymbol::create(comp()->trHeapMemory(), node2->getCallTarget()->_calleeMethod, comp());
-      if (!comp()->incInlineDepth(resolvedMethodSymbol, node2->getCallSite()->_bcInfo, node2->getCallSite()->_cpIndex, NULL, !node2->getCallSite()->isIndirectCall(), 0)) continue;
-      this->_callerIndex++;
-      this->obtainIDT(node2, node2->getBudget());
-      this->_callerIndex--;
-      comp()->decInlineDepth(true);
-      }
-   this->_inliningCallStack = prevCallStack;
-   
-   }
-
-bool
-OMR::BenefitInliner::obtainIDT(IDTNodeIndices &Deque, IDTNode *node, int32_t budget)
-   {
-      // Here is where I should make a method summary and edit it in the next obtainIDT...
-      TR::ResolvedMethodSymbol *resolvedMethodSymbol = node->getResolvedMethodSymbol();
-      TR_ResolvedMethod *resolvedMethod = resolvedMethodSymbol->getResolvedMethod();
-      TR_OpaqueMethodBlock *persistentIdentifier = resolvedMethod->getPersistentIdentifier();
-      // if it is found, keep it as a nullptr, as we don't want to write new data?
-      auto iter = this->_methodSummaryMap.find(persistentIdentifier);
-      IDTNode *ms = iter == this->_methodSummaryMap.end() ? nullptr : iter->second;
-
-      if (ms != nullptr)
-         {
-         // At this moment, the method visited by node has already been visited by the method in ms.
-         // So, ideally we would like to create avoid all the iteration and just create nodes.
-         // We add the children from ms to Deque and Children in Node.
-         if ((node->getBudget() - node->getCost()) < 0) return false;
-         _idt->copyChildren(ms,node);
-         return false;
-         }
-      if (ms == nullptr)
-         {
-         this->_methodSummaryMap.insert(std::pair<TR_OpaqueMethodBlock *, IDTNode *>(persistentIdentifier,node));
-         }
-
-      return true;
-   }
-
-
-// This is basically very limited abstract interpreter, we should be able to 
-// re-use the class.
-void
-OMR::BenefitInliner::obtainIDT(IDTNodeIndices &Deque, IDTNode *node, TR_J9ByteCodeIterator &bci, TR::Block *block, int budget)
-   {
-      int start = block->getBlockBCIndex();
-      int end = block->getBlockBCIndex() + block->getBlockSize();
-      bci.setIndex(start);
-      for(TR_J9ByteCode bc = bci.current(); bc != J9BCunknown && bci.currentByteCodeIndex() < end; bc = bci.next())
-         {
-         TR::MethodSymbol::Kinds kind = TR::MethodSymbol::Kinds::Helper;
-         switch(bc)
-            {
-               
-               case J9BCinvokestatic:
-               kind = TR::MethodSymbol::Kinds::Static;
-               break;
-               case J9BCinvokespecial:
-               kind = TR::MethodSymbol::Kinds::Special;
-               break;
-               case J9BCinvokevirtual:
-               kind = TR::MethodSymbol::Kinds::Virtual;
-               break;
-               case J9BCinvokeinterface:
-               kind = TR::MethodSymbol::Kinds::Interface;
-               default:
-               break;
-            }
-
-
-         if (kind != TR::MethodSymbol::Kinds::Helper)
-            {
-            TR_CallSite *callsite = this->findCallSiteTarget(bci.methodSymbol(), bci.currentByteCodeIndex(), bci.next2Bytes(), kind, block, node->getCallTarget()->_cfg);
-            this->obtainIDT(&Deque, node, callsite, budget, bci.next2Bytes());
-            }
-         }
-   }
-
-//TODO: delete me
-TR::SymbolReference*
-OMR::BenefitInliner::getSymbolReference(TR::ResolvedMethodSymbol *callerSymbol, int cpIndex, TR::MethodSymbol::Kinds kind)
-   {
-      TR::SymbolReference *symRef = NULL;
-      switch(kind) {
-         case (TR::MethodSymbol::Kinds::Virtual):
-            symRef = this->comp()->getSymRefTab()->findOrCreateVirtualMethodSymbol(callerSymbol, cpIndex);
-         break;
-         case (TR::MethodSymbol::Kinds::Static):
-            symRef = this->comp()->getSymRefTab()->findOrCreateStaticMethodSymbol(callerSymbol, cpIndex);
-         break;
-         case (TR::MethodSymbol::Kinds::Interface):
-            symRef = this->comp()->getSymRefTab()->findOrCreateInterfaceMethodSymbol(callerSymbol, cpIndex);
-         break;
-         case (TR::MethodSymbol::Kinds::Special):
-            symRef = this->comp()->getSymRefTab()->findOrCreateSpecialMethodSymbol(callerSymbol, cpIndex);
-         break;
-      }
-      return symRef;
-   }
-
-TR_CallSite*
-OMR::BenefitInliner::findCallSiteTarget(TR::ResolvedMethodSymbol *callerSymbol, int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind, TR::Block *block, TR::CFG* cfg)
-   {
-      TR_ByteCodeInfo info;
-      TR_ResolvedMethod *caller = callerSymbol->getResolvedMethod();
-      uint32_t methodSize = TR::Compiler->mtd.bytecodeSize(caller->getPersistentIdentifier());
-      TR::SymbolReference *symRef = this->getSymbolReference(callerSymbol, cpIndex, kind);
-      TR::Symbol *sym = symRef->getSymbol();
-      bool isInterface = kind == TR::MethodSymbol::Kinds::Interface;
-      if (symRef->isUnresolved() && !isInterface) return NULL;
-      
-      TR::ResolvedMethodSymbol *calleeSymbol = !isInterface ? sym->castToResolvedMethodSymbol() : NULL;
-      TR_ResolvedMethod *callee = !isInterface ? calleeSymbol->getResolvedMethod() : NULL;
-      TR::Method *calleeMethod = !isInterface ? calleeSymbol->getMethod() : this->comp()->fej9()->createMethod(this->comp()->trMemory(), caller->containingClass(), cpIndex);
-
-      info.setByteCodeIndex(bcIndex);
-      info.setDoNotProfile(false);
-      info.setCallerIndex(this->_callerIndex);
-      TR_OpaqueClassBlock *callerClass = caller->classOfMethod();
-      TR_OpaqueClassBlock *calleeClass = callee ? callee->classOfMethod() : NULL;
-      info.setIsSameReceiver(callerClass == calleeClass);
-
-      bool isIndirect = kind == TR::MethodSymbol::Kinds::Static || TR::MethodSymbol::Kinds::Special;
-      int32_t offset = kind == TR::MethodSymbol::Virtual ? symRef->getOffset() : -1;
-      
-      
-      TR_CallSite *callsite = this->getCallSite
-         (
-            kind,
-            caller,
-            NULL,
-            NULL,
-            NULL,
-            calleeMethod,
-            calleeClass,
-            offset,
-            cpIndex,
-            callee,
-            calleeSymbol,
-            isIndirect,
-            isInterface,
-            info,
-            this->comp()
-         );
-      //TODO: Sometimes these were not set, why?
-      callsite->_byteCodeIndex = bcIndex;
-      callsite->_bcInfo = info;
-      callsite->_cpIndex= cpIndex;
-
-      callsite->findCallSiteTarget(this->_inliningCallStack, this);
-      //TODO: Sometimes these were not set, why?
-      this->_inliningCallStack->_methodSymbol = this->_inliningCallStack->_methodSymbol ? this->_inliningCallStack->_methodSymbol : callerSymbol;
-
-      applyPolicyToTargets(this->_inliningCallStack, callsite, block, cfg);
-      return callsite;
-   }
-
-void
-OMR::BenefitInliner::printTargets(TR::ResolvedMethodSymbol *callerSymbol, int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind)
-   {
-      TR_ResolvedMethod *caller = callerSymbol->getResolvedMethod();
-      TR::SymbolReference *symRef = this->getSymbolReference(callerSymbol, cpIndex, kind);
-      TR::Symbol *sym = symRef->getSymbol();
-      bool isInterface = kind == TR::MethodSymbol::Kinds::Interface;
-      if (symRef->isUnresolved() && !isInterface) return;
-      
-      TR::ResolvedMethodSymbol *calleeSymbol = !isInterface ? sym->castToResolvedMethodSymbol() : NULL;
-      TR_ResolvedMethod *callee = !isInterface ? calleeSymbol->getResolvedMethod() : NULL;
-      TR::Method *calleeMethod = !isInterface ? calleeSymbol->getMethod() : this->comp()->fej9()->createMethod(this->comp()->trMemory(), caller->containingClass(), cpIndex);
-
-      TR_ByteCodeInfo info;
-      info.setByteCodeIndex(bcIndex);
-      info.setDoNotProfile(false);
-      info.setCallerIndex(this->_callerIndex);
-      TR_OpaqueClassBlock *callerClass = caller->classOfMethod();
-      TR_OpaqueClassBlock *calleeClass = callee ? callee->classOfMethod() : NULL;
-      info.setIsSameReceiver(callerClass == calleeClass);
-
-      bool isIndirect = kind == TR::MethodSymbol::Kinds::Static || TR::MethodSymbol::Kinds::Special;
-      int32_t offset = kind == TR::MethodSymbol::Virtual ? symRef->getOffset() : -1;
-      
-      
-      TR_CallSite *callsite = this->getCallSite
-         (
-            kind,
-            caller,
-            NULL,
-            NULL,
-            NULL,
-            calleeMethod,
-            calleeClass,
-            offset,
-            cpIndex,
-            callee,
-            calleeSymbol,
-            isIndirect,
-            isInterface,
-            info,
-            this->comp()
-         );
-      callsite->findCallSiteTarget(this->_inliningCallStack, this);
-      applyPolicyToTargets(this->_inliningCallStack, callsite);
-      TR_VerboseLog::vlogAcquire();
-      for (int i = 0; i < callsite->numTargets(); i++)
-         {
-         TR_CallTarget *callTarget = callsite->getTarget(i);
-         TR_VerboseLog::writeLine(TR_Vlog_SIP, "virtual %s", callTarget->signature(this->comp()->trMemory()));
-         }
-      TR_VerboseLog::vlogRelease();
-                                                
-   }
-
-TR_CallSite *
-OMR::BenefitInliner::getCallSite(TR::MethodSymbol::Kinds kind,
-                                    TR_ResolvedMethod *callerResolvedMethod,
-                                    TR::TreeTop *callNodeTreeTop,
-                                    TR::Node *parent,
-                                    TR::Node *callNode,
-                                    TR::Method * interfaceMethod,
-                                    TR_OpaqueClassBlock *receiverClass,
-                                    int32_t vftSlot,
-                                    int32_t cpIndex,
-                                    TR_ResolvedMethod *initialCalleeMethod,
-                                    TR::ResolvedMethodSymbol * initialCalleeSymbol,
-                                    bool isIndirectCall,
-                                    bool isInterface,
-                                    TR_ByteCodeInfo & bcInfo,
-                                    TR::Compilation *comp,
-                                    int32_t depth,
-                                    bool allConsts)
-   {
-      TR_CallSite *callsite = NULL;
-      switch (kind) {
-         case TR::MethodSymbol::Kinds::Virtual:
-            callsite = new (this->_callSitesRegion) TR_J9VirtualCallSite(callerResolvedMethod, callNodeTreeTop, parent, callNode, interfaceMethod, receiverClass, vftSlot, cpIndex, initialCalleeMethod, initialCalleeSymbol, isIndirectCall, isInterface, bcInfo, comp, depth, allConsts);
-         break;
-         case TR::MethodSymbol::Kinds::Static:
-         case TR::MethodSymbol::Kinds::Special:
-            callsite = new (this->_callSitesRegion) TR_DirectCallSite(callerResolvedMethod, callNodeTreeTop, parent, callNode, interfaceMethod, receiverClass, vftSlot, cpIndex, initialCalleeMethod, initialCalleeSymbol, isIndirectCall, isInterface, bcInfo, comp, depth, allConsts);
-         break;
-         case TR::MethodSymbol::Kinds::Interface:
-            callsite = new (this->_callSitesRegion) TR_J9InterfaceCallSite(callerResolvedMethod, callNodeTreeTop, parent, callNode, interfaceMethod, receiverClass, vftSlot, cpIndex, initialCalleeMethod, initialCalleeSymbol, isIndirectCall, isInterface, bcInfo, comp, depth, allConsts);
-         break;
-      }
-      return callsite;
-   }
-
-void
-OMR::BenefitInliner::printVirtualTargets(TR::ResolvedMethodSymbol *callerSymbol, int bcIndex, int cpIndex)
-   {
-      TR_ResolvedMethod *caller = callerSymbol->getResolvedMethod();
-      TR::SymbolReference *symRef = this->getSymbolReference(callerSymbol, cpIndex, TR::MethodSymbol::Kinds::Virtual);
-      TR::Symbol *sym = symRef->getSymbol();
-      if (symRef->isUnresolved()) return;
-
-      TR::ResolvedMethodSymbol *calleeSymbol = sym->castToResolvedMethodSymbol();
-      TR_ResolvedMethod *callee = calleeSymbol->getResolvedMethod();
-      TR::Method *calleeMethod = calleeSymbol->getMethod();
-
-      TR_ByteCodeInfo info;
-      info.setByteCodeIndex(bcIndex);
-      info.setDoNotProfile(false);
-      info.setCallerIndex(this->_callerIndex);
-      TR_OpaqueClassBlock *callerClass = caller->classOfMethod();
-      TR_OpaqueClassBlock *calleeClass = callee->classOfMethod();
-      info.setIsSameReceiver(callerClass == calleeClass);
-
-      bool isIndirect = true;
-      bool isInterface = false;
-
-      TR_CallSite *callsite = new (this->_callSitesRegion) TR_J9VirtualCallSite
-         (
-            caller,
-            NULL,
-            NULL,
-            NULL,
-            calleeMethod,
-            calleeClass,
-            (int32_t)symRef->getOffset(),
-            cpIndex,
-            callee,
-            calleeSymbol,
-            isIndirect,
-            isInterface,
-            info,
-            this->comp()
-         );
-
-      callsite->findCallSiteTarget(this->_inliningCallStack, this);
-      applyPolicyToTargets(this->_inliningCallStack, callsite);
-      TR_VerboseLog::vlogAcquire();
-      for (int i = 0; i < callsite->numTargets(); i++)
-         {
-         TR_CallTarget *callTarget = callsite->getTarget(i);
-         TR_VerboseLog::writeLine(TR_Vlog_SIP, "virtual %s", callTarget->signature(this->comp()->trMemory()));
-         }
-      TR_VerboseLog::vlogRelease();
-
-   }
-
-void
-OMR::BenefitInliner::printInterfaceTargets(TR::ResolvedMethodSymbol *callerSymbol, int bcIndex, int cpIndex)
-   {
-      TR_ResolvedMethod *caller = callerSymbol->getResolvedMethod();
-      TR::SymbolReference *symRef = this->getSymbolReference(callerSymbol, cpIndex, TR::MethodSymbol::Kinds::Interface);
-      TR::Symbol *sym = symRef->getSymbol();
-      TR::ResolvedMethodSymbol *calleeSymbol = NULL;
-      TR_ResolvedMethod *callee = NULL;
-      TR::Method *calleeMethod = this->comp()->fej9()->createMethod(this->comp()->trMemory(), callerSymbol->getResolvedMethod()->containingClass(), cpIndex);
-
-
-      TR_ByteCodeInfo info;
-      info.setByteCodeIndex(bcIndex);
-      info.setDoNotProfile(false);
-      info.setCallerIndex(this->_callerIndex);
-      TR_OpaqueClassBlock *callerClass = caller->classOfMethod();
-      TR_OpaqueClassBlock *calleeClass = NULL;
-      info.setIsSameReceiver(callerClass == calleeClass);
-      bool isIndirect = true;
-      bool isInterface = true;
-
-      TR_CallSite *callsite = new (this->_callSitesRegion) TR_J9InterfaceCallSite
-         (
-            caller,
-            NULL,
-            NULL,
-            NULL,
-            calleeMethod,
-            calleeClass,
-            -1,
-            cpIndex,
-            callee,
-            calleeSymbol,
-            isIndirect,
-            isInterface,
-            info,
-            this->comp()
-         );
-
-      callsite->findCallSiteTarget(this->_inliningCallStack, this);
-      applyPolicyToTargets(this->_inliningCallStack, callsite);
-      TR_VerboseLog::vlogAcquire();
-      for (int i = 0; i < callsite->numTargets(); i++)
-         {
-         TR_CallTarget *callTarget = callsite->getTarget(i);
-         TR_VerboseLog::writeLine(TR_Vlog_SIP, "interface %s", callTarget->signature(this->comp()->trMemory()));
-         }
-      TR_VerboseLog::vlogRelease();
-
-   }
-
-void
-OMR::BenefitInliner::printSpecialTargets(TR::ResolvedMethodSymbol *callerSymbol, int bcIndex, int cpIndex)
-   {
-      TR_ResolvedMethod *caller = callerSymbol->getResolvedMethod();
-      TR::SymbolReference *symRef = this->getSymbolReference(callerSymbol, cpIndex, TR::MethodSymbol::Kinds::Special);
-      TR::Symbol *sym = symRef->getSymbol();
-      if (symRef->isUnresolved()) return;
-
-      TR::ResolvedMethodSymbol *calleeSymbol = sym->castToResolvedMethodSymbol();
-      TR_ResolvedMethod *callee = calleeSymbol->getResolvedMethod();
-
-      TR_ByteCodeInfo info;
-      info.setByteCodeIndex(bcIndex);
-      info.setDoNotProfile(false);
-      info.setCallerIndex(this->_callerIndex);
-      TR_OpaqueClassBlock *callerClass = caller->classOfMethod();
-      TR_OpaqueClassBlock *calleeClass = callee->classOfMethod();
-      info.setIsSameReceiver(callerClass == calleeClass);
-
-      TR_CallSite *callsite = new (this->_callSitesRegion) TR_DirectCallSite
-         (
-            caller,
-            NULL,
-            NULL,
-            NULL,
-            calleeSymbol->getMethod(),
-            calleeClass,
-            -1,
-            cpIndex,
-            callee,
-            calleeSymbol,
-            !(calleeSymbol->isStatic() || calleeSymbol->isSpecial()),
-            calleeSymbol->isInterface(),
-            info,
-            this->comp()
-         );
-
-      callsite->findCallSiteTarget(this->_inliningCallStack, this);
-      applyPolicyToTargets(this->_inliningCallStack, callsite);
-      TR_VerboseLog::vlogAcquire();
-      for (int i = 0; i < callsite->numTargets(); i++)
-         {
-         TR_CallTarget *callTarget = callsite->getTarget(i);
-         TR_VerboseLog::writeLine(TR_Vlog_SIP, "special %s", callTarget->signature(this->comp()->trMemory()));
-         }
-      TR_VerboseLog::vlogRelease();
-
-   }
-
-void
-OMR::BenefitInliner::printStaticTargets(TR::ResolvedMethodSymbol *callerSymbol, int bcIndex, int cpIndex)
-   {
-      TR_ResolvedMethod *caller = callerSymbol->getResolvedMethod();
-      TR::SymbolReference *symRef = this->getSymbolReference(callerSymbol, cpIndex, TR::MethodSymbol::Kinds::Static);
-      TR::Symbol *sym = symRef->getSymbol();
-      if (symRef->isUnresolved()) return;
-
-      TR::ResolvedMethodSymbol *calleeSymbol = sym->castToResolvedMethodSymbol();
-      TR_ResolvedMethod *callee = calleeSymbol->getResolvedMethod();
-
-      TR_ByteCodeInfo info;
-      info.setByteCodeIndex(bcIndex);
-      info.setDoNotProfile(false);
-      info.setCallerIndex(this->_callerIndex);
-      TR_OpaqueClassBlock *callerClass = caller->classOfMethod();
-      TR_OpaqueClassBlock *calleeClass = callee->classOfMethod();
-      info.setIsSameReceiver(callerClass == calleeClass);
-
-      TR_CallSite *callsite = new (this->_callSitesRegion) TR_DirectCallSite
-         (
-            caller,
-            NULL,
-            NULL,
-            NULL,
-            calleeSymbol->getMethod(),
-            calleeClass,
-            -1,
-            cpIndex,
-            callee,
-            calleeSymbol,
-            !(calleeSymbol->isStatic() || calleeSymbol->isSpecial()),
-            calleeSymbol->isInterface(),
-            info,
-            this->comp()
-         );
-
-      callsite->findCallSiteTarget(this->_inliningCallStack, this);
-      applyPolicyToTargets(this->_inliningCallStack, callsite);
-      TR_VerboseLog::vlogAcquire();
-      for (int i = 0; i < callsite->numTargets(); i++)
-         {
-         TR_CallTarget *callTarget = callsite->getTarget(i);
-         TR_VerboseLog::writeLine(TR_Vlog_SIP, "static %s", callTarget->signature(this->comp()->trMemory()));
-         }
-      TR_VerboseLog::vlogRelease();
-
-   }
 
 
 void
@@ -1313,6 +728,7 @@ OMR::BenefitInliner::BenefitInliner(TR::Optimizer *optimizer, TR::Optimization *
          _budget(budget),
          _methodSummaryMap(MethodSummaryMapComparator(), MethodSummaryMapAllocator(_mapRegion))
          {
+         _idtBuilder = new (optimizer->comp()->region()) IDTBuilder(optimizer->comp()->getMethodSymbol(), budget, optimizer->comp()->region(), optimizer->comp(), this);
          }
 
 void

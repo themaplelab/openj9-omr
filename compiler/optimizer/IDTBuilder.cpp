@@ -8,19 +8,14 @@ IDTBuilder::IDTBuilder(TR::ResolvedMethodSymbol* symbol, int32_t budget, TR::Reg
       _region(region),
       _comp(comp),
       _inliner(inliner),
-      _idt(NULL),
       _cfgGen(NULL),
+      _idt(NULL),
       _valuePropagation(NULL),
       _util(NULL),
       _callerIndex(-1),
-      _callSiteIndex(0)
+      _callSiteIndex(0),
+      _interpretedMethodMap(InterpretedMethodMapComparator(), InterpretedMethodMapAllocator(region))
    {
-   }
-
-IDT* IDTBuilder::getIDT() 
-   {
-   TR_ASSERT_FATAL(_idt, "Call buildIDT() before calling getIDT()!");
-   return _idt;
    }
 
 TR::Compilation* IDTBuilder::comp() 
@@ -67,7 +62,7 @@ TR::ValuePropagation* IDTBuilder::getValuePropagation()
    return _valuePropagation;
    }
    
-void IDTBuilder::buildIDT()
+IDT* IDTBuilder::buildIDT()
    {
    bool traceBIIDTGen = comp()->getOption(TR_TraceBIIDTGen);
 
@@ -95,6 +90,34 @@ void IDTBuilder::buildIDT()
 
    if (traceBIIDTGen)
       traceMsg(comp(), "\n+ IDTBuilder: Finish building IDT |\n");
+
+   return _idt;
+   }
+
+void IDTBuilder::updateIDT(IDT* idt)
+   {
+   TR_ASSERT_FATAL(idt, "IDT is NULL!");
+   IDTNode* root = idt->getRoot();
+
+   IDTNodeDeque q(getRegion());
+   q.push_back(root);
+
+   while (!q.empty())
+      {
+      IDTNode* currentNode = q.front();
+      q.pop_front();
+
+      if (currentNode->getNumChildren() == 0) // No need to interptert this node since it has no children. 
+         continue;
+      AbsInterpreter interpreter(currentNode, getValuePropagation(), getRegion(), comp());
+      interpreter.interpret();
+
+      for (unsigned int i = 0; i < currentNode->getNumChildren(); i ++)
+         {
+         q.push_back(currentNode->getChild(i));
+         }
+      }
+
    }
 
 void IDTBuilder::buildIDTHelper(IDTNode* node, int32_t budget, TR_CallStack* callStack)
@@ -132,13 +155,38 @@ void IDTBuilder::buildIDTHelper(IDTNode* node, int32_t budget, TR_CallStack* cal
    
 
    TR_CallStack* nextCallStack = new (getRegion()) TR_CallStack(comp(), symbol, method, callStack, budget, true);
-   //This will be passed a long way...
-   //Here -> AbstractInterpreter -> IDTBuilder::addChildren
-   //It stores the children added to the current IDTNode, waiting to be precessed.
    IDTNodeDeque idtNodeChildren(getRegion());
 
-   performAbstractInterpretation(node, nextCallStack, idtNodeChildren);
+   // TR::ResolvedMethodSymbol *resolvedMethodSymbol = node->getResolvedMethodSymbol();
+   // TR_ResolvedMethod *resolvedMethod = resolvedMethodSymbol->getResolvedMethod();
+   // TR_OpaqueMethodBlock *persistentIdentifier = resolvedMethod->getPersistentIdentifier();
 
+   // auto iter = _interpretedMethodMap.find(persistentIdentifier);
+   // IDTNode *interpretedMethodNode = iter == _interpretedMethodMap.end() ? NULL : iter->second;
+   // if (interpretedMethodNode != NULL)
+   //    {
+   //    // At this moment, the method visited by node has already been visited by the method in ms.
+   //    // So, ideally we would like to create avoid all the iteration and just create nodes.
+   //    // We add the children from ms to Deque and Children in Node.
+
+   //    if ((node->getBudget() - node->getCost()) >= 0) 
+   //       _idt->copyChildren(interpretedMethodNode, node, idtNodeChildren);
+   //    }
+   // else 
+   //    {
+
+   //    _interpretedMethodMap.insert(std::pair<TR_OpaqueMethodBlock *, IDTNode *>(persistentIdentifier,node));
+
+   //    //This will go a long way...
+   //    //Here -> AbstractInterpreter -> IDTBuilder::addChildren
+   //    //It stores the children added to the current IDTNode, waiting to be precessed.
+      
+   //    performAbstractInterpretation(node, nextCallStack, idtNodeChildren);
+   //    }
+
+   
+   performAbstractInterpretation(node, nextCallStack, idtNodeChildren);
+   
    //At this point, idtNodeChildren has the children of the current IDTNode
    while (!idtNodeChildren.empty())
       {
@@ -158,11 +206,11 @@ void IDTBuilder::buildIDTHelper(IDTNode* node, int32_t budget, TR_CallStack* cal
 //Perform abstract interpretation while building the IDT (adding children)
 void IDTBuilder::performAbstractInterpretation(IDTNode* node, TR_CallStack* callStack, IDTNodeDeque& idtNodeChildren)
    {
-   AbsInterpreter interpretor(node, this, getValuePropagation(), callStack, idtNodeChildren, getRegion(), comp());
-   interpretor.interpret();
+   AbsInterpreter interpreter(node, this, getValuePropagation(), callStack, &idtNodeChildren, getRegion(), comp());
+   interpreter.interpret();
    }
 
-void IDTBuilder::addChildren(IDTNode*node, TR_ResolvedMethod*method, int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind, TR_CallStack* callStack, IDTNodeDeque& idtNodeChildren, TR::Block* block, TR::CFG* callerCfg)
+void IDTBuilder::addChildren(IDTNode*node, TR_ResolvedMethod*method, AbsState* invocationAbsState, int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind, TR_CallStack* callStack, IDTNodeDeque* idtNodeChildren, TR::Block* block, TR::CFG* callerCfg)
    {
    bool traceBIIDTGen = comp()->getOption(TR_TraceBIIDTGen);
 
@@ -188,6 +236,7 @@ void IDTBuilder::addChildren(IDTNode*node, TR_ResolvedMethod*method, int bcIndex
       
       IDTNode* child = node->addChildIfNotExists(
                               _idt->getNextGlobalIDTNodeIdx(),
+                              kind,
                               callsite->_byteCodeIndex,
                               resolvedMethodSymbol,
                               0,
@@ -202,7 +251,8 @@ void IDTBuilder::addChildren(IDTNode*node, TR_ResolvedMethod*method, int bcIndex
          _idt->increaseGlobalIDTNodeIndex();
          child->setCallStack(callStack);
          child->setCallTarget(callTarget);
-         idtNodeChildren.push_back(child);
+         child->setInvocationAbsState(invocationAbsState);
+         idtNodeChildren->push_back(child);
 
          if (traceBIIDTGen)
             traceMsg(comp(), "+ IDTBuilder: add child: %s to parent: %s\n",child->getName(comp()->trMemory()),node->getName(comp()->trMemory()));
@@ -222,7 +272,6 @@ void IDTBuilder::computeCallRatio(TR_CallSite* callsite, TR_CallStack* callStack
       cfg->computeMethodBranchProfileInfo(getUtil(), callTarget, caller, _callSiteIndex++, block, callerCfg);
       callTarget->_callRatioCallerCallee = ((float)block->getFrequency() / (float) callerCfg->getStartBlockFrequency());
       }
-  
    }
 
 TR_CallSite* IDTBuilder::findCallSiteTargets(
@@ -303,7 +352,6 @@ TR_CallSite* IDTBuilder::findCallSiteTargets(
    getInliner()->applyPolicyToTargets(callStack, callsite, block, cfg);
    return callsite;   
    }
-
 
 TR_CallSite* IDTBuilder::getCallSite(TR::MethodSymbol::Kinds kind,
                                        TR_ResolvedMethod *callerResolvedMethod,

@@ -9,6 +9,7 @@
 #include "optimizer/ValuePropagation.hpp"
 #include "infra/deque.hpp"
 #include "compile/Compilation.hpp"
+#include "compiler/optimizer/AbsState.hpp"
 #include "compiler/ilgen/J9ByteCodeIterator.hpp"
 
 #include <queue>
@@ -30,18 +31,19 @@ class IDTNode
    public:
    IDTNode(
       int idx,
+      TR::MethodSymbol::Kinds kind,
       int32_t callSiteBci, 
       TR::ResolvedMethodSymbol* rms,
       IDTNode *parent,
       int unsigned benefit,
       int budget,
       TR_CallSite* callSite,
-      float callRatio,
-      TR::ValuePropagation* vp
+      float callRatio
       );
 
    IDTNode* addChildIfNotExists(
       int idx,
+      TR::MethodSymbol::Kinds kind,
       int32_t callSiteBci, 
       TR::ResolvedMethodSymbol* rms, 
       unsigned int benefit, 
@@ -49,51 +51,55 @@ class IDTNode
       float callRatioCallerCallee, 
       TR::Region& region);
 
+   void setInvocationAbsState(AbsState* absState);
    
-   MethodSummaryExtension* getMethodSummary() const;
+   AbsState* getInvocationAbsState();
+   TR::MethodSymbol::Kinds getMethodKind();
+   MethodSummaryExtension* getMethodSummary();
    void setMethodSummary(MethodSummaryExtension* methodSummary);
-   unsigned int getNumDescendants() const;
-   unsigned int getNumDescendantsIncludingMe() const;
-   const char* getName(TR_Memory* mem) const;
-   const char* getName() const;
-   IDTNode *getParent() const;
-   int getCalleeIndex() const;
-   unsigned int getCost() const;
-   unsigned int getRecursiveCost() const;
-   unsigned int getBenefit() const;
-   unsigned int getStaticBenefit() const;
-   void printByteCode() const;
+   unsigned int getNumDescendants();
+   unsigned int getNumDescendantsIncludingMe() ;
+   const char* getName(TR_Memory* mem);
+   const char* getName();
+   IDTNode *getParent();
+   int getCalleeIndex();
+   unsigned int getCost();
+   unsigned int getRecursiveCost();
+   unsigned int getBenefit();
+   unsigned int getStaticBenefit();
    void setBenefit(unsigned int);
-   void enqueueSubordinates(IDTNodePtrPriorityQueue *q) const;
-   unsigned int getNumChildren() const;
-   IDTNode *getChild(unsigned int) const;
-   bool isRoot() const;
-   IDTNode* findChildWithBytecodeIndex(int bcIndex) const;
-   bool isSameMethod(IDTNode* aNode) const;
-   bool isSameMethod(TR::ResolvedMethodSymbol *) const;
+   void enqueueSubordinates(IDTNodePtrPriorityQueue *q);
+   unsigned int getNumChildren();
+   IDTNode *getChild(unsigned int);
+   bool isRoot();
+   IDTNode* findChildWithBytecodeIndex(int bcIndex);
+   bool isSameMethod(IDTNode* aNode);
+   bool isSameMethod(TR::ResolvedMethodSymbol *);
    unsigned int numberOfParameters();
-   TR::ResolvedMethodSymbol* getResolvedMethodSymbol() const;
+   TR::ResolvedMethodSymbol* getResolvedMethodSymbol();
    void setResolvedMethodSymbol(TR::ResolvedMethodSymbol* rms);
-   int getCallerIndex() const;
-   int getBudget() const;
-   void printTrace() const;
+   int getCallerIndex();
+   int getBudget();
+   void printTrace();
    //TODO: maybe get rid of this
    void setCallTarget(TR_CallTarget* callTarget);
-   TR_CallTarget *getCallTarget() const;
+   TR_CallTarget *getCallTarget();
    void setCallStack(TR_CallStack* callStack);
-   TR_CallStack* getCallStack() const;
-   unsigned int getByteCodeIndex() const;
-   uint32_t getByteCodeSize() const;
-   TR_CallSite* getCallSite() const;
-   float getCallRatio() const;
-   float getRootCallRatio() const;
-   TR::ValuePropagation* getValuePropagation() const;
+   TR_CallStack* getCallStack();
+   unsigned int getByteCodeIndex();
+   uint32_t getByteCodeSize();
+   TR_CallSite* getCallSite();
+   float getCallRatio();
+   float getRootCallRatio();
+   TR::ValuePropagation* getValuePropagation();
 
    private:
    TR_CallStack *_callStack;
    TR_CallTarget *_callTarget;
+   AbsState* _invocationAbsState;
    TR_CallSite *_callSite;
    IDTNode *_parent;
+   TR::MethodSymbol::Kinds _kind;
    int _idx;
    int _callSiteBci;
    // NULL if 0, (IDTNode* & 1) if 1, otherwise a deque*
@@ -104,10 +110,10 @@ class IDTNode
    float _callRatio;
    float _rootCallRatio;
    MethodSummaryExtension *_methodSummary;
-   TR::ValuePropagation* _vp;
-   bool isNodeSimilar(int32_t callSiteBci, TR::ResolvedMethodSymbol* rms) const;
+
+   bool isNodeSimilar(int32_t callSiteBci, TR::ResolvedMethodSymbol* rms);
    // Returns NULL if 0 or > 1 children
-   IDTNode* getOnlyChild() const;
+   IDTNode* getOnlyChild() ;
    void setOnlyChild(IDTNode* child);
    };
     

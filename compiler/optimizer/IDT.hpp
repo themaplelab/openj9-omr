@@ -20,7 +20,7 @@ class IDT
    void printTrace() const;
    IDTNode *getNodeByCalleeIndex(int calleeIndex);
    TR::ValuePropagation* getValuePropagation();
-   void copyChildren(IDTNode* fromNode, IDTNode*toNode);
+   void copyChildren(IDTNode* fromNode, IDTNode*toNode, IDTNodeDeque&);
    TR::Region& getMemoryRegion() const;
    int getNextGlobalIDTNodeIdx();
    void increaseGlobalIDTNodeIndex();

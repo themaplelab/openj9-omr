@@ -80,7 +80,7 @@ IDTConstructor::invokevirtual(AbsState& absState, int bcIndex, int cpIndex)
   TR_ResolvedMethod *method = this->getFrame()->_bci.method();
   TR::ResolvedMethodSymbol *rms = TR::ResolvedMethodSymbol::create(TR::comp()->trHeapMemory(), method, TR::comp());
   TR_CallSite *callsite = this->findCallSiteTargets(rms, bcIndex, cpIndex, TR::MethodSymbol::Kinds::Virtual, this->getBlock(), this->getFrame()->getCFG());
-  this->inliner()->obtainIDT(this->getDeque(), this->getNode(), callsite, this->inliner()->budget(), cpIndex);
+  
   return absState;
 }
 
@@ -326,7 +326,6 @@ IDTConstructor::invokespecial(AbsState& absState, int bcIndex, int cpIndex)
   traceMsg(TR::comp(), "invoke special %s\n", rms->signature(TR::comp()->trMemory()));
   AbsEnvStatic::invokespecial(absState, bcIndex, cpIndex);
   TR_CallSite *callsite = this->findCallSiteTargets(rms, bcIndex, cpIndex, TR::MethodSymbol::Kinds::Special, this->getBlock(), this->getFrame()->getCFG());
-  this->inliner()->obtainIDT(this->getDeque(), this->getNode(), callsite, this->inliner()->budget(), cpIndex);
   return absState;
 }
 
@@ -341,7 +340,6 @@ IDTConstructor::invokestatic(AbsState& absState, int bcIndex, int cpIndex)
   TR_ResolvedMethod *method = this->getFrame()->_bci.method();
   TR::ResolvedMethodSymbol *rms = TR::ResolvedMethodSymbol::create(TR::comp()->trHeapMemory(), method, TR::comp());
   TR_CallSite* callsite = this->findCallSiteTargets(rms, bcIndex, cpIndex, TR::MethodSymbol::Kinds::Static, this->getBlock(), this->getFrame()->getCFG());
-  this->inliner()->obtainIDT(this->getDeque(), this->getNode(), callsite, this->inliner()->budget(), cpIndex);
   return absState;
 }
 
@@ -363,7 +361,6 @@ IDTConstructor::invokeinterface(AbsState& absState, int bcIndex, int cpIndex)
   TR::ResolvedMethodSymbol *rms = TR::ResolvedMethodSymbol::create(TR::comp()->trHeapMemory(), method, TR::comp());
   
   TR_CallSite* callsite = this->findCallSiteTargets(rms, bcIndex, cpIndex, TR::MethodSymbol::Kinds::Interface, this->getBlock(), this->getFrame()->getCFG());
-  this->inliner()->obtainIDT(this->getDeque(), this->getNode(), callsite, this->inliner()->budget(), cpIndex);
   return absState;
 }
 

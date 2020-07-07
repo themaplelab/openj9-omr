@@ -8,6 +8,13 @@
 #include "optimizer/J9CallGraph.hpp"
 #include "optimizer/BenefitInliner.hpp"
 #include "optimizer/J9EstimateCodeSize.hpp"
+#include <unordered_map>
+#include "optimizer/AbsState.hpp"
+
+typedef TR::typed_allocator<std::pair<TR_OpaqueMethodBlock*, IDTNode*>, TR::Region&> InterpretedMethodMapAllocator;
+typedef std::less<TR_OpaqueMethodBlock*> InterpretedMethodMapComparator;
+typedef std::map<TR_OpaqueMethodBlock *, IDTNode*, InterpretedMethodMapComparator, InterpretedMethodMapAllocator> InterpretedMethodMap;
+
 
 class IDTBuilder
    {
@@ -15,21 +22,23 @@ class IDTBuilder
 
    public:
    IDTBuilder(TR::ResolvedMethodSymbol* symbol, int32_t budget, TR::Region& region, TR::Compilation* comp, OMR::BenefitInliner* inliner);
-   void buildIDT();
-   IDT* getIDT();
+   IDT* buildIDT();
+   void updateIDT(IDT* idt);
    
    private:
    void buildIDTHelper(IDTNode* node, int32_t budget,TR_CallStack* callStack);
    void performAbstractInterpretation(IDTNode* node, TR_CallStack* callStack, IDTNodeDeque& idtNodeChildren);
    void computeCallRatio(TR_CallSite* callsite, TR_CallStack* callStack, int callerIndex, TR::Block* block, TR::CFG* callerCfg );
+   InterpretedMethodMap _interpretedMethodMap;
 
    void addChildren(IDTNode*node,
       TR_ResolvedMethod*method, 
+      AbsState* invocationAbsState,
       int bcIndex, 
       int cpIndex, 
       TR::MethodSymbol::Kinds kind, 
       TR_CallStack* callStack, 
-      IDTNodeDeque& idtNodeChildren, 
+      IDTNodeDeque* idtNodeChildren, 
       TR::Block* block, 
       TR::CFG* cfg);
 
@@ -74,12 +83,12 @@ class IDTBuilder
    TR::CFG* generateCFG(TR_CallTarget* callTarget, TR_CallStack* callStack=NULL);
    TR::ValuePropagation *getValuePropagation();
 
+   IDT* _idt;
    TR_J9EstimateCodeSize * _cfgGen;
    TR::ResolvedMethodSymbol* _rootSymbol;
    int _callerIndex;
    int _callSiteIndex;
    int32_t _rootBudget;
-   IDT* _idt;
    TR::Region& _region;
    TR::Compilation* _comp;
    TR::ValuePropagation *_valuePropagation;

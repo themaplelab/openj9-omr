@@ -2780,7 +2780,7 @@ AbsFrame::AbsFrame(TR::Region &region, IDTNode *node)
   : _region(region)
   , _target(node->getCallTarget())
   , _node(node)
-  , _vp(node->getValuePropagation())
+  , _vp(NULL)
   , _rms(node->getResolvedMethodSymbol())
   , _bci(node->getResolvedMethodSymbol(), static_cast<TR_ResolvedJ9Method*>(node->getCallTarget()->_calleeMethod), static_cast<TR_J9VMBase*>(TR::comp()->fe()), TR::comp())
 {

@@ -38,6 +38,7 @@ int
 NullCheckFolding::test(AbsValue *argumentEstimate, TR::ValuePropagation *valueProp)
 {
   if (!argumentEstimate) return 0;
+
   if (!this->_constraint) return 0;
 
   TR::VPConstraint *argumentEstimateVP = argumentEstimate->getConstraint(); // aClass...
@@ -48,10 +49,9 @@ NullCheckFolding::test(AbsValue *argumentEstimate, TR::ValuePropagation *valuePr
 
   TR::VPClassPresence *argPres = argEst->getClassPresence();
   if (!argPres) return 0;
-
+;
   TR::VPConstraint *c = _constraint->getConstraint(); // NULL or non-NULL...
   if (!c) return 0;
-
 
   return argPres->mustBeEqual(argumentEstimateVP, valueProp) == false ? 0 : 1;
 }
@@ -71,7 +71,10 @@ MethodSummaryExtension::predicate(AbsValue *argumentEstimate, int parameter)
      popt->trace(this->_vp);
      if (popt->_argPos == parameter) {
        traceMsg(TR::comp(), "CCC: argument position matches\n");
-       i += popt->test(argumentEstimate, this->_vp);
+       int succuess =  popt->test(argumentEstimate, this->_vp);
+       i+= succuess;
+       if (succuess)
+        traceMsg(TR::comp(), "CCC: Find optimizations\n");
      }
      popt = iter.getNext();
    }
@@ -257,6 +260,8 @@ void
 MethodSummaryExtension::addIfne(int bc_index, int argPos)
    {
    this->addBranchIfNeFolding(bc_index, new (_region) AbsValue(TR::VPIntConst::create(this->_vp, 0), TR::Int32), argPos);
+   this->addBranchIfNeFolding(bc_index, new (_region) AbsValue(TR::VPIntRange::create(this->_vp, INT_MIN, -1), TR::Int32), argPos);
+   this->addBranchIfNeFolding(bc_index, new (_region) AbsValue(TR::VPIntRange::create(this->_vp, 1, INT_MAX), TR::Int32), argPos);
    }
 
 void

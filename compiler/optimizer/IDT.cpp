@@ -5,7 +5,7 @@ IDT::IDT(TR::Region& region, TR::ResolvedMethodSymbol* rms, int budget, TR::Comp
       _vp(NULL),
       _max_idx(-1),
       _comp(comp),
-      _root(new (_region) IDTNode(getNextGlobalIDTNodeIdx(),-1,rms,NULL,0,budget,NULL,1,getValuePropagation())),
+      _root(new (_region) IDTNode(getNextGlobalIDTNodeIdx(), TR::MethodSymbol::Static, -1,rms,NULL,0,budget,NULL,1)),
       _indices(NULL)
    {   
    increaseGlobalIDTNodeIndex();
@@ -44,42 +44,42 @@ void IDT::printTrace() const
 
    while (!idtNodeQueue->empty())
       {
-         IDTNode* currentNode = idtNodeQueue->front();
-         idtNodeQueue->pop_front();
+      IDTNode* currentNode = idtNodeQueue->front();
+      idtNodeQueue->pop_front();
 
-         int calleeIndex = currentNode->getCalleeIndex();
+      int calleeIndex = currentNode->getCalleeIndex();
 
-         //print IDT node info
-         if (calleeIndex != -1) //skip root node
-            {
-            char line[1024];
-            sprintf(line, "#IDT: #%d: #%d inlinable @%d -> bcsz=%d %s target %s, static benefit = %d, benefit = %d, cost = %d, budget = %d, callratio = %f, rootcallratio = %f", 
-               calleeIndex,
-               currentNode->getCallerIndex(),
-               currentNode->getByteCodeIndex(),
-               currentNode->getByteCodeSize(),
-               currentNode->getCallTarget()->_calleeSymbol ? currentNode->getCallTarget()->_calleeSymbol->signature(comp()->trMemory()) : "no callee symbol???",
-               currentNode->getName(),
-               currentNode->getStaticBenefit(),
-               currentNode->getBenefit(),
-               currentNode->getCost(),
-               currentNode->getBudget(),
-               currentNode->getCallRatio(),
-               currentNode->getRootCallRatio()
-            );
+      //print IDT node info
+      if (calleeIndex != -1) //skip root node
+         {
+         char line[1024];
+         sprintf(line, "#IDT: #%d: #%d inlinable @%d -> bcsz=%d %s target %s, static benefit = %d, benefit = %d, cost = %d, budget = %d, callratio = %f, rootcallratio = %f", 
+            calleeIndex,
+            currentNode->getCallerIndex(),
+            currentNode->getByteCodeIndex(),
+            currentNode->getByteCodeSize(),
+            currentNode->getCallTarget()->_calleeSymbol ? currentNode->getCallTarget()->_calleeSymbol->signature(comp()->trMemory()) : "no callee symbol???",
+            currentNode->getName(),
+            currentNode->getStaticBenefit(),
+            currentNode->getBenefit(),
+            currentNode->getCost(),
+            currentNode->getBudget(),
+            currentNode->getCallRatio(),
+            currentNode->getRootCallRatio()
+         );
 
-            if (verboseInlining)
-               TR_VerboseLog::writeLineLocked(TR_Vlog_SIP, line);
-            if (traceBIIDTGen) 
-               traceMsg(comp(), "%s\n", line);
-            }
-            
+         if (verboseInlining)
+            TR_VerboseLog::writeLineLocked(TR_Vlog_SIP, line);
+         if (traceBIIDTGen) 
+            traceMsg(comp(), "%s\n", line);
+         }
+         
 
-         //process children
-         for (unsigned int i = 0; i < currentNode->getNumChildren(); i ++)
-            {
-            idtNodeQueue->push_back(currentNode->getChild(i));
-            }
+      //process children
+      for (unsigned int i = 0; i < currentNode->getNumChildren(); i ++)
+         {
+         idtNodeQueue->push_back(currentNode->getChild(i));
+         }
       }
          
    }
@@ -158,7 +158,7 @@ TR::Region& IDT::getMemoryRegion() const
    return _region;
    }
 
-void IDT::copyChildren(IDTNode* fromNode, IDTNode* toNode)
+void IDT::copyChildren(IDTNode* fromNode, IDTNode* toNode, IDTNodeDeque& children)
    {
    TR_ASSERT_FATAL(
       fromNode->getResolvedMethodSymbol()->getResolvedMethod()->getPersistentIdentifier() 
@@ -179,6 +179,7 @@ void IDT::copyChildren(IDTNode* fromNode, IDTNode* toNode)
       
       IDTNode* newChild = toNode->addChildIfNotExists(
                               getNextGlobalIDTNodeIdx(),
+                              child->getMethodKind(),
                               child->getByteCodeIndex(),
                               child->getResolvedMethodSymbol(),
                               child->getStaticBenefit(),
@@ -190,6 +191,7 @@ void IDT::copyChildren(IDTNode* fromNode, IDTNode* toNode)
          increaseGlobalIDTNodeIndex();
          newChild->setCallTarget(child->getCallTarget());
          newChild->setMethodSummary(child->getMethodSummary());
+         //children.push_back(newChild);
          }
       }
       

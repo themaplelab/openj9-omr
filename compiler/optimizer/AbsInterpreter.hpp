@@ -221,15 +221,18 @@
 class AbsInterpreter 
    {
    public:
-   // 1.If idtBuilder is not passed NULL, calling interpret() will build the IDT and obtain the method summary (use getMethodSummary())
-   // 2.If idtBuilder is passed NULL, calling interpret() will use the method summary to update IDTNode's static benefit.
-   AbsInterpreter(IDTNode* node,
+   //Use this constructor, calling interpret() will build the IDT and obtain the method summary (use getMethodSummary())
+   AbsInterpreter(
+      IDTNode* node,
       IDTBuilder* idtBuilder, 
       TR::ValuePropagation* valuePropagation, 
       TR_CallStack* callStack,
-      IDTNodeDeque& idtNodeChildren,
+      IDTNodeDeque* idtNodeChildren,
       TR::Region& region, 
       TR::Compilation* comp);
+
+   // Use this contructor, calling interpret() will use the method summary to update IDTNode's static benefit.
+   AbsInterpreter(IDTNode* node, TR::ValuePropagation* valuePropagation, TR::Region& region, TR::Compilation* comp);
 
    void interpret();
 
@@ -241,7 +244,7 @@ class AbsInterpreter
    IDTBuilder* _idtBuilder;
    IDTNode* _idtNode;
    TR_CallStack* _callStack;
-   IDTNodeDeque& _idtNodeChildren;
+   IDTNodeDeque* _idtNodeChildren;
    TR::Region& _region;
    TR::Compilation* _comp;
    TR_J9ByteCodeIterator _bcIterator;
@@ -272,6 +275,7 @@ class AbsInterpreter
    
    //Prior to the asbtract interpretation
    AbsState* enterMethod(TR::ResolvedMethodSymbol* symbol);
+   void updateIDTNodeWithMethodSummary(IDTNode* child, AbsState* absState);
    void transferAbsStates(TR::Block* block);
    AbsState* mergeAllPredecessors(TR::Block* block);
    void traverseBasicBlocks(TR::CFG* cfg);

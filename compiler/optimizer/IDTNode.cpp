@@ -10,15 +10,16 @@ bool IDTNodePtrOrder::operator()(IDTNode *left, IDTNode *right)
 
 IDTNode::IDTNode(
       int idx, 
+      TR::MethodSymbol::Kinds kind,
       int32_t callSiteBci, 
       TR::ResolvedMethodSymbol* rms, 
       IDTNode *parent, 
       int unsigned benefit, 
       int budget, 
       TR_CallSite* callSite, 
-      float callRatio,
-      TR::ValuePropagation* vp):
+      float callRatio):
    _idx(idx),
+   _kind(kind),
    _benefit(benefit),
    _callSiteBci(callSiteBci),
    _children(NULL),
@@ -31,12 +32,13 @@ IDTNode::IDTNode(
    _callRatio(callRatio),
    _rootCallRatio(parent ? parent->_rootCallRatio * callRatio : 1),
    _methodSummary(NULL),
-   _vp(vp)
+   _invocationAbsState(NULL)
    {   
    }
 
 IDTNode* IDTNode::addChildIfNotExists(
       int idx,
+      TR::MethodSymbol::Kinds kind,
       int32_t callSiteBci, 
       TR::ResolvedMethodSymbol* rms,
       unsigned int benefit, 
@@ -53,14 +55,14 @@ IDTNode* IDTNode::addChildIfNotExists(
       {
       IDTNode* newNode = new (region) IDTNode(
                            idx, 
+                           kind,
                            callSiteBci, 
                            rms, 
                            this,
                            benefit, 
                            getBudget() - rms->getResolvedMethod()->maxBytecodeIndex(), 
                            callSite, 
-                           callRatioCallerCallee,
-                           _vp);
+                           callRatioCallerCallee);
 
       setOnlyChild(newNode);
 
@@ -90,21 +92,21 @@ IDTNode* IDTNode::addChildIfNotExists(
 
    IDTNode *newChild = new (region) IDTNode(
                         idx, 
+                        kind,
                         callSiteBci, 
                         rms, 
                         this, 
                         benefit, 
                         getBudget() - rms->getResolvedMethod()->maxBytecodeIndex(), 
                         callSite, 
-                        callRatioCallerCallee,
-                        _vp);
+                        callRatioCallerCallee);
                         
    TR_ASSERT_FATAL(newChild, "Storing a null child\n");
    _children->push_back(newChild);
    return _children->back();
    }
 
-unsigned int IDTNode::getNumDescendants() const
+unsigned int IDTNode::getNumDescendants()
    {
    unsigned int numChildren = getNumChildren();
    unsigned int sum = 0;
@@ -115,38 +117,54 @@ unsigned int IDTNode::getNumDescendants() const
    return sum;
    }
 
-unsigned int IDTNode::getNumDescendantsIncludingMe() const
+void IDTNode::setInvocationAbsState(AbsState* absState)
+   {
+   _invocationAbsState = absState;
+   }
+
+TR::MethodSymbol::Kinds IDTNode::getMethodKind()
+   {
+   return _kind;
+   }
+
+AbsState* IDTNode::getInvocationAbsState()
+   {
+   TR_ASSERT_FATAL(_invocationAbsState, "Invocation Abstract State is NULL");
+   return _invocationAbsState;
+   }
+
+unsigned int IDTNode::getNumDescendantsIncludingMe()
    {
    return 1 + getNumDescendants();
    }
 
-const char* IDTNode::getName(TR_Memory* mem) const 
+const char* IDTNode::getName(TR_Memory* mem) 
    {
    return _rms->getResolvedMethod()->signature(mem);
    }
 
-const char* IDTNode::getName() const
+const char* IDTNode::getName()
    {
    //slow implementation TR::comp() is expensive but here we are in a context where we don't have access to TR_Memory
    return _rms->getResolvedMethod()->signature(TR::comp()->trMemory());
    }
 
-IDTNode* IDTNode::getParent() const
+IDTNode* IDTNode::getParent()
    {
    return _parent;
    }
 
-int IDTNode::getCalleeIndex() const
+int IDTNode::getCalleeIndex()
    {
    return _idx;
    }
 
-unsigned int IDTNode::getCost() const
+unsigned int IDTNode::getCost()
    {
    return isRoot() ? 1 : getByteCodeSize();
    }
 
-unsigned int IDTNode::getRecursiveCost() const 
+unsigned int IDTNode::getRecursiveCost() 
    {
    unsigned int numChildren = getNumChildren();
    unsigned int cost = getCost();
@@ -159,60 +177,25 @@ unsigned int IDTNode::getRecursiveCost() const
    return cost;
    }
 
-unsigned int IDTNode::getBenefit() const
+unsigned int IDTNode::getBenefit()
    {
    return _rootCallRatio * ( 1 + _benefit);
    }
 
-unsigned int IDTNode::getStaticBenefit() const
+unsigned int IDTNode::getStaticBenefit()
    {
    return _benefit;
    }
 
-MethodSummaryExtension *IDTNode::getMethodSummary() const  
+MethodSummaryExtension *IDTNode::getMethodSummary()  
    {
    return _methodSummary;
    }
 
 void IDTNode::setMethodSummary(MethodSummaryExtension* methodSummary)
    {
-   TR_ASSERT_FATAL(methodSummary, "Setting a NULL methodsummary");
+   //TR_ASSERT_FATAL(methodSummary, "Setting a NULL methodsummary");
    _methodSummary = methodSummary;
-   }
-
-void IDTNode::printByteCode() const
-   {
-   TR_ResolvedJ9Method* resolvedMethod = static_cast<TR_ResolvedJ9Method*>(_rms->getResolvedMethod());
-   TR_J9VMBase *fe = static_cast<TR_J9VMBase*>(TR::comp()->fe());
-   TR_J9ByteCodeIterator bci(_rms, resolvedMethod, fe, TR::comp());
-   const char* signature1 = bci.methodSymbol()->signature(TR::comp()->trMemory());
-   const char* signature2 = bci.method()->signature(TR::comp()->trMemory());
-   unsigned long int end = resolvedMethod->maxBytecodeIndex();
-   for (TR_J9ByteCode bc = bci.current(); bc != J9BCunknown && bci.currentByteCodeIndex() < end; bc = bci.next())
-   {
-      bci.printByteCode();
-      IDTNode *child = NULL;
-      switch(bc)
-         {
-         case J9BCinvokestatic:
-         case J9BCinvokevirtual:
-         case J9BCinvokedynamic:
-         case J9BCinvokespecial:
-         case J9BCinvokeinterface:
-         // print name of target...
-            child = findChildWithBytecodeIndex(bci.currentByteCodeIndex());
-            if (!child) {
-               traceMsg(TR::comp(), "No child for bytecode index %d\n", bci.currentByteCodeIndex());
-               break;
-            }
-            traceMsg(TR::comp(), "CalleeSymbol signature %s\n", child->getCallTarget()->_calleeSymbol->signature(TR::comp()->trMemory()));
-            traceMsg(TR::comp(), "calleeMethod signature %s\n", child->getCallTarget()->_calleeMethod->signature(TR::comp()->trMemory()));
-         break;
-         default:
-         break;
-         }
-   }
-   traceMsg(TR::comp(), "\n");
    }
 
 void IDTNode::setBenefit(unsigned int benefit)
@@ -220,7 +203,7 @@ void IDTNode::setBenefit(unsigned int benefit)
    _benefit = benefit;
    }
 
-void IDTNode::enqueueSubordinates(IDTNodePtrPriorityQueue *q) const
+void IDTNode::enqueueSubordinates(IDTNodePtrPriorityQueue *q)
    {
    TR_ASSERT_FATAL(q, "Priority queue cannot be NULL!");
    unsigned int numChildren = getNumChildren();
@@ -243,7 +226,7 @@ void IDTNode::enqueueSubordinates(IDTNodePtrPriorityQueue *q) const
       }
    }
 
-unsigned int IDTNode::getNumChildren() const
+unsigned int IDTNode::getNumChildren()
    {
    if (_children == NULL)
       return 0;
@@ -256,7 +239,7 @@ unsigned int IDTNode::getNumChildren() const
    return num;
    }
 
-IDTNode* IDTNode::getChild(unsigned int index) const
+IDTNode* IDTNode::getChild(unsigned int index)
    {
    unsigned int numChildren = getNumChildren();
    
@@ -271,12 +254,12 @@ IDTNode* IDTNode::getChild(unsigned int index) const
    return _children->at(index);
    }
 
-bool IDTNode::isRoot() const
+bool IDTNode::isRoot()
    {
    return getParent() == NULL;
    }
 
-IDTNode* IDTNode::findChildWithBytecodeIndex(int bcIndex) const
+IDTNode* IDTNode::findChildWithBytecodeIndex(int bcIndex)
    {
    traceMsg(TR::comp(), "%s:%d:%s\n", __FILE__, __LINE__, __func__);
    unsigned int size = getNumChildren();
@@ -302,12 +285,12 @@ IDTNode* IDTNode::findChildWithBytecodeIndex(int bcIndex) const
    return child;
    }
 
-bool IDTNode::isSameMethod(IDTNode* aNode) const  
+bool IDTNode::isSameMethod(IDTNode* aNode)  
    {
    return isSameMethod(aNode->getResolvedMethodSymbol());
    }
 
-bool IDTNode::isSameMethod(TR::ResolvedMethodSymbol* rms) const
+bool IDTNode::isSameMethod(TR::ResolvedMethodSymbol* rms)
    {
    return getResolvedMethodSymbol()->getResolvedMethod()->isSameMethod(rms->getResolvedMethod());
    }
@@ -318,7 +301,7 @@ unsigned int IDTNode::numberOfParameters()
    return 0;
    }
 
-TR::ResolvedMethodSymbol* IDTNode::getResolvedMethodSymbol() const
+TR::ResolvedMethodSymbol* IDTNode::getResolvedMethodSymbol()
    {
    return !this->getCallTarget() ? _rms : getCallTarget()->getSymbol();
    }
@@ -328,26 +311,26 @@ void IDTNode::setResolvedMethodSymbol(TR::ResolvedMethodSymbol* rms)
    _rms = rms;
    }
 
-int IDTNode::getCallerIndex() const
+int IDTNode::getCallerIndex()
    {
    if (isRoot())
       return -2;
 
-   const IDTNode* parent = getParent();
+   IDTNode* parent = getParent();
    return parent->getCalleeIndex();
    }
 
-int IDTNode::getBudget() const
+int IDTNode::getBudget()
    {
    return _budget;
    }
 
-TR_CallSite* IDTNode::getCallSite() const
+TR_CallSite* IDTNode::getCallSite()
    {
    return _callSite;
    }
 
-void IDTNode::printTrace() const
+void IDTNode::printTrace()
    {
    if (TR::comp()->getOption(TR_TraceBIIDTGen))
       traceMsg(TR::comp(), "IDT: name = %s\n",getName());
@@ -363,27 +346,27 @@ void IDTNode::setCallStack(TR_CallStack* callStack)
    _callStack = callStack;
    }
 
-TR_CallTarget* IDTNode::getCallTarget() const
+TR_CallTarget* IDTNode::getCallTarget()
    {
    return _callTarget;
    }
 
-TR_CallStack* IDTNode::getCallStack() const
+TR_CallStack* IDTNode::getCallStack()
    {
    return _callStack;
    }
 
-unsigned int IDTNode::getByteCodeIndex() const
+unsigned int IDTNode::getByteCodeIndex()
    {
    return _callSiteBci;
    }
 
-uint32_t IDTNode::getByteCodeSize() const
+uint32_t IDTNode::getByteCodeSize()
    {
    return getCallTarget()->_calleeMethod->maxBytecodeIndex();
    }
 
-bool IDTNode::isNodeSimilar(int32_t callSiteBci, TR::ResolvedMethodSymbol* rms) const
+bool IDTNode::isNodeSimilar(int32_t callSiteBci, TR::ResolvedMethodSymbol* rms)
    {
    auto a = _rms->getResolvedMethod()->maxBytecodeIndex();
    auto b = rms->getResolvedMethod()->maxBytecodeIndex();
@@ -391,7 +374,7 @@ bool IDTNode::isNodeSimilar(int32_t callSiteBci, TR::ResolvedMethodSymbol* rms) 
    return a == b && _callSiteBci == callSiteBci;
    }
 
-IDTNode* IDTNode::getOnlyChild() const
+IDTNode* IDTNode::getOnlyChild()
    {
    if (((uintptr_t)_children) & SINGLE_CHILD_BIT)
       return (IDTNode *)((uintptr_t)(_children) & ~SINGLE_CHILD_BIT);
@@ -404,17 +387,12 @@ void IDTNode::setOnlyChild(IDTNode* child)
    _children = (IDTNodeChildren*)((uintptr_t)child | SINGLE_CHILD_BIT);
    }
 
-float IDTNode::getCallRatio() const
+float IDTNode::getCallRatio() 
    {
    return _callRatio;
    }
 
-float IDTNode::getRootCallRatio() const  
+float IDTNode::getRootCallRatio()   
    {
    return _rootCallRatio;
-   }
-
-TR::ValuePropagation* IDTNode::getValuePropagation() const
-   {
-   return _vp;
    }
