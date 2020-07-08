@@ -14,7 +14,7 @@
 
 #include <queue>
 
-class MethodSummaryExtension;
+class MethodSummary;
 class IDTNode;
 
 typedef TR::deque<IDTNode*, TR::Region&> IDTNodeIndices;
@@ -55,8 +55,8 @@ class IDTNode
    
    AbsState* getInvocationAbsState();
    TR::MethodSymbol::Kinds getMethodKind();
-   MethodSummaryExtension* getMethodSummary();
-   void setMethodSummary(MethodSummaryExtension* methodSummary);
+   MethodSummary* getMethodSummary();
+   void setMethodSummary(MethodSummary* methodSummary);
    unsigned int getNumDescendants();
    unsigned int getNumDescendantsIncludingMe() ;
    const char* getName(TR_Memory* mem);
@@ -109,7 +109,7 @@ class IDTNode
    int _budget;
    float _callRatio;
    float _rootCallRatio;
-   MethodSummaryExtension *_methodSummary;
+   MethodSummary *_methodSummary;
 
    bool isNodeSimilar(int32_t callSiteBci, TR::ResolvedMethodSymbol* rms);
    // Returns NULL if 0 or > 1 children

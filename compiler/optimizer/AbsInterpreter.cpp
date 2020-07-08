@@ -20,7 +20,7 @@ AbsInterpreter::AbsInterpreter(
       _bcIterator(node->getResolvedMethodSymbol(),static_cast<TR_ResolvedJ9Method*>(node->getCallTarget()->_calleeMethod),static_cast<TR_J9VMBase*>(this->comp()->fe()), this->comp())
    {
    TR_ASSERT_FATAL(idtBuilder, "IDTBuilder cannot be NULL");
-   _methodSummary = new (_region) MethodSummaryExtension(_region, valuePropagation);
+   _methodSummary = new (_region) MethodSummary(_region, valuePropagation);
    }
 
 AbsInterpreter::AbsInterpreter(
@@ -89,9 +89,9 @@ void AbsInterpreter::interpret()
 
    _idtNode->setMethodSummary(_methodSummary);
 
-   //At this point, we have the method summary
-   if (!_idtNode->isRoot())
-      updateIDTNodeWithMethodSummary(_idtNode, _idtNode->getInvocationAbsState());
+   // //At this point, we have the method summary
+   // if (!_idtNode->isRoot())
+   //    updateIDTNodeWithMethodSummary(_idtNode, _idtNode->getInvocationAbsState());
    
    }
 
@@ -3131,8 +3131,8 @@ void AbsInterpreter::invoke(int bcIndex, int cpIndex, TR::MethodSymbol::Kinds ki
    if (isForBuildingIDT())
       {
       //copy the current AbsState
-      AbsState* copy = new (region()) AbsState(absState);
-      _idtBuilder->addChildren(_idtNode, method, copy, bcIndex, cpIndex, kind, _callStack, _idtNodeChildren ,block, _idtNode->getCallTarget()->_cfg);
+      //AbsState* copy = new (region()) AbsState(absState);
+      _idtBuilder->addChildren(_idtNode, method, NULL, bcIndex, cpIndex, kind, _callStack, _idtNodeChildren ,block, _idtNode->getCallTarget()->_cfg);
       }
    auto callerResolvedMethodSymbol = TR::ResolvedMethodSymbol::create(comp()->trHeapMemory(), method, comp());
 
@@ -3171,7 +3171,7 @@ void AbsInterpreter::invoke(int bcIndex, int cpIndex, TR::MethodSymbol::Kinds ki
    // how many pops?
 
    //use Method Summary to update static benefit
-   //updateIDTNodeWithMethodSummary(callee, absState, kind);
+   updateIDTNodeWithMethodSummary(callee, absState);
 
    return;
    }
@@ -3298,6 +3298,42 @@ void AbsInterpreter::updateIDTNodeWithMethodSummary(IDTNode* child, AbsState* ab
 
       }
    child->setBenefit(benefit);
+   //pushes?
+   if (method->returnTypeWidth() == 0) return;
+
+   //how many pushes?
+   TR::DataType datatype = method->returnType();
+   switch(datatype) 
+      {
+      case TR::Float:
+      case TR::Int32:
+      case TR::Int16:
+      case TR::Int8:
+      case TR::Address:
+         {
+         AbsValue *result = getTOPAbsValue(datatype);
+         absState->push(result);
+         }
+         break;
+      case TR::Double:
+      case TR::Int64:
+         {
+         AbsValue *result = getTOPAbsValue(datatype);
+         absState->push(result);
+         AbsValue *result2 = getTOPAbsValue(TR::NoType);
+         absState->push(result2);
+         }
+         break;
+      case TR::NoType:
+         break;
+      default:
+         {
+         //TODO: 
+         AbsValue *result = getTOPAbsValue(TR::Address);
+         absState->push(result);
+         }
+         break;
+      }
    }
 
    

@@ -237,10 +237,10 @@ class AbsInterpreter
    void interpret();
 
    //Only use this after building IDT and obtaining method summary, otherwise it will cause TR_ASSERT_FATAL to be triggered. 
-   MethodSummaryExtension* getMethodSummary();
+   MethodSummary* getMethodSummary();
 
    private:
-   MethodSummaryExtension* _methodSummary;
+   MethodSummary* _methodSummary;
    IDTBuilder* _idtBuilder;
    IDTNode* _idtNode;
    TR_CallStack* _callStack;

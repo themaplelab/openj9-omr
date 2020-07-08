@@ -776,7 +776,7 @@ AbsFrameIDTConstructor::AbsFrameIDTConstructor(TR::Region &region, IDTNode *node
   , _inliner(inliner)
   , _summary(nullptr)
 {
-  _summary = new (region) MethodSummaryExtension(region, this->getValuePropagation());
+  _summary = new (region) MethodSummary(region, this->getValuePropagation());
 }
 
 TR_CallStack*

@@ -78,7 +78,7 @@ public:
   TR::Region &getCallSitesRegion();
   TR_CallStack* getCallStack();
   IDTNode *getNode();
-  MethodSummaryExtension *_summary;
+  MethodSummary *_summary;
   void traceMethodSummary();
 protected:
   OMR::BenefitInliner* _inliner;

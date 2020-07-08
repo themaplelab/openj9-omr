@@ -129,7 +129,7 @@ TR::MethodSymbol::Kinds IDTNode::getMethodKind()
 
 AbsState* IDTNode::getInvocationAbsState()
    {
-   TR_ASSERT_FATAL(_invocationAbsState, "Invocation Abstract State is NULL");
+   //TR_ASSERT_FATAL(_invocationAbsState, "Invocation Abstract State is NULL");
    return _invocationAbsState;
    }
 
@@ -187,12 +187,12 @@ unsigned int IDTNode::getStaticBenefit()
    return _benefit;
    }
 
-MethodSummaryExtension *IDTNode::getMethodSummary()  
+MethodSummary *IDTNode::getMethodSummary()  
    {
    return _methodSummary;
    }
 
-void IDTNode::setMethodSummary(MethodSummaryExtension* methodSummary)
+void IDTNode::setMethodSummary(MethodSummary* methodSummary)
    {
    //TR_ASSERT_FATAL(methodSummary, "Setting a NULL methodsummary");
    _methodSummary = methodSummary;
