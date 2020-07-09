@@ -70,7 +70,7 @@ int32_t OMR::BenefitInlinerWrapper::perform()
       //  {
       //  traceMsg(TR::comp(), "ENDXXX: about to end abstract interpretation\n");
       //  }
-      inliner.updateIDT();
+      //inliner.updateIDT();
       inliner.analyzeIDT();
    } else {
       inliner.addEverything();

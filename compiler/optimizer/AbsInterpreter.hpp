@@ -224,6 +224,7 @@ class AbsInterpreter
    //Use this constructor, calling interpret() will build the IDT and obtain the method summary (use getMethodSummary())
    AbsInterpreter(
       IDTNode* node,
+      int callerIndex,
       IDTBuilder* idtBuilder, 
       TR::ValuePropagation* valuePropagation, 
       TR_CallStack* callStack,
@@ -243,6 +244,7 @@ class AbsInterpreter
    MethodSummary* _methodSummary;
    IDTBuilder* _idtBuilder;
    IDTNode* _idtNode;
+   int _callerIndex;
    TR_CallStack* _callStack;
    IDTNodeDeque* _idtNodeChildren;
    TR::Region& _region;

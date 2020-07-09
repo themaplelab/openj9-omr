@@ -86,7 +86,7 @@ IDT* IDTBuilder::buildIDT()
    root->setCallTarget(rootCallTarget);
 
    //add the decendants
-   buildIDTHelper(root, _rootBudget, NULL);
+   buildIDTHelper(root, -1, _rootBudget, NULL);
 
    if (traceBIIDTGen)
       traceMsg(comp(), "\n+ IDTBuilder: Finish building IDT |\n");
@@ -120,7 +120,7 @@ void IDTBuilder::updateIDT(IDT* idt)
 
    }
 
-void IDTBuilder::buildIDTHelper(IDTNode* node, int32_t budget, TR_CallStack* callStack)
+void IDTBuilder::buildIDTHelper(IDTNode* node, int callerIndex, int32_t budget, TR_CallStack* callStack)
    {
    // stop building IDT
    if (budget < 0)
@@ -153,6 +153,12 @@ void IDTBuilder::buildIDTHelper(IDTNode* node, int32_t budget, TR_CallStack* cal
       cfg->getStartForReverseSnapshot()->setFrequency(cfg->getStartBlockFrequency());
       }
    
+   // if (callStack != NULL)
+   //    {
+   //    if (!comp()->incInlineDepth(symbol, node->getCallSite()->_bcInfo, node->getCallSite()->_cpIndex,NULL, !node->getCallSite()->isIndirectCall(),0))
+   //       return;
+   //    //_callerIndex ++;
+   //    }
 
    TR_CallStack* nextCallStack = new (getRegion()) TR_CallStack(comp(), symbol, method, callStack, budget, true);
    IDTNodeDeque idtNodeChildren(getRegion());
@@ -183,48 +189,58 @@ void IDTBuilder::buildIDTHelper(IDTNode* node, int32_t budget, TR_CallStack* cal
       
    //    performAbstractInterpretation(node, nextCallStack, idtNodeChildren);
    //    }
-
+   //printf("XXXX %d\n",callerIndex);
    
-   performAbstractInterpretation(node, nextCallStack, idtNodeChildren);
+   performAbstractInterpretation(node, callerIndex, nextCallStack, idtNodeChildren);
+
+   // if (callStack != NULL)
+   //    {
+   //    //_callerIndex --;
+   //    comp()->decInlineDepth(true); 
+   //    }
+   
    
    //At this point, idtNodeChildren has the children of the current IDTNode
-   while (!idtNodeChildren.empty())
-      {
-      IDTNode* child = idtNodeChildren.front();
-      idtNodeChildren.pop_front();
-      TR_ASSERT_FATAL(child && child->getCallSite(),"Call Site is NULL!");
-      TR::ResolvedMethodSymbol* symbol = TR::ResolvedMethodSymbol::create(comp()->trHeapMemory(), child->getCallTarget()->_calleeMethod, comp());
-      if (!comp()->incInlineDepth(symbol, child->getCallSite()->_bcInfo, child->getCallSite()->_cpIndex,NULL, !child->getCallSite()->isIndirectCall(),0))
-         continue;
-      _callerIndex ++;
-      buildIDTHelper(child, child->getBudget(), nextCallStack);
-      _callerIndex --;
-      comp()->decInlineDepth(true);
-      }
+   // while (!idtNodeChildren.empty())
+   //    {
+   //    IDTNode* child = idtNodeChildren.front();
+   //    idtNodeChildren.pop_front();
+   //    TR_ASSERT_FATAL(child && child->getCallSite(),"Call Site is NULL!");
+   //    TR::ResolvedMethodSymbol* symbol = TR::ResolvedMethodSymbol::create(comp()->trHeapMemory(), child->getCallTarget()->_calleeMethod, comp());
+      // if (!comp()->incInlineDepth(symbol, child->getCallSite()->_bcInfo, child->getCallSite()->_cpIndex,NULL, !child->getCallSite()->isIndirectCall(),0))
+      //    continue;
+      // _callerIndex ++;
+      // buildIDTHelper(child, child->getBudget(), nextCallStack);
+      // _callerIndex --;
+   //    comp()->decInlineDepth(true);
+   //    }
    }
 
 //Perform abstract interpretation while building the IDT (adding children)
-void IDTBuilder::performAbstractInterpretation(IDTNode* node, TR_CallStack* callStack, IDTNodeDeque& idtNodeChildren)
+void IDTBuilder::performAbstractInterpretation(IDTNode* node, int callerIndex, TR_CallStack* callStack, IDTNodeDeque& idtNodeChildren)
    {
-   AbsInterpreter interpreter(node, this, getValuePropagation(), callStack, &idtNodeChildren, getRegion(), comp());
+   AbsInterpreter interpreter(node, callerIndex, this, getValuePropagation(), callStack, &idtNodeChildren, getRegion(), comp());
    interpreter.interpret();
    }
 
-void IDTBuilder::addChildren(IDTNode*node, TR_ResolvedMethod*method, AbsState* invocationAbsState, int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind, TR_CallStack* callStack, IDTNodeDeque* idtNodeChildren, TR::Block* block, TR::CFG* callerCfg)
+void IDTBuilder::addChildren(IDTNode*node, int callerIndex, TR_ResolvedMethod*method, AbsState* invocationAbsState, int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind, TR_CallStack* callStack, IDTNodeDeque* idtNodeChildren, TR::Block* block, TR::CFG* callerCfg)
    {
+  
+      //printf("===%d\n",bcIndex);
    bool traceBIIDTGen = comp()->getOption(TR_TraceBIIDTGen);
 
    TR::ResolvedMethodSymbol* symbol = TR::ResolvedMethodSymbol::create(comp()->trHeapMemory(), method, comp());
 
-   TR_CallSite* callsite = findCallSiteTargets(symbol, bcIndex, cpIndex, kind, node->getCalleeIndex(), callStack, block, callerCfg);
+   TR_CallSite* callsite = findCallSiteTargets(symbol, bcIndex, cpIndex, kind, callerIndex, callStack, block, callerCfg);
    
    if (!callsite)
       return;
 
    //At this point we have the callsite, next thing is to compute the call ratio of each call target of this call site.
-   computeCallRatio(callsite, callStack, node->getCalleeIndex(), block, callerCfg);
+   computeCallRatio(callsite, callStack, callerIndex, block, callerCfg);
 
    //Adding all call targets as Child IDTNodes to the current IDTNode
+
    for (int32_t i = 0; i < callsite->numTargets(); i ++)
       {
       TR_CallTarget *callTarget = callsite->getTarget(i);
@@ -252,7 +268,15 @@ void IDTBuilder::addChildren(IDTNode*node, TR_ResolvedMethod*method, AbsState* i
          child->setCallStack(callStack);
          child->setCallTarget(callTarget);
          child->setInvocationAbsState(invocationAbsState);
-         idtNodeChildren->push_back(child);
+         //idtNodeChildren->push_back(child);
+         TR::ResolvedMethodSymbol * resolvedMethodSymbol = TR::ResolvedMethodSymbol::create(comp()->trHeapMemory(), child->getCallTarget()->_calleeMethod, comp());
+         if (!comp()->incInlineDepth(resolvedMethodSymbol, child->getCallSite()->_bcInfo, child->getCallSite()->_cpIndex,NULL, !child->getCallSite()->isIndirectCall(),0))
+            continue;
+
+         buildIDTHelper(child, callerIndex + 1, child->getBudget(), callStack);
+         
+         comp()->decInlineDepth(true); 
+
 
          if (traceBIIDTGen)
             traceMsg(comp(), "+ IDTBuilder: add child: %s to parent: %s\n",child->getName(comp()->trMemory()),node->getName(comp()->trMemory()));
@@ -309,7 +333,8 @@ TR_CallSite* IDTBuilder::findCallSiteTargets(
    TR::Method *calleeMethod = !isInterface ? calleeSymbol->getMethod() : comp()->fej9()->createMethod(comp()->trMemory(), caller->containingClass(), cpIndex);
    info.setByteCodeIndex(bcIndex);
    info.setDoNotProfile(false);
-   info.setCallerIndex(_callerIndex);
+   
+   info.setCallerIndex(callerIndex);
    TR_OpaqueClassBlock *callerClass = caller->classOfMethod();
    TR_OpaqueClassBlock *calleeClass = callee ? callee->classOfMethod() : NULL;
    info.setIsSameReceiver(callerClass == calleeClass);
@@ -338,7 +363,7 @@ TR_CallSite* IDTBuilder::findCallSiteTargets(
          false,
          symRef
       );
-
+   
    //TODO: Sometimes these were not set, why?
    callsite->_byteCodeIndex = bcIndex;
    callsite->_bcInfo = info; //info has to be a reference, so it is being deleted after node exits.

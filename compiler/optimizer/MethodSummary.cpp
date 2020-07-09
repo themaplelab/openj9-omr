@@ -49,7 +49,7 @@ NullCheckFolding::test(AbsValue *argumentEstimate, TR::ValuePropagation *valuePr
 
   TR::VPClassPresence *argPres = argEst->getClassPresence();
   if (!argPres) return 0;
-;
+
   TR::VPConstraint *c = _constraint->getConstraint(); // NULL or non-NULL...
   if (!c) return 0;
 

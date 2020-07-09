@@ -26,12 +26,13 @@ class IDTBuilder
    void updateIDT(IDT* idt);
    
    private:
-   void buildIDTHelper(IDTNode* node, int32_t budget,TR_CallStack* callStack);
-   void performAbstractInterpretation(IDTNode* node, TR_CallStack* callStack, IDTNodeDeque& idtNodeChildren);
+   void buildIDTHelper(IDTNode* node, int callerIndex, int32_t budget,TR_CallStack* callStack);
+   void performAbstractInterpretation(IDTNode* node, int callerIndex, TR_CallStack* callStack, IDTNodeDeque& idtNodeChildren);
    void computeCallRatio(TR_CallSite* callsite, TR_CallStack* callStack, int callerIndex, TR::Block* block, TR::CFG* callerCfg );
    InterpretedMethodMap _interpretedMethodMap;
 
    void addChildren(IDTNode*node,
+      int callerIndex,
       TR_ResolvedMethod*method, 
       AbsState* invocationAbsState,
       int bcIndex, 

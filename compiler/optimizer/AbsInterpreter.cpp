@@ -3,6 +3,7 @@
 
 AbsInterpreter::AbsInterpreter(
    IDTNode* node, 
+   int callerIndex,
    IDTBuilder* idtBuilder, 
    TR::ValuePropagation* valuePropagation,
    TR_CallStack* callStack,
@@ -12,6 +13,7 @@ AbsInterpreter::AbsInterpreter(
    ):
       _idtNode(node),
       _idtBuilder(idtBuilder),
+      _callerIndex(callerIndex),
       _region(region),
       _comp(comp),
       _valuePropagation(valuePropagation),
@@ -2792,7 +2794,7 @@ AbsState* AbsInterpreter::fmul(AbsState* absState)
 //jack modified
 AbsState* AbsInterpreter::dmul(AbsState* absState)
    {
-   AbsValue *value1 = absState->pop();
+   AbsValue* value1 = absState->pop();
    AbsValue* value2 = absState->pop();
    return absState;
    }
@@ -3132,7 +3134,7 @@ void AbsInterpreter::invoke(int bcIndex, int cpIndex, TR::MethodSymbol::Kinds ki
       {
       //copy the current AbsState
       //AbsState* copy = new (region()) AbsState(absState);
-      _idtBuilder->addChildren(_idtNode, method, NULL, bcIndex, cpIndex, kind, _callStack, _idtNodeChildren ,block, _idtNode->getCallTarget()->_cfg);
+      _idtBuilder->addChildren(_idtNode, _callerIndex, method, NULL, bcIndex, cpIndex, kind, _callStack, _idtNodeChildren ,block, _idtNode->getCallTarget()->_cfg);
       }
    auto callerResolvedMethodSymbol = TR::ResolvedMethodSymbol::create(comp()->trHeapMemory(), method, comp());
 

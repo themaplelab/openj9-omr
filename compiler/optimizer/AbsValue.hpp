@@ -8,23 +8,23 @@
 class AbsValue
    {
    public:
-      AbsValue(TR::VPConstraint *constraint, TR::DataType dataType);
-      AbsValue(AbsValue* other);
-      AbsValue *merge(AbsValue *other, TR::Region &region, OMR::ValuePropagation *vp);
-      
-      void print(OMR::ValuePropagation *vp);
-      bool isType2();
+   AbsValue(TR::VPConstraint *constraint, TR::DataType dataType);
+   AbsValue(AbsValue* other);
+   AbsValue *merge(AbsValue *other, TR::Region &region, OMR::ValuePropagation *vp);
+   
+   void print(OMR::ValuePropagation *vp);
+   bool isType2();
 
-      int getParamPosition();
-      void setParamPosition(int paramPos);
+   int getParamPosition();
+   void setParamPosition(int paramPos);
 
-      TR::DataType getDataType();
-      TR::VPConstraint* getConstraint();
+   TR::DataType getDataType();
+   TR::VPConstraint* getConstraint();
 
    private:
-      int _paramPos;
-      TR::VPConstraint* _constraint;
-      TR::DataType _dataType;
+   int _paramPos;
+   TR::VPConstraint* _constraint;
+   TR::DataType _dataType;
    };
 
 #endif
