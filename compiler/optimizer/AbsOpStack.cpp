@@ -1,131 +1,94 @@
-#include "AbsOpStack.hpp"
+/*******************************************************************************
+ * Copyright (c) 2000, 2020 IBM Corp. and others
+ *
+ * This program and the accompanying materials are made available under
+ * the terms of the Eclipse Public License 2.0 which accompanies this
+ * distribution and is available at http://eclipse.org/legal/epl-2.0
+ * or the Apache License, Version 2.0 which accompanies this distribution
+ * and is available at https://www.apache.org/licenses/LICENSE-2.0.
+ *
+ * This Source Code may also be made available under the following Secondary
+ * Licenses when the conditions for such availability set forth in the
+ * Eclipse Public License, v. 2.0 are satisfied: GNU General Public License,
+ * version 2 with the GNU Classpath Exception [1] and GNU General Public
+ * License, version 2 with the OpenJDK Assembly Exception [2].
+ *
+ * [1] https://www.gnu.org/software/classpath/license.html
+ * [2] http://openjdk.java.net/legal/assembly-exception.html
+ *
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ *******************************************************************************/
 
-#include <cstring>
+#include "optimizer/AbsOpStack.hpp"
+#include "env/Region.hpp"
+#include "infra/deque.hpp"
 
-#include "compiler/optimizer/VPConstraint.hpp"
-#include "compile/Compilation.hpp"
-#include "infra/List.hpp"
-#include "infra/TRlist.hpp"
-#include "infra/vector.hpp"
-
-#include "env/jittypes.h"
-
-#ifndef TRACE
-//#define TRACE(COND, M, ...) 
-#define TRACE(COND, M, ...) \
-if ((COND)) { traceMsg(this->_comp, M, ##__VA_ARGS__); }
-#endif
-
-using TR::VPConstraint;
-
-
-AbsOpStack::AbsOpStack(TR::Compilation *comp, TR::Region &region)  :
-  _comp(comp),
-  _region(region),
-  _base(NULL)
-{
-     TR_ASSERT(_comp, "comp is null");
-     this->_base = new (region) TR_Stack<VPConstraint*> (_comp->trMemory(), 8, true, heapAlloc);
-}
-
-AbsOpStack::AbsOpStack(const AbsOpStack &absOpStack) :
-   _region(absOpStack._region),
-   _comp(absOpStack._comp) ,
-   _base(NULL)
-{
-    TR_ASSERT(_comp, "comp is null");
-    this->_base = new (_region) TR_Stack<VPConstraint*> (_comp->trMemory(), 8, true, heapAlloc);
-}
-
-void
-AbsOpStack::copyStack(AbsOpStack &absOpStack) {
-  if (absOpStack.empty()) { return ; }
-  for (int i = 0; i < absOpStack.size(); i++) {
-     this->_base->insert(absOpStack.element(i), i);
-  }
-}
-
-TR::VPConstraint*
-AbsOpStack::element(int i) {
-  return this->_base->element(i);
-}
-
-void
-AbsOpStack::pop() {
-  if (!this->empty()) { this->_base->pop(); }
-}
+//TODO: can we use maxSize somehow to make memory allocation more efficient?
+AbsOpStack::AbsOpStack(TR::Region &region) :
+      _stack(StackContainer(0, nullptr, region))
+   {
+   }
 
 
-TR::VPConstraint*
-AbsOpStack::top() {
-  return this->empty() ? NULL : this->_base->top();
-}
+AbsOpStack::AbsOpStack(AbsOpStack &other, TR::Region &region) :
+      _stack(other._stack)
+   {
+   }
 
+void AbsOpStack::merge(AbsOpStack &other, TR::Region &region, TR::ValuePropagation *valuePropagation)
+   {
 
-TR::VPConstraint*
-AbsOpStack::topAndPop() {
-  auto constraint = this->top();
-  this->pop();
-  return constraint;
-}
+   TR_ASSERT_FATAL(other._stack.size() == _stack.size(), "stacks are different sizes!");
 
+   StackContainer dequeSelf(region);
+   StackContainer dequeOther(region);
+  
+   //TODO: is there an easier way to merge to stacks?
+   int size = _stack.size();
+   for (int i = 0; i < size; i++)
+      {
+      dequeSelf.push_back(top());
+      dequeOther.push_back(other.top());
+      pop();
+      other.pop();
+      }
+   // cool so now we have the contents of both of these stack in a deque.
+   // top is at front and bottom is at back.
+   // we want to start merging from the bottom.
+   for (int i = 0; i < size; i++)
+      {
+      AbsValue *valueSelf = dequeSelf.back();
+      AbsValue *valueOther = dequeOther.back();
+      
+      AbsValue *merge = valueSelf->merge(valueOther, region, valuePropagation);
+      other.push(valueOther);
+      push(merge);
+      dequeSelf.pop_back();
+      dequeOther.pop_back();
+      }
+   }
 
-void
-AbsOpStack::pushConstInt(int i) {
-  TR::VPIntConst *iconst = new (this->_region) TR::VPIntConst(i);
-  //iconst->print(this->_comp, this->_comp->getOutFile());
-  this->pushConstraint(iconst);      
-}
-
-void
-AbsOpStack::print() {
-  if(this->empty()) return;
-
-  TR_ASSERT(_comp, "comp is null");
-  TRACE(true, "stack size = %d", this->size());
-  for (int i = 0; i < this->size(); i++) {
-    TRACE(true, "stack[%d] = ", i);
-    if (this->_base->element(i) == NULL)  {
-      TRACE(true, "NULL\n");
-      continue;
-    }
-    this->_base->element(i)->print(this->_comp, this->_comp->getOutFile());
-    TRACE(true, "\n");
-  }
-}
-
-void
-AbsOpStack::pushConstraint(TR::VPConstraint* constraint) {
-  this->_base->push(constraint);
-}
-
-void
-AbsOpStack::pushNullConstraint() {
-  this->pushConstraint(NULL);
-}
-
-void
-AbsOpStack::merge(AbsOpStack &absOpStack, TR::ValuePropagation *_vp) {
-  if (absOpStack.empty()) return;
-
-  for (int i = 0; i < absOpStack.size(); i++) {
-     if (this->_base->size() <= i) break;
-     if (this->_base->element(i) == NULL) continue;
-     if (absOpStack.element(i) == NULL) continue;
-     this->_base->element(i)->merge(absOpStack.element(i), _vp);
-  }
-}
-
-
-bool
-AbsOpStack::empty()
-  {
-  return this->_base->isEmpty();
-  }
-
-uint32_t
-AbsOpStack::size() const
-  {
-  return this->_base->size();
-  }
-
+void AbsOpStack::trace(TR::ValuePropagation *vp)
+   {
+   TR::Compilation *comp = TR::comp();
+   traceMsg(comp, "Contents of Abstract Operand Stack:\n");
+   int stackSize = size();
+   if (stackSize == 0)
+      {
+      traceMsg(comp, "<empty>\n");
+      traceMsg(comp, "\n");
+      return;
+      }
+   AbsValueStack copy(_stack);
+   traceMsg(comp, "<top>\n");
+   for (int i = 0; i < stackSize; i++) 
+      {
+      AbsValue *value = copy.top();
+      copy.pop();
+      traceMsg(comp, "fp[%d] = ", stackSize - i - 1);
+      if (value) value->print(vp);
+      traceMsg(comp, "\n");
+      }
+   traceMsg(comp, "<bottom>\n");
+   traceMsg(comp, "\n");
+   }

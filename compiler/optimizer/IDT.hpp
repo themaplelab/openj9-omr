@@ -14,19 +14,24 @@ class IDT
    {
    public:
    IDT(TR::Region& region, TR::ResolvedMethodSymbol* rms, int budget, TR::Compilation* comp);
+   int32_t getMaxDepth();
+   void addCost(int32_t cost) {_cost += cost; };
+   int32_t getCost() { return _cost; };
    IDTNode* getRoot() const;
    TR::Compilation* comp() const;
    unsigned int getNumNodes() const;
    void printTrace() const;
    IDTNode *getNodeByCalleeIndex(int calleeIndex);
    TR::ValuePropagation* getValuePropagation();
-   void copyChildren(IDTNode* fromNode, IDTNode*toNode, IDTNodeDeque&);
+   void copyDescendants(IDTNode* fromNode, IDTNode*toNode);
    TR::Region& getMemoryRegion() const;
    int getNextGlobalIDTNodeIdx();
    void increaseGlobalIDTNodeIndex();
    void buildIndices();
 
    private:
+   int32_t _maxDepth;
+   int32_t _cost;
    TR::Compilation *_comp;
    TR::Region&  _region;
    TR::ValuePropagation *_vp;

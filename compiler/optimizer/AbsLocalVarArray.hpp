@@ -20,38 +20,35 @@
  *******************************************************************************/
 
 
-#ifndef ABS_STATE_INCL
-#define ABS_STATE_INCL
+#ifndef ABS_VAR_ARRAY_INCL
+#define ABS_VAR_ARRAY_INCL
 
 #include "env/Region.hpp"
-#include "AbsLocalVarArray.hpp"
-#include "AbsOpStack.hpp"
-#include "AbsValue.hpp"
+#include "infra/ReferenceWrapper.hpp"
+#include "infra/deque.hpp"
+#include "env/Region.hpp"
+#include "optimizer/VPConstraint.hpp"
+#include "optimizer/ValuePropagation.hpp"
+#include "optimizer/AbsValue.hpp"
 
-class AbsState
-    {
-    public:
-    AbsState(TR::Region &region);
-    AbsState(AbsState* other);
+//TODO: can we inherit instead of encapsulating?
+//TODO: use AbsValue instead of VPConstraint
+class AbsLocalVarArray
+   {
+   public:
+   AbsLocalVarArray(TR::Region &region);
+   AbsLocalVarArray(AbsLocalVarArray&, TR::Region&);
+   void merge(AbsLocalVarArray&, TR::Region&, TR::ValuePropagation* );
+   void trace(TR::ValuePropagation *vp);
+   
 
-    //For AbsArray
-    void set(unsigned int, AbsValue*);
-    AbsValue *at(unsigned int);
-
-    //For AbsOpStack
-    void push(AbsValue *);
-    AbsValue* pop();
-    AbsValue* top();
-    void merge(AbsState*, TR::ValuePropagation*);
-    size_t getStackSize();
-    size_t getArraySize();
-    void trace(TR::ValuePropagation*);
-
-    private:
-    TR::Region& _region;
-    AbsLocalVarArray _array;
-    AbsOpStack _stack;
-    };
-
+   size_t size() { return _array.size(); };
+   AbsValue *at(unsigned int index) {  TR_ASSERT_FATAL(index < size(), "Index out of range!"); return _array.at(index);  };
+   void set(unsigned int, AbsValue*);
+   
+   private:
+   typedef TR::deque<AbsValue*, TR::Region&> AbsValueArray;
+   AbsValueArray _array;
+   };
 
 #endif

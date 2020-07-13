@@ -1,3 +1,24 @@
+/*******************************************************************************
+ * Copyright (c) 2000, 2020 IBM Corp. and others
+ *
+ * This program and the accompanying materials are made available under
+ * the terms of the Eclipse Public License 2.0 which accompanies this
+ * distribution and is available at http://eclipse.org/legal/epl-2.0
+ * or the Apache License, Version 2.0 which accompanies this distribution
+ * and is available at https://www.apache.org/licenses/LICENSE-2.0.
+ *
+ * This Source Code may also be made available under the following Secondary
+ * Licenses when the conditions for such availability set forth in the
+ * Eclipse Public License, v. 2.0 are satisfied: GNU General Public License,
+ * version 2 with the GNU Classpath Exception [1] and GNU General Public
+ * License, version 2 with the OpenJDK Assembly Exception [2].
+ *
+ * [1] https://www.gnu.org/software/classpath/license.html
+ * [2] http://openjdk.java.net/legal/assembly-exception.html
+ *
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ *******************************************************************************/
+
 #include "optimizer/AbsValue.hpp"
 
 AbsValue::AbsValue(TR::VPConstraint* constraint, TR::DataType dataType) :
@@ -16,53 +37,25 @@ AbsValue::AbsValue(AbsValue* other):
 
 AbsValue* AbsValue::merge(AbsValue *other, TR::Region &region, OMR::ValuePropagation *vp)
    {
-   //TR_ASSERT(other->_dt == this->_dt, "different data types");
-   // when merging array this isn't true
-   if (!this || !other)
+   if (!other)
       return NULL; // This is necessary :/
    if (!_constraint)
       return this;
    if (!other->_constraint)
       return other;
 
-   TR::VPConstraint *constraint = _constraint->merge(other->_constraint, vp);
-   AbsValue *absVal = new (region) AbsValue(constraint, _dataType);
-   absVal->_paramPos = -1; // modified;
-   return absVal;
+   TR::VPConstraint *constraint = _constraint->merge(other->getConstraint(), vp);
+   AbsValue *mergedValue = new (region) AbsValue(constraint, _dataType);
+   mergedValue->setParamPosition(-1); // modified;
+   return mergedValue;
    }
 
 void AbsValue::print(OMR::ValuePropagation *vp)    
    {
-   traceMsg(TR::comp(), "type: %s ", TR::DataType::getName(_dataType));
-   if (!_constraint) return;
+   traceMsg(TR::comp(), "AbsValue: type: %s ", TR::DataType::getName(_dataType));
+   if (!_constraint)
+      return;
    traceMsg(TR::comp(), "constraint: ");
    _constraint->print(vp);
-   traceMsg(TR::comp(), "param: %d\n", _paramPos);
-   }
-
-bool AbsValue::isType2()
-   {
-   if (!this)
-      return false;
-   return _dataType == TR::Double || _dataType == TR::Int64;
-   }
-
-int AbsValue::getParamPosition()
-   {
-   return _paramPos;
-   }
-
-void AbsValue::setParamPosition(int paramPos)
-   {
-   _paramPos = paramPos;
-   }
-
-TR::VPConstraint* AbsValue::getConstraint()
-   {
-   return _constraint;
-   }
-
-TR::DataType AbsValue::getDataType()
-   {
-   return _dataType;
+   traceMsg(TR::comp(), "param pos: %d\n", _paramPos);
    }

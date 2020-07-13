@@ -20,6 +20,8 @@ class IDTNode;
 typedef TR::deque<IDTNode*, TR::Region&> IDTNodeIndices;
 typedef TR::deque<IDTNode*, TR::Region&> IDTNodeDeque;
 typedef TR::vector<IDTNode*, TR::Region&> IDTNodePtrVector;
+
+typedef std::stack<IDTNode*, IDTNodeDeque> IDTNodeStack;
 struct IDTNodePtrOrder {
    bool operator()(IDTNode *left, IDTNode *right);
 };
@@ -41,10 +43,11 @@ class IDTNode
       float callRatio
       );
 
-   IDTNode* addChildIfNotExists(
+   IDTNode* addChild(
       int idx,
       TR::MethodSymbol::Kinds kind,
       int32_t callSiteBci, 
+      TR_CallTarget* callTarget,
       TR::ResolvedMethodSymbol* rms, 
       unsigned int benefit, 
       TR_CallSite* CallSite, 

@@ -1,9 +1,9 @@
 #include "optimizer/AbsState.hpp"
 
-AbsState::AbsState(TR::Region &region, unsigned int maxLocalVarArrayDepth, unsigned int maxOpStackDepth) :
+AbsState::AbsState(TR::Region &region) :
       _region(region),
-      _array(region, maxLocalVarArrayDepth),
-      _stack(region, maxOpStackDepth)
+      _array(region),
+      _stack(region)
    {
    }
 
@@ -47,10 +47,10 @@ void AbsState::merge(AbsState* other, TR::ValuePropagation *vp)
 AbsValue* AbsState::pop()
    {
    AbsValue* absValue = _stack.top();
-   //printf("pop\n");
   
    _stack.pop();
-   //printf("size %d\n", _stack.size());
+   // printf("pop\n");
+   // printf("size: %d\n", _stack.size());
    return absValue;
    }
 
@@ -60,15 +60,14 @@ AbsValue* AbsState::top()
    }
 
 void AbsState::push(AbsValue *absValue)
-   {
-   //printf("push\n");
-     
+   {     
    _stack.push(absValue);
-   // printf("size %d\n", _stack.size());
+   // printf("push\n");
+   // printf("size: %d\n", _stack.size());
    }
 
 void AbsState::trace(TR::ValuePropagation *vp)
    {
    _array.trace(vp);
-   _stack.trace(vp, _region);
+   _stack.trace(vp);
    }

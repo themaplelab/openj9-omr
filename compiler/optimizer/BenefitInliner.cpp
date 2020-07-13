@@ -15,17 +15,16 @@
 #include "optimizer/PriorityPreorder.hpp"
 #include "optimizer/Growable_2d_array.hpp"
 #include "optimizer/InlinerPacking.hpp"
-#include "optimizer/AbsEnvStatic.hpp"
 #include "optimizer/InliningProposal.hpp"
+#include "optimizer/IDTBuilder.hpp"
 
 
 
 int32_t OMR::BenefitInlinerWrapper::perform()
    {
-   
    TR::ResolvedMethodSymbol * sym = comp()->getMethodSymbol();
    TR::CFG *prevCFG = sym->getFlowGraph();
-   int32_t budget = this->getBudget(sym);
+   int32_t budget = getBudget(sym);
    if (budget < 0)
       return 1;
 
@@ -58,7 +57,7 @@ int32_t OMR::BenefitInlinerWrapper::perform()
 //       return 1;
 //       }
 //    inliner._idt->getRoot()->getResolvedMethodSymbol()->setFlowGraph(inliner._rootRms);
-    int recursiveCost = inliner._idt->getRoot()->getRecursiveCost();
+    int recursiveCost = inliner._idt->getCost();
     bool canSkipAbstractInterpretation = recursiveCost < budget;
     if (!canSkipAbstractInterpretation) {
       //  if (TR::comp()->getOption(TR_TraceAbstractInterpretation))
@@ -114,7 +113,6 @@ void OMR::BenefitInliner::buildIDT()
 
 void OMR::BenefitInliner::updateIDT()
    {
-   _idtBuilder->updateIDT(_idt);
    }
 
 bool
@@ -129,7 +127,7 @@ OMR::BenefitInlinerBase::inlineCallTargets(TR::ResolvedMethodSymbol *rms, TR_Cal
    if (!this->_currentNode) {
       return false;
    }
-
+   //printf("inlining into %s\n", this->_currentNode->getName());
    traceMsg(TR::comp(), "inlining into %s\n", this->_currentNode->getName());
    TR_ASSERT(!prevCallStack || prevCallStack->_methodSymbol->getFlowGraph(), "we have a null call graph");
 
@@ -171,7 +169,9 @@ OMR::BenefitInlinerBase::analyzeCallSite(TR_CallStack * callStack, TR::TreeTop *
 
 bool
 OMR::BenefitInlinerBase::usedSavedInformation(TR::ResolvedMethodSymbol *rms, TR_CallStack *callStack, TR_InnerPreexistenceInfo *info, IDTNode *idtNode)
-{
+{     
+      //level ++;
+      //printf("level %d\n",level);
       bool inlined = false;
       uint32_t inlineCount = 0;
       for (TR::TreeTop * tt = rms->getFirstTreeTop(); tt; tt = tt->getNextTreeTop())
@@ -384,13 +384,16 @@ int32_t
 OMR::BenefitInlinerWrapper::getBudget(TR::ResolvedMethodSymbol *resolvedMethodSymbol)
    {
       int32_t size = resolvedMethodSymbol->getResolvedMethod()->maxBytecodeIndex();
+      
       if (this->comp()->getMethodHotness() >= scorching)
       {
+         //printf("size: %d\n",size);
          return std::max(1500, size * 2);
       }
 
       if (this->comp()->getMethodHotness() >= hot)
       {
+         //printf("size: %d\n",size);
          return std::max(1500, size + (size >> 2));
       }
 

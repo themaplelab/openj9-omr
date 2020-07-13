@@ -8,12 +8,10 @@
 #include "optimizer/J9CallGraph.hpp"
 #include "optimizer/BenefitInliner.hpp"
 #include "optimizer/J9EstimateCodeSize.hpp"
-#include <unordered_map>
+#include <map>
 #include "optimizer/AbsState.hpp"
 
-typedef TR::typed_allocator<std::pair<TR_OpaqueMethodBlock*, IDTNode*>, TR::Region&> InterpretedMethodMapAllocator;
-typedef std::less<TR_OpaqueMethodBlock*> InterpretedMethodMapComparator;
-typedef std::map<TR_OpaqueMethodBlock *, IDTNode*, InterpretedMethodMapComparator, InterpretedMethodMapAllocator> InterpretedMethodMap;
+
 
 
 class IDTBuilder
@@ -23,18 +21,31 @@ class IDTBuilder
    public:
    IDTBuilder(TR::ResolvedMethodSymbol* symbol, int32_t budget, TR::Region& region, TR::Compilation* comp, OMR::BenefitInliner* inliner);
    IDT* buildIDT();
-   void updateIDT(IDT* idt);
-   
-   private:
-   void buildIDTHelper(IDTNode* node, int callerIndex, int32_t budget,TR_CallStack* callStack);
-   void performAbstractInterpretation(IDTNode* node, int callerIndex, TR_CallStack* callStack, IDTNodeDeque& idtNodeChildren);
-   void computeCallRatio(TR_CallSite* callsite, TR_CallStack* callStack, int callerIndex, TR::Block* block, TR::CFG* callerCfg );
-   InterpretedMethodMap _interpretedMethodMap;
 
-   void addChildren(IDTNode*node,
+   private:
+   bool buildIDTHelper(IDTNode* node, AbsState* invokeState, int callerIndex, int32_t budget, TR_CallStack* callStack);
+   void performAbstractInterpretation(IDTNode* node, AbsState* invokeState,  int callerIndex, TR_CallStack* callStack, IDTNodeDeque& idtNodeChildren);
+   void computeCallRatio(TR_CallTarget* callTarget, TR_CallStack* callStack, TR::Block* block, TR::CFG* callerCfg );
+
+   TR::SymbolReference* getSymbolReference(TR::ResolvedMethodSymbol *callerSymbol, int cpIndex, TR::MethodSymbol::Kinds kind);
+   TR::Compilation* comp();
+   TR::Region& getRegion();
+
+   IDTNode* getInterpretedMethod(TR::ResolvedMethodSymbol* symbol);
+   void addInterpretedMethod(TR::ResolvedMethodSymbol *symbol, IDTNode* node);
+
+   //Why do we need an Inliner here? Because we need its applyPolicyToTargets()
+   OMR::BenefitInliner* getInliner();
+   
+   //Used for calculating method branch profile
+   OMR::BenefitInlinerUtil* getUtil();
+   TR::CFG* generateCFG(TR_CallTarget* callTarget, TR_CallStack* callStack=NULL);
+   TR::ValuePropagation *getValuePropagation();
+
+   void addChild(IDTNode*node,
       int callerIndex,
-      TR_ResolvedMethod*method, 
-      AbsState* invocationAbsState,
+      TR_ResolvedMethod* containingMethod, 
+      AbsState* invokeState,
       int bcIndex, 
       int cpIndex, 
       TR::MethodSymbol::Kinds kind, 
@@ -73,20 +84,15 @@ class IDTBuilder
       bool allConsts=false,
       TR::SymbolReference *symRef=NULL);
 
-   TR::SymbolReference* getSymbolReference(TR::ResolvedMethodSymbol *callerSymbol, int cpIndex, TR::MethodSymbol::Kinds kind);
-   TR::Compilation* comp();
-   TR::Region& getRegion();
-
-   //Why do we need an Inliner here? Because we need its applyPolicyToTargets()
-   OMR::BenefitInliner* getInliner();
-   //Used for calculating method branch profile
-   OMR::BenefitInlinerUtil* getUtil();
-   TR::CFG* generateCFG(TR_CallTarget* callTarget, TR_CallStack* callStack=NULL);
-   TR::ValuePropagation *getValuePropagation();
-
    IDT* _idt;
    TR_J9EstimateCodeSize * _cfgGen;
    TR::ResolvedMethodSymbol* _rootSymbol;
+
+   typedef TR::typed_allocator<std::pair<TR_OpaqueMethodBlock*, IDTNode*>, TR::Region&> InterpretedMethodMapAllocator;
+   typedef std::less<TR_OpaqueMethodBlock*> InterpretedMethodMapComparator;
+   typedef std::map<TR_OpaqueMethodBlock *, IDTNode*, InterpretedMethodMapComparator, InterpretedMethodMapAllocator> InterpretedMethodMap;
+   InterpretedMethodMap _interpretedMethodMap;
+
    int _callerIndex;
    int _callSiteIndex;
    int32_t _rootBudget;

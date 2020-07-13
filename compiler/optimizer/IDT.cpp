@@ -5,6 +5,7 @@ IDT::IDT(TR::Region& region, TR::ResolvedMethodSymbol* rms, int budget, TR::Comp
       _vp(NULL),
       _max_idx(-1),
       _comp(comp),
+      _cost(0),
       _root(new (_region) IDTNode(getNextGlobalIDTNodeIdx(), TR::MethodSymbol::Static, -1,rms,NULL,0,budget,NULL,1)),
       _indices(NULL)
    {   
@@ -158,42 +159,41 @@ TR::Region& IDT::getMemoryRegion() const
    return _region;
    }
 
-void IDT::copyChildren(IDTNode* fromNode, IDTNode* toNode, IDTNodeDeque& children)
+void IDT::copyDescendants(IDTNode* fromNode, IDTNode* toNode)
    {
    TR_ASSERT_FATAL(
       fromNode->getResolvedMethodSymbol()->getResolvedMethod()->getPersistentIdentifier() 
       == toNode->getResolvedMethodSymbol()->getResolvedMethod()->getPersistentIdentifier(), 
       "Copying different nodes is not allowed!");
 
-   unsigned int numChildren = fromNode->getNumChildren();
-   if (numChildren == 0)
-      return;
-   
-   bool traceBIIDTGen = comp()->getOption(TR_TraceBIIDTGen);
-   
-   for (unsigned int i = 0;i < numChildren; i ++)
+   for (unsigned int i =0 ; i < fromNode->getNumChildren(); i ++)
       {
-      IDTNode *child = fromNode->getChild(i);
-      if (traceBIIDTGen)
-         traceMsg(comp(), "Copying %d into %d\n", child->getCalleeIndex(), toNode->getCalleeIndex());
-      
-      IDTNode* newChild = toNode->addChildIfNotExists(
-                              getNextGlobalIDTNodeIdx(),
-                              child->getMethodKind(),
-                              child->getByteCodeIndex(),
-                              child->getResolvedMethodSymbol(),
-                              child->getStaticBenefit(),
-                              child->getCallSite(),
-                              child->getCallRatio(),
-                              getMemoryRegion());
-      if (newChild)
-         {
-         increaseGlobalIDTNodeIndex();
-         newChild->setCallTarget(child->getCallTarget());
-         newChild->setMethodSummary(child->getMethodSummary());
-         //children.push_back(newChild);
-         }
-      }
-      
+      IDTNode* child = fromNode->getChild(i);
 
+      if (toNode->getBudget() - child->getCost() < 0)
+         {
+         continue;
+         }
+
+      IDTNode* copiedChild = toNode->addChild(
+                           getNextGlobalIDTNodeIdx(),
+                           child->getMethodKind(),
+                           child->getByteCodeIndex(),
+                           child->getCallTarget(),
+                           child->getResolvedMethodSymbol(),
+                           child->getStaticBenefit(),
+                           child->getCallSite(),
+                           child->getCallRatio(),
+                           getMemoryRegion()
+                           );
+      if (copiedChild)
+            {
+            increaseGlobalIDTNodeIndex();
+            addCost(child->getCallTarget()->_calleeMethod->maxBytecodeIndex());
+            copiedChild->setCallTarget(child->getCallTarget());
+            copiedChild->setMethodSummary(child->getMethodSummary());
+            copyDescendants(child, copiedChild);
+            }
+      }
+  
    }

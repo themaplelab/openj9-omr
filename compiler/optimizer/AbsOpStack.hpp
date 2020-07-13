@@ -1,33 +1,60 @@
-#pragma once
+/*******************************************************************************
+ * Copyright (c) 2000, 2020 IBM Corp. and others
+ *
+ * This program and the accompanying materials are made available under
+ * the terms of the Eclipse Public License 2.0 which accompanies this
+ * distribution and is available at http://eclipse.org/legal/epl-2.0
+ * or the Apache License, Version 2.0 which accompanies this distribution
+ * and is available at https://www.apache.org/licenses/LICENSE-2.0.
+ *
+ * This Source Code may also be made available under the following Secondary
+ * Licenses when the conditions for such availability set forth in the
+ * Eclipse Public License, v. 2.0 are satisfied: GNU General Public License,
+ * version 2 with the GNU Classpath Exception [1] and GNU General Public
+ * License, version 2 with the OpenJDK Assembly Exception [2].
+ *
+ * [1] https://www.gnu.org/software/classpath/license.html
+ * [2] http://openjdk.java.net/legal/assembly-exception.html
+ *
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ *******************************************************************************/
 
-#include <stack>
-#include <deque>
-#include "compiler/optimizer/VPConstraint.hpp"
-#include "compile/Compilation.hpp"
-#include "cs2/allocator.h"
-#include "il/symbol/ResolvedMethodSymbol.hpp"
+
+#ifndef ABS_OP_STACK_INCL
+#define ABS_OP_STACK_INCL
+
+#include "env/Region.hpp"
+#include "infra/ReferenceWrapper.hpp"
+#include "infra/deque.hpp"
+#include "env/Region.hpp"
+#include "optimizer/VPConstraint.hpp"
 #include "optimizer/ValuePropagation.hpp"
-#include "infra/Stack.hpp"
+#include "optimizer/AbsValue.hpp"
 
+//TODO: can we inherit instead of encapsulating?
+//TODO: use AbsValue instead of VPConstraint
+class AbsOpStack
+   {
+   public:
+   AbsOpStack(TR::Region& region);
+   AbsOpStack(AbsOpStack&, TR::Region &);
 
-class AbsOpStack {
-public:
-  AbsOpStack(TR::Compilation *comp, TR::Region & region);
-  AbsOpStack(const AbsOpStack & );
-  void pushConstraint(TR::VPConstraint*);
-  void pushConstInt(int i);
-  void pushNullConstraint(void);
-  void copyStack(AbsOpStack &);
-  TR::VPConstraint* element(int i);
-  TR::VPConstraint* top();
-  void pop();
-  bool empty();
-  void merge(AbsOpStack &absOpStack, TR::ValuePropagation *_vp);
-  TR::VPConstraint* topAndPop();
-  uint32_t size() const;
-  void print();
-private:
-  TR_Stack<TR::VPConstraint*> *_base;
-  TR::Compilation* _comp;
-  TR::Region &_region;
-};
+   void merge(AbsOpStack&, TR::Region&, TR::ValuePropagation *);
+
+   void pop() {  _stack.pop();  };
+   void push(AbsValue* value) {  TR_ASSERT_FATAL(value, "Push a NULL value"); _stack.push(value);  };
+   bool empty()  {  return _stack.empty();  };
+   size_t size()  {  return _stack.size();  };
+   AbsValue* top()  {  TR_ASSERT_FATAL(size() > 0, "Top an empty stack!"); return _stack.top();  };
+
+   void trace(TR::ValuePropagation *);
+
+   private:
+   typedef TR::deque<AbsValue*, TR::Region&> StackContainer;
+   typedef std::stack<AbsValue*, StackContainer> AbsValueStack;
+   
+   AbsValueStack _stack; 
+   };
+
+#endif
+

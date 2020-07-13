@@ -36,10 +36,11 @@ IDTNode::IDTNode(
    {   
    }
 
-IDTNode* IDTNode::addChildIfNotExists(
+IDTNode* IDTNode::addChild(
       int idx,
       TR::MethodSymbol::Kinds kind,
       int32_t callSiteBci, 
+      TR_CallTarget* callTarget,
       TR::ResolvedMethodSymbol* rms,
       unsigned int benefit, 
       TR_CallSite* callSite, 
@@ -48,6 +49,11 @@ IDTNode* IDTNode::addChildIfNotExists(
    {
    // don't add things that we do are 1/25th as good as the root
    if (_rootCallRatio * callRatioCallerCallee * 100 < 25)
+      return NULL;
+
+   int budget =  getBudget() - callTarget->_calleeMethod->maxBytecodeIndex();
+   
+   if (budget < 0)
       return NULL;
 
    // The case where there is no children
@@ -60,7 +66,7 @@ IDTNode* IDTNode::addChildIfNotExists(
                            rms, 
                            this,
                            benefit, 
-                           getBudget() - rms->getResolvedMethod()->maxBytecodeIndex(), 
+                           budget, 
                            callSite, 
                            callRatioCallerCallee);
 
@@ -97,7 +103,7 @@ IDTNode* IDTNode::addChildIfNotExists(
                         rms, 
                         this, 
                         benefit, 
-                        getBudget() - rms->getResolvedMethod()->maxBytecodeIndex(), 
+                        budget, 
                         callSite, 
                         callRatioCallerCallee);
                         
