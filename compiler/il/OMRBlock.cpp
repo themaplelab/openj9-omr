@@ -136,7 +136,6 @@ OMR::Block::init(TR::TreeTop *entry, TR::TreeTop *exit)
    _debugCounters = NULL;
    _flags = 0;
    _moreflags = 0;
-   _absEnv = NULL;
    _absState = NULL;
    }
 
@@ -159,7 +158,6 @@ OMR::Block::Block(TR::Block &other, TR::TreeTop *entry, TR::TreeTop *exit) :
    _blockSize(other._blockSize),
    _debugCounters(other._debugCounters),
    _catchBlockExtension(NULL),
-   _absEnv(other._absEnv),
    _absState(other._absState)
    {
    if (entry && entry->getNode()) entry->getNode()->setBlock(self());
@@ -2556,7 +2554,7 @@ OMR::Block::hasAbstractInterpretedAllPredecessors()
             {
             continue;
             }
-         if (aBlock->_absState == NULL)
+         if (aBlock->getAbsState() == NULL)
             {
             return false;
             }

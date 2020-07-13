@@ -212,12 +212,12 @@ AbsState* AbsInterpreter::mergeAllPredecessors(TR::Block* block)
          continue;
       
       //TODO: can aBlock->_absState be null?
-      TR_ASSERT_FATAL(aBlock->_absState, "absState is NULL, i don't think this is possible");
+      TR_ASSERT_FATAL(aBlock->getAbsState(), "absState is NULL, i don't think this is possible");
       //printf(  "   pre : %d\n", aBlock->getNumber());
       if (first) 
          {
          first = false;
-         absState = new (region()) AbsState(aBlock->_absState);
+         absState = new (region()) AbsState(aBlock->getAbsState());
 
          if (comp()->trace(OMR::benefitInliner))
             absState->trace(_valuePropagation);
@@ -226,7 +226,7 @@ AbsState* AbsInterpreter::mergeAllPredecessors(TR::Block* block)
 
       // merge with the rest;    
       //printf("merge with # %d\n", aBlock->getNumber());
-      absState->merge(aBlock->_absState,_valuePropagation);
+      absState->merge(aBlock->getAbsState(), _valuePropagation);
       
       if (comp()->trace(OMR::benefitInliner))
          absState->trace(_valuePropagation);
@@ -254,7 +254,7 @@ void AbsInterpreter::transferAbsStates(TR::Block* block)
    //Case 1:
    // this can happen I think if we have a loop that has some CFG inside. So its better to just return without assigning anything
    // as we should only visit if we actually have abs state to propagate
-   if (block->hasOnlyOnePredecessor() && !block->getPredecessors().front()->getFrom()->asBlock()->_absState)
+   if (block->hasOnlyOnePredecessor() && !block->getPredecessors().front()->getFrom()->asBlock()->getAbsState())
       //TODO: put it at the end of the queue?
       {
       if (traceAbstractInterpretion) 
@@ -265,13 +265,13 @@ void AbsInterpreter::transferAbsStates(TR::Block* block)
       
    //Case: 2
    // If we only have one predecessor and there are no loops.
-   if (block->hasOnlyOnePredecessor() && block->getPredecessors().front()->getFrom()->asBlock()->_absState) 
+   if (block->hasOnlyOnePredecessor() && block->getPredecessors().front()->getFrom()->asBlock()->getAbsState()) 
       {
       if (traceAbstractInterpretion) 
          traceMsg(comp(), "      There is only one predecessor %d and interpreted. Pass this abstract state.\n",block->getPredecessors().front()->getFrom()->asBlock()->getNumber() );
       //printf("      There is only one predecessor %d and interpreted. Pass this abstract state.\n",block->getPredecessors().front()->getFrom()->asBlock()->getNumber());
-      AbsState *absState = new (region()) AbsState(block->getPredecessors().front()->getFrom()->asBlock()->_absState);
-      block->_absState = absState;
+      AbsState *absState = new (region()) AbsState(block->getPredecessors().front()->getFrom()->asBlock()->getAbsState());
+      block->setAbsState(absState);
       return;
       }
 
@@ -282,7 +282,7 @@ void AbsInterpreter::transferAbsStates(TR::Block* block)
       if (traceAbstractInterpretion) 
          traceMsg(comp(), "      There are multiple predecessors and all interpreted. Merge their abstract states.\n");
       //printf("      There are multiple predecessors and all interpreted. Merge their abstract states.\n");
-      block->_absState = mergeAllPredecessors(block);
+      block->setAbsState( mergeAllPredecessors(block) );
       return;
       }
 
@@ -305,7 +305,7 @@ void AbsInterpreter::transferAbsStates(TR::Block* block)
          continue;
          }
 
-      if (!parentBlock->_absState)
+      if (!parentBlock->getAbsState())
          continue;
          
 
@@ -314,7 +314,7 @@ void AbsInterpreter::transferAbsStates(TR::Block* block)
       //printf("      Find a predecessor interpreted. Use its type info and setting all abstract values to be TOP\n");
 
       // We find a predecessor interpreted. Use its type info with all AbsValues being TOP (unkown)
-      AbsState *parentState = parentBlock->_absState;
+      AbsState *parentState = parentBlock->getAbsState();
  
       parentState->trace(_valuePropagation);
       AbsState *newState = new (region()) AbsState(parentState);
@@ -340,7 +340,7 @@ void AbsInterpreter::transferAbsStates(TR::Block* block)
          newState->set(i, value1);
          }
 
-      block->_absState = newState;
+      block->setAbsState(newState);
       return;
       }
       
@@ -367,7 +367,7 @@ void AbsInterpreter::traverseBasicBlocks(TR::CFG* cfg)
       TR::Block *block = blockIt.currentBlock();
       //set start block's absState
       if (block == startBlock)
-         block->_absState = startBlockState;
+         block->setAbsState(startBlockState);
          
       block->setVisitCount(0);
       traverseByteCode(block);
@@ -395,7 +395,7 @@ void AbsInterpreter::traverseByteCode(TR::Block* block)
 
    for (TR_J9ByteCode bc = _bcIterator.current(); bc != J9BCunknown && _bcIterator.currentByteCodeIndex() < end; bc = _bcIterator.next())
       {
-      if (block->_absState != NULL)
+      if (block->getAbsState() != NULL)
          {
          if (traceAbstractInterpretation)
             {
@@ -403,7 +403,7 @@ void AbsInterpreter::traverseByteCode(TR::Block* block)
             traceMsg(comp(),"\n");
             }
             
-         interpretByteCode(block->_absState, bc, _bcIterator, block); 
+         interpretByteCode(block->getAbsState(), bc, _bcIterator, block); 
          }
       else
          {
@@ -3175,7 +3175,7 @@ void AbsInterpreter::updateIDTNodeWithMethodSummary(IDTNode* node, AbsState* inv
       value->print(_valuePropagation);
       benefit += node->getMethodSummary() ? node->getMethodSummary()->predicates(value->getConstraint(), i) : 0;
       }
-      
+
    // Update the Node's benefit
    node->setBenefit(benefit);
 

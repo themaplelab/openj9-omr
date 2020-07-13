@@ -51,7 +51,6 @@ namespace OMR { typedef OMR::Block BlockConnector; }
 #include "optimizer/Optimizer.hpp"
 
 class AbsState;
-class AbsEnvStatic;
 class TR_BitVector;
 class TR_BlockStructure;
 class TR_Debug;
@@ -454,6 +453,9 @@ class OMR_EXTENSIBLE Block : public TR::CFGNode
    bool wasHeaderOfCanonicalizedLoop()                { return _flags.testAny(_wasHeaderOfCanonicalizedLoop); }
    void setWasHeaderOfCanonicalizedLoop(bool b)       { _flags.set(_wasHeaderOfCanonicalizedLoop, b); }
 
+   void setAbsState(AbsState *state)                  { _absState = state; }
+   AbsState* getAbsState()                            { return _absState; }
+
    enum partialFlags // Stored in lowest 8 bits of _moreflags
       {
       _unsanitizeable         = 0x00000001,
@@ -490,8 +492,7 @@ class OMR_EXTENSIBLE Block : public TR::CFGNode
     * Flag functions end
     */
 
-   AbsEnvStatic *_absEnv;
-   AbsState *_absState;
+   
 
    private:
    void init(TR::TreeTop *entry, TR::TreeTop *exit);
@@ -569,6 +570,8 @@ class OMR_EXTENSIBLE Block : public TR::CFGNode
 
    flags32_t                             _flags;
    flags32_t                             _moreflags;
+
+   AbsState *                            _absState;
 
    };
 
