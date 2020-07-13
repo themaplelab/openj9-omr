@@ -1,155 +1,172 @@
 #ifndef METHOD_SUMMARY_INCL
 #define METHOD_SUMMARY_INCL
 
-#include "compiler/optimizer/VPConstraint.hpp"
+#include "optimizer/VPConstraint.hpp"
 #include "optimizer/GlobalValuePropagation.hpp"
 #include "optimizer/LocalValuePropagation.hpp"
-#include "compiler/optimizer/AbsValue.hpp"
-#include "compiler/optimizer/IDT.hpp"
-#include "compiler/optimizer/IDTNode.hpp"
-
 
 class PotentialOptimization
    {
    public:
-   PotentialOptimization(int bytecode_idx, AbsValue *constraint, int argPos) :
-      _bytecode_idx(bytecode_idx),
+   PotentialOptimization(TR::VPConstraint *constraint, int paramPosition) :
       _constraint(constraint),
-      _argPos(argPos)
+      _paramPosition(paramPosition)
    {};
-   static const char *name;
-   virtual void trace(TR::ValuePropagation *vp); 
-   virtual int test(AbsValue *constraint, TR::ValuePropagation*);
-   int _argPos;
+   
+   virtual void trace(TR::ValuePropagation *vp)=0; 
+   virtual int predicate(TR::VPConstraint *constraint, TR::ValuePropagation* vp);
+
+   TR::VPConstraint* getConstraint()  { return _constraint; } 
+   int getParamPosition() { return _paramPosition; }
+
    protected:
-   int _bytecode_idx;
-   AbsValue *_constraint;
+   TR::VPConstraint *_constraint;
+   int _paramPosition;
    };
 
 class BranchFolding : public PotentialOptimization
    {
    public:
-   BranchFolding(int bytecode_idx, AbsValue *constraint, int argPos) :
-      PotentialOptimization(bytecode_idx, constraint, argPos)
+   BranchFolding(TR::VPConstraint *constraint, int paramPosition) :
+      PotentialOptimization(constraint, paramPosition)
    {};
-   static const char *name;
    virtual void trace(TR::ValuePropagation *vp); 
    };
 
 class BranchIfEqFolding : public BranchFolding
-  {
-  public:
-   BranchIfEqFolding(int bytecode_idx, AbsValue *constraint, int argPos) :
-      BranchFolding(bytecode_idx, constraint, argPos)
+   {
+   public:
+   BranchIfEqFolding(TR::VPConstraint *constraint, int paramPosition) :
+      BranchFolding(constraint, paramPosition)
    {};
-   static const char *name;
+
    virtual void trace(TR::ValuePropagation *vp); 
-  };
+   };
 
 class BranchIfNeFolding : public BranchFolding
-  {
-  public:
-   BranchIfNeFolding(int bytecode_idx, AbsValue *constraint, int argPos) :
-      BranchFolding(bytecode_idx, constraint, argPos)
+   {
+   public:
+   BranchIfNeFolding(TR::VPConstraint *constraint, int paramPosition) :
+      BranchFolding(constraint, paramPosition)
    {};
-   static const char *name;
+
    virtual void trace(TR::ValuePropagation *vp); 
-  };
+   };
 
 class BranchIfGtFolding : public BranchFolding
-  {
-  public:
-   BranchIfGtFolding(int bytecode_idx, AbsValue *constraint, int argPos) :
-      BranchFolding(bytecode_idx, constraint, argPos)
+   {
+   public:
+   BranchIfGtFolding(TR::VPConstraint *constraint, int paramPosition) :
+      BranchFolding(constraint, paramPosition)
    {};
-   static const char *name;
+
    virtual void trace(TR::ValuePropagation *vp); 
-  };
+   };
 
 class BranchIfGeFolding : public BranchFolding
   {
   public:
-   BranchIfGeFolding(int bytecode_idx, AbsValue *constraint, int argPos) :
-      BranchFolding(bytecode_idx, constraint, argPos)
+   BranchIfGeFolding(TR::VPConstraint *constraint, int paramPosition) :
+      BranchFolding(constraint, paramPosition)
    {};
-   static const char *name;
+
    virtual void trace(TR::ValuePropagation *vp); 
   };
 
 class BranchIfLtFolding : public BranchFolding
-  {
-  public:
-   BranchIfLtFolding(int bytecode_idx, AbsValue *constraint, int argPos) :
-      BranchFolding(bytecode_idx, constraint, argPos)
+   {
+   public:
+   BranchIfLtFolding(TR::VPConstraint *constraint, int paramPosition) :
+      BranchFolding(constraint, paramPosition)
    {};
-   static const char *name;
+
    virtual void trace(TR::ValuePropagation *vp); 
-  };
+   };
 
 class BranchIfLeFolding : public BranchFolding
-  {
-  public:
-   BranchIfLeFolding(int bytecode_idx, AbsValue *constraint, int argPos) :
-      BranchFolding(bytecode_idx, constraint, argPos)
-   {};
-   static const char *name;
-   virtual void trace(TR::ValuePropagation *vp); 
-  };
-
-class NullCheckFolding : public PotentialOptimization
    {
    public:
-   NullCheckFolding(int bytecode_idx, AbsValue *constraint, int argPos) :
-      PotentialOptimization(bytecode_idx, constraint, argPos)
+   BranchIfLeFolding(TR::VPConstraint *constraint, int paramPosition) :
+      BranchFolding(constraint, paramPosition)
    {};
-   static const char *name;
-   virtual int test(AbsValue *constraint, TR::ValuePropagation*);
+
    virtual void trace(TR::ValuePropagation *vp); 
    };
 
-class InstanceOfFolding : public PotentialOptimization
-   {
-   public:
-   InstanceOfFolding(int bytecode_idx, AbsValue *constraint, int argPos):
-      PotentialOptimization(bytecode_idx, constraint, argPos)
-   {};
-   static const char *name;
-   virtual void trace(TR::ValuePropagation *vp); 
-   };
+// class BranchIfNullFolding : public BranchFolding
+//    {
+//    public:
+//    BranchIfNullFolding(TR::VPConstraint* constraint, int paramPosition) :
+//       BranchFolding(constraint, paramPosition)
+//    {};
 
-class CheckCastFolding : public PotentialOptimization
-   {
-   public:
-   CheckCastFolding(int bytecode_idx, AbsValue *constraint, int argPos):
-      PotentialOptimization(bytecode_idx, constraint, argPos)
-   {};
-   static const char *name;
-   virtual void trace(TR::ValuePropagation *vp); 
-   };
+//    static const char* name;
+//    virtual void trace(TR::ValuePropagation *vp); 
+//    }
+
+// class BranchIfNonNullFolding : public BranchFolding
+//    {
+//    public:
+//    BranchIfNonNullFolding(TR::VPConstraint* constraint, int paramPosition) :
+//       BranchFolding(constraint, paramPosition)
+//    {};
+
+//    static const char* name;
+//    virtual void trace(TR::ValuePropagation *vp); 
+//    }
+
+//The followings are to be completed in the future.
+
+// class NullCheckFolding : public PotentialOptimization
+//    {
+//    public:
+//    NullCheckFolding(TR::VPConstraint *constraint, int paramPosition) :
+//       PotentialOptimization(constraint, paramPosition)
+//    {};
+
+//    virtual int test(TR::VPConstraint *constraint, TR::ValuePropagation* vp);
+//    virtual void trace(TR::ValuePropagation *vp); 
+//    };
+
+// class InstanceOfFolding : public PotentialOptimization
+//    {
+//    public:
+//    InstanceOfFolding(TR::VPConstraint *constraint, int paramPosition):
+//       PotentialOptimization(constraint, paramPosition)
+//    {};
+
+//    virtual void trace(TR::ValuePropagation *vp); 
+//    };
+
+// class CheckCastFolding : public PotentialOptimization
+//    {
+//    public:
+//    CheckCastFolding(TR::VPConstraint *constraint, int paramPosition):
+//       PotentialOptimization(constraint, paramPosition)
+//    {};
+
+//    virtual void trace(TR::ValuePropagation *vp); 
+//    };
 
 class MethodSummary
    {
-public:
-   int predicate(AbsValue*, int);
-   MethodSummary(TR::Region &, TR::ValuePropagation *);
-   void addIfeq(int, int);
-   void addIfne(int, int);
-   void addIfgt(int, int);
-   void addIfge(int, int);
-   void addIfle(int, int);
-   void addIflt(int, int);
-   void addNullCheckFolding(int, AbsValue*, int);
-   void addBranchFolding(int, AbsValue*, int);
-   void addBranchIfNeFolding(int, AbsValue*, int);
-   void addBranchIfEqFolding(int, AbsValue*, int);
-   void addBranchIfGtFolding(int, AbsValue*, int);
-   void addBranchIfGeFolding(int, AbsValue*, int);
-   void addBranchIfLeFolding(int, AbsValue*, int);
-   void addBranchIfLtFolding(int, AbsValue*, int);
-   void addInstanceOfFolding(int, AbsValue*, int);
-   void addCheckCastFolding(int, AbsValue*, int);
+   public:
+   int predicates(TR::VPConstraint* constraint, int paramPosition);
+   MethodSummary(TR::Region&, TR::ValuePropagation* vp);
+   void addIfEq(int paramPosition);
+   void addIfNe(int paramPosition);
+   void addIfGt(int paramPosition);
+   void addIfGe(int paramPosition);
+   void addIfLe(int paramPosition);
+   void addIfLt(int paramPosition);
+
+
+   // To be implemented
+   // void addIfNull(int paramPosition);
+   // void addIfNonNull(int paramPosition);
+
    void trace();
-private:
+   private:
    void add(PotentialOptimization*);
    List<PotentialOptimization> _potentialOpts;
    TR::Region &_region;
