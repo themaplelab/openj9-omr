@@ -35,6 +35,23 @@ AbsOpStack::AbsOpStack(AbsOpStack &other, TR::Region &region) :
    {
    }
 
+void AbsOpStack::push(AbsValue* value)
+   {
+   TR_ASSERT_FATAL(value, "Push a NULL value");
+   _stack.push(value);
+   }
+
+void AbsOpStack::pop()
+   {
+   _stack.pop();
+   }
+
+AbsValue* AbsOpStack::top()
+   {
+   TR_ASSERT_FATAL(size() > 0, "Top an empty stack!");
+   return _stack.top(); 
+   }
+
 void AbsOpStack::merge(AbsOpStack &other, TR::Region &region, TR::ValuePropagation *valuePropagation)
    {
 

@@ -11,9 +11,6 @@
 #include <map>
 #include "optimizer/AbsState.hpp"
 
-
-
-
 class IDTBuilder
    {
    friend class AbsInterpreter;
@@ -25,17 +22,17 @@ class IDTBuilder
    private:
    bool buildIDTHelper(IDTNode* node, AbsState* invokeState, int callerIndex, int32_t budget, TR_CallStack* callStack);
    void performAbstractInterpretation(IDTNode* node, AbsState* invokeState,  int callerIndex, TR_CallStack* callStack, IDTNodeDeque& idtNodeChildren);
-   void computeCallRatio(TR_CallTarget* callTarget, TR_CallStack* callStack, TR::Block* block, TR::CFG* callerCfg );
+   float computeCallRatio(TR_CallTarget* callTarget, TR_CallStack* callStack, TR::Block* block, TR::CFG* callerCfg );
 
    TR::SymbolReference* getSymbolReference(TR::ResolvedMethodSymbol *callerSymbol, int cpIndex, TR::MethodSymbol::Kinds kind);
-   TR::Compilation* comp();
-   TR::Region& getRegion();
+   TR::Compilation* comp() {  return _comp;  };
+   TR::Region& getRegion() {  return _region;  };
 
    IDTNode* getInterpretedMethod(TR::ResolvedMethodSymbol* symbol);
    void addInterpretedMethod(TR::ResolvedMethodSymbol *symbol, IDTNode* node);
 
    //Why do we need an Inliner here? Because we need its applyPolicyToTargets()
-   OMR::BenefitInliner* getInliner();
+   OMR::BenefitInliner* getInliner()  {  return _inliner;  };
    
    //Used for calculating method branch profile
    OMR::BenefitInlinerUtil* getUtil();
@@ -93,7 +90,6 @@ class IDTBuilder
    typedef std::map<TR_OpaqueMethodBlock *, IDTNode*, InterpretedMethodMapComparator, InterpretedMethodMapAllocator> InterpretedMethodMap;
    InterpretedMethodMap _interpretedMethodMap;
 
-   int _callerIndex;
    int _callSiteIndex;
    int32_t _rootBudget;
    TR::Region& _region;

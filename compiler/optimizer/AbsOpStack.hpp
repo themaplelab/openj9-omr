@@ -41,12 +41,12 @@ class AbsOpStack
 
    void merge(AbsOpStack&, TR::Region&, TR::ValuePropagation *);
 
-   void pop() {  _stack.pop();  };
-   void push(AbsValue* value) {  TR_ASSERT_FATAL(value, "Push a NULL value"); _stack.push(value);  };
+   void pop();
+   void push(AbsValue* value);
+   AbsValue* top();
    bool empty()  {  return _stack.empty();  };
    size_t size()  {  return _stack.size();  };
-   AbsValue* top()  {  TR_ASSERT_FATAL(size() > 0, "Top an empty stack!"); return _stack.top();  };
-
+  
    void trace(TR::ValuePropagation *);
 
    private:

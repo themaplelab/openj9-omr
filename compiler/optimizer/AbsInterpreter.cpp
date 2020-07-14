@@ -25,16 +25,6 @@ AbsInterpreter::AbsInterpreter(
    _methodSummary = new (_region) MethodSummary(_region, valuePropagation);
    }
 
-TR::Compilation* AbsInterpreter::comp()
-   {
-   return _comp;
-   }
-
-TR::Region& AbsInterpreter::region()
-   {
-   return _region;
-   }
-
 void AbsInterpreter::interpret(AbsState* invokeState)
    {
    TR_CallTarget* callTarget = _idtNode->getCallTarget();
@@ -3177,7 +3167,7 @@ void AbsInterpreter::updateIDTNodeWithMethodSummary(IDTNode* node, AbsState* inv
       }
 
    // Update the Node's benefit
-   node->setBenefit(benefit);
+   node->setStaticBenefit(benefit);
 
    //pushes?
    if (method->returnTypeWidth() == 0)

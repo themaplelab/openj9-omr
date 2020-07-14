@@ -1,18 +1,16 @@
 #include "optimizer/IDT.hpp"
 
-IDT::IDT(TR::Region& region, TR::ResolvedMethodSymbol* rms, int budget, TR::Compilation* comp):
+IDT::IDT(TR::Region& region, TR::ResolvedMethodSymbol* symbol, TR_CallTarget* callTarget, int budget, TR::Compilation* comp):
       _region(region),
-      _vp(NULL),
-      _max_idx(-1),
+      _maxIdx(-1),
       _comp(comp),
-      _cost(0),
-      _root(new (_region) IDTNode(getNextGlobalIDTNodeIdx(), TR::MethodSymbol::Static, -1,rms,NULL,0,budget,NULL,1)),
+      _root(new (_region) IDTNode(getNextGlobalIDTNodeIndex(), TR::MethodSymbol::Static, callTarget, -1, symbol, 1, NULL, budget)),
       _indices(NULL)
    {   
    increaseGlobalIDTNodeIndex();
    }
 
-void IDT::printTrace() const
+void IDT::printTrace()
    {
    bool verboseInlining = comp()->getOptions()->getVerboseOption(TR_VerboseInlining);
    bool traceBIIDTGen = comp()->getOption(TR_TraceBIIDTGen);
@@ -48,15 +46,15 @@ void IDT::printTrace() const
       IDTNode* currentNode = idtNodeQueue->front();
       idtNodeQueue->pop_front();
 
-      int calleeIndex = currentNode->getCalleeIndex();
+      int index = currentNode->getGlobalIndex();
 
       //print IDT node info
-      if (calleeIndex != -1) //skip root node
+      if (index != -1) //skip root node
          {
          char line[1024];
          sprintf(line, "#IDT: #%d: #%d inlinable @%d -> bcsz=%d %s target %s, static benefit = %d, benefit = %d, cost = %d, budget = %d, callratio = %f, rootcallratio = %f", 
-            calleeIndex,
-            currentNode->getCallerIndex(),
+            index,
+            currentNode->getParentGloablIndex(),
             currentNode->getByteCodeIndex(),
             currentNode->getByteCodeSize(),
             currentNode->getCallTarget()->_calleeSymbol ? currentNode->getCallTarget()->_calleeSymbol->signature(comp()->trMemory()) : "no callee symbol???",
@@ -71,22 +69,24 @@ void IDT::printTrace() const
 
          if (verboseInlining)
             TR_VerboseLog::writeLineLocked(TR_Vlog_SIP, line);
+
          if (traceBIIDTGen) 
             traceMsg(comp(), "%s\n", line);
          }
          
-
       //process children
       for (unsigned int i = 0; i < currentNode->getNumChildren(); i ++)
-         {
          idtNodeQueue->push_back(currentNode->getChild(i));
-         }
+         
       }
          
    }
 
 void IDT::buildIndices()
    {
+   if (_indices != NULL)
+      return;
+      
    //initialize nodes index array
    unsigned int numNodes = getNumNodes()+1;
    _indices = new (_region) IDTNode *[numNodes];
@@ -101,7 +101,7 @@ void IDT::buildIndices()
       IDTNode* currentNode = idtNodeQueue->front();
       idtNodeQueue->pop_front();
 
-      int calleeIndex = currentNode->getCalleeIndex();
+      int calleeIndex = currentNode->getGlobalIndex();
       TR_ASSERT_FATAL(_indices[calleeIndex+1] == 0, "Callee index not unique!\n");
 
       _indices[calleeIndex + 1] = currentNode;
@@ -113,50 +113,11 @@ void IDT::buildIndices()
       }
    }
 
-int IDT::getNextGlobalIDTNodeIdx() 
+IDTNode *IDT::getNodeByGlobalIndex(int index)
    {
-   return _max_idx;
-   }
-
-void IDT::increaseGlobalIDTNodeIndex()
-   {
-   _max_idx ++;
-   }
-
-TR::Compilation* IDT::comp() const
-   {
-   return _comp;
-   }
-
-unsigned int IDT::getNumNodes() const
-   {
-   return getRoot()->getNumDescendantsIncludingMe();
-   }
-
-IDTNode* IDT::getRoot() const
-   {
-   return _root;
-   }
-
-IDTNode *IDT::getNodeByCalleeIndex(int calleeIndex)
-   {
-   TR_ASSERT_FATAL(calleeIndex < getNextGlobalIDTNodeIdx(), "CalleeIndex out of range!");
-   return _indices[calleeIndex + 1];
-   }
-
-TR::ValuePropagation* IDT::getValuePropagation()
-   {
-   if (_vp != NULL)
-      return _vp;
-   TR::OptimizationManager* manager = comp()->getOptimizer()->getOptimization(OMR::globalValuePropagation);
-   _vp = (TR::ValuePropagation*) manager->factory()(manager);
-   _vp->initialize();
-   return _vp;
-   }
-
-TR::Region& IDT::getMemoryRegion() const
-   {
-   return _region;
+   TR_ASSERT_FATAL(_indices, "Call buildIndices() first");
+   TR_ASSERT_FATAL(index < getNextGlobalIDTNodeIndex(), "Index out of range!");
+   return _indices[index + 1];
    }
 
 void IDT::copyDescendants(IDTNode* fromNode, IDTNode* toNode)
@@ -176,21 +137,17 @@ void IDT::copyDescendants(IDTNode* fromNode, IDTNode* toNode)
          }
 
       IDTNode* copiedChild = toNode->addChild(
-                           getNextGlobalIDTNodeIdx(),
+                           getNextGlobalIDTNodeIndex(),
                            child->getMethodKind(),
-                           child->getByteCodeIndex(),
                            child->getCallTarget(),
+                           child->getByteCodeIndex(),
                            child->getResolvedMethodSymbol(),
-                           child->getStaticBenefit(),
-                           child->getCallSite(),
                            child->getCallRatio(),
                            getMemoryRegion()
                            );
       if (copiedChild)
             {
             increaseGlobalIDTNodeIndex();
-            addCost(child->getCallTarget()->_calleeMethod->maxBytecodeIndex());
-            copiedChild->setCallTarget(child->getCallTarget());
             copiedChild->setMethodSummary(child->getMethodSummary());
             copyDescendants(child, copiedChild);
             }

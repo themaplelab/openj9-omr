@@ -37,13 +37,13 @@ class AbsLocalVarArray
    {
    public:
    AbsLocalVarArray(TR::Region &region);
-   AbsLocalVarArray(AbsLocalVarArray&, TR::Region&);
+   AbsLocalVarArray(AbsLocalVarArray&);
    void merge(AbsLocalVarArray&, TR::Region&, TR::ValuePropagation* );
    void trace(TR::ValuePropagation *vp);
    
 
    size_t size() { return _array.size(); };
-   AbsValue *at(unsigned int index) {  TR_ASSERT_FATAL(index < size(), "Index out of range!"); return _array.at(index);  };
+   AbsValue *at(unsigned int index);
    void set(unsigned int, AbsValue*);
    
    private:

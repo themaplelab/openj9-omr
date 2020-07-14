@@ -57,7 +57,7 @@ int32_t OMR::BenefitInlinerWrapper::perform()
 //       return 1;
 //       }
 //    inliner._idt->getRoot()->getResolvedMethodSymbol()->setFlowGraph(inliner._rootRms);
-    int recursiveCost = inliner._idt->getCost();
+    int recursiveCost = inliner._idt->getRoot()->getRecursiveCost();
     bool canSkipAbstractInterpretation = recursiveCost < budget;
     if (!canSkipAbstractInterpretation) {
       //  if (TR::comp()->getOption(TR_TraceAbstractInterpretation))
@@ -197,7 +197,7 @@ OMR::BenefitInlinerBase::usedSavedInformation(TR::ResolvedMethodSymbol *rms, TR_
 
          if (TR::comp()->trace(OMR::benefitInliner))
              {
-             traceMsg(TR::comp(), "inlining node %d %s\n", child->getCalleeIndex(), child->getName());
+             traceMsg(TR::comp(), "inlining node %d %s\n", child->getGlobalIndex(), child->getName());
              }
 
          IDTNode *prevChild = this->_currentChild;
@@ -376,6 +376,7 @@ OMR::BenefitInliner::analyzeIDT()
       // traceMsg(TR::comp(), "Inlining Proposal: \n");
       // traceMsg(TR::comp(), "size = %d, budget = %d\n", items.size(), this->budget());
       Growable_2d_array_BitVectorImpl results(this->comp(), items.size(), this->budget() + 1, this);
+      TR_ASSERT_FATAL(_idt, "IDT NULL");
       _inliningProposal = forwards_BitVectorImpl(this->budget(), items, &results, this->comp(), this, this->_idt);
       _inliningProposal->print(comp());
    }
@@ -731,7 +732,7 @@ OMR::BenefitInliner::BenefitInliner(TR::Optimizer *optimizer, TR::Optimization *
          _budget(budget),
          _methodSummaryMap(MethodSummaryMapComparator(), MethodSummaryMapAllocator(_mapRegion))
          {
-         _idtBuilder = new (optimizer->comp()->region()) IDTBuilder(optimizer->comp()->getMethodSymbol(), budget, optimizer->comp()->region(), optimizer->comp(), this);
+         _idtBuilder = new (comp()->trMemory()->heapMemoryRegion()) IDTBuilder(comp()->getMethodSymbol(), budget, comp()->trMemory()->heapMemoryRegion(), comp(), this);
          }
 
 void

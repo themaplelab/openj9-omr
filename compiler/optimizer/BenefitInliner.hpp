@@ -82,7 +82,7 @@ class BenefitInliner: public BenefitInlinerBase
       
       void analyzeIDT();
       
-      TR::Region& _holdingProposalRegion;
+      TR::Region _holdingProposalRegion;
       inline const uint32_t budget() const { return this->_budget; }
    private:
       typedef TR::typed_allocator<std::pair<TR_OpaqueMethodBlock*, IDTNode*>, TR::Region&> MethodSummaryMapAllocator;

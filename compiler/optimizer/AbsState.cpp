@@ -9,8 +9,8 @@ AbsState::AbsState(TR::Region &region) :
 
 AbsState::AbsState(AbsState* other) :
       _region(other->_region),
-      _array(other->_array, other->_region),
-      _stack(other->_stack, other->_region)
+      _array(other->_array),
+      _stack(other->_stack)
    {
    }
 
@@ -22,16 +22,6 @@ AbsValue* AbsState::at(unsigned int n)
 void AbsState::set(unsigned int n, AbsValue* absValue)
    {
    _array.set(n, absValue);
-   }
-
-size_t AbsState::getStackSize()
-   {
-   return _stack.size();
-   }
-
-size_t AbsState::getArraySize()
-   {
-   return _array.size();
    }
 
 void AbsState::merge(AbsState* other, TR::ValuePropagation *vp)
@@ -47,10 +37,8 @@ void AbsState::merge(AbsState* other, TR::ValuePropagation *vp)
 AbsValue* AbsState::pop()
    {
    AbsValue* absValue = _stack.top();
-  
    _stack.pop();
-   // printf("pop\n");
-   // printf("size: %d\n", _stack.size());
+
    return absValue;
    }
 
@@ -62,8 +50,6 @@ AbsValue* AbsState::top()
 void AbsState::push(AbsValue *absValue)
    {     
    _stack.push(absValue);
-   // printf("push\n");
-   // printf("size: %d\n", _stack.size());
    }
 
 void AbsState::trace(TR::ValuePropagation *vp)

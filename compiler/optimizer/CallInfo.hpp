@@ -156,7 +156,6 @@ struct TR_CallTarget : public TR_Link<TR_CallTarget>
    TR_OpaqueClassBlock*         _receiverClass;
 
    float                        _frequencyAdjustment; // may need this for multiple call targets.
-   float                        _callRatioCallerCallee;
    bool                         _alreadyInlined;      // so we don't keep trying to inline the same method repeatedly
 
    void            setComp(TR::Compilation *comp){ _comp = comp; }

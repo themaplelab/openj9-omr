@@ -43,8 +43,8 @@ class AbsState
     AbsValue* pop();
     AbsValue* top();
     void merge(AbsState*, TR::ValuePropagation*);
-    size_t getStackSize();
-    size_t getArraySize();
+    size_t getStackSize() {   return _stack.size();  };
+    size_t getArraySize() {  return _array.size();  };
     void trace(TR::ValuePropagation*);
 
     private:

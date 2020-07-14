@@ -27,18 +27,8 @@ class AbsInterpreter
    static void cleanInvokeState(TR_ResolvedMethod* containingMethod, int cpIndex, AbsState* invokeState, TR::MethodSymbol::Kinds kind, TR::Region& region, TR::Compilation* comp);
 
    private:
-   MethodSummary* _methodSummary;
-   IDTBuilder* _idtBuilder;
-   IDTNode* _idtNode;
-   int _callerIndex;
-   TR_CallStack* _callStack;
-   IDTNodeDeque* _idtNodeChildren;
-   TR::Region& _region;
-   TR::Compilation* _comp;
-   TR_J9ByteCodeIterator _bcIterator;
-   TR::ValuePropagation* _valuePropagation;
-   TR::Compilation* comp();
-   TR::Region& region();
+   TR::Compilation* comp() {  return _comp; };
+   TR::Region& region() {  return _region;  };
 
    AbsValue* getClassAbsValue(TR_OpaqueClassBlock* opaqueClass, TR::VPClassPresence *presence = NULL, TR::VPArrayInfo *info = NULL);
    AbsValue* getTOPAbsValue(TR::DataType dataType);
@@ -271,6 +261,16 @@ class AbsInterpreter
    AbsState* tableswitch(AbsState*);
 // AbsState* wide(AbsState*);
 
+   MethodSummary* _methodSummary;
+   IDTBuilder* _idtBuilder;
+   IDTNode* _idtNode;
+   int _callerIndex;
+   TR_CallStack* _callStack;
+   IDTNodeDeque* _idtNodeChildren;
+   TR::Region& _region;
+   TR::Compilation* _comp;
+   TR_J9ByteCodeIterator _bcIterator;
+   TR::ValuePropagation* _valuePropagation;
    };
 
 

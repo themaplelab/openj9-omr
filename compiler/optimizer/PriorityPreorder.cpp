@@ -44,7 +44,11 @@ PriorityPreorder::get(size_t idx) {
     TR_ASSERT(new_entry, "new entry can't be null");
     _queue.pop();
     this->_entries.push_back(new_entry);
-    new_entry->enqueueSubordinates( &this->_queue );
+    
+    int numChildren = new_entry->getNumChildren();
+    for (int i =0 ; i < numChildren; i ++)
+      _queue.push(new_entry->getChild(i));
+      
   }
   return this->_entries.at(idx);
 }

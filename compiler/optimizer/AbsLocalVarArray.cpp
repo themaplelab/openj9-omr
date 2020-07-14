@@ -26,7 +26,7 @@ AbsLocalVarArray::AbsLocalVarArray(TR::Region &region) :
    {
    }
 
-AbsLocalVarArray::AbsLocalVarArray(AbsLocalVarArray &other, TR::Region &region) :
+AbsLocalVarArray::AbsLocalVarArray(AbsLocalVarArray &other) :
       _array(other._array)
    {
    }
@@ -83,6 +83,12 @@ void AbsLocalVarArray::set(unsigned int index, AbsValue *constraint)
       _array.push_back(constraint);
    }
    
+AbsValue* AbsLocalVarArray::at(unsigned int index)
+   {
+   TR_ASSERT_FATAL(index < size(), "Index out of range!");
+   return _array.at(index); 
+   }
+
 void AbsLocalVarArray::trace(TR::ValuePropagation *vp)
    {
    TR::Compilation *comp = TR::comp();

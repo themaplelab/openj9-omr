@@ -1,5 +1,4 @@
 #include "optimizer/IDTBuilder.hpp"
-#include "ilgen/J9ByteCodeIterator.hpp"
 #include "optimizer/AbsInterpreter.hpp"
 
 IDTBuilder::IDTBuilder(TR::ResolvedMethodSymbol* symbol, int32_t budget, TR::Region& region, TR::Compilation* comp, OMR::BenefitInliner* inliner) :
@@ -12,25 +11,9 @@ IDTBuilder::IDTBuilder(TR::ResolvedMethodSymbol* symbol, int32_t budget, TR::Reg
       _idt(NULL),
       _valuePropagation(NULL),
       _util(NULL),
-      _callerIndex(-1),
       _callSiteIndex(0),
       _interpretedMethodMap(InterpretedMethodMapComparator(), InterpretedMethodMapAllocator(region))
    {
-   }
-
-TR::Compilation* IDTBuilder::comp() 
-   {
-   return _comp;
-   }
-
-TR::Region& IDTBuilder::getRegion() 
-   {
-   return _region;
-   }
-
-OMR::BenefitInliner* IDTBuilder::getInliner() 
-   {
-   return _inliner;
    }
 
 OMR::BenefitInlinerUtil* IDTBuilder::getUtil()
@@ -69,11 +52,8 @@ IDT* IDTBuilder::buildIDT()
    if (traceBIIDTGen)
       traceMsg(comp(), "\n+ IDTBuilder: Start building IDT |\n\n");
    
-   //Initialize IDT
-   _idt = new (getRegion()) IDT(getRegion(), _rootSymbol, _rootBudget, comp());
-   IDTNode* root = _idt->getRoot();
-
-   //set the root node call target
+   
+   //root call target
    TR_ResolvedMethod* rootMethod = _rootSymbol->getResolvedMethod();
    TR_CallTarget *rootCallTarget = new (getRegion()) TR_CallTarget(
                                     NULL,
@@ -82,8 +62,10 @@ IDT* IDTBuilder::buildIDT()
                                     NULL, 
                                     rootMethod->containingClass(), 
                                     NULL);
-
-   root->setCallTarget(rootCallTarget);
+   
+   //Initialize IDT
+   _idt = new (getRegion()) IDT(getRegion(), _rootSymbol, rootCallTarget, _rootBudget, comp());
+   IDTNode* root = _idt->getRoot();
 
    //add the decendants
    buildIDTHelper(root, NULL, -1, _rootBudget, NULL);
@@ -94,7 +76,7 @@ IDT* IDTBuilder::buildIDT()
    return _idt;
    }
 
-
+// The return value means if this node is going to be abstract interpreted.
 bool IDTBuilder::buildIDTHelper(IDTNode* node, AbsState* invokeState, int callerIndex, int32_t budget, TR_CallStack* callStack)
    {
    // stop building IDT
@@ -122,7 +104,7 @@ bool IDTBuilder::buildIDTHelper(IDTNode* node, AbsState* invokeState, int caller
       symbol->setFlowGraph(cfg);
       cfg->getStartForReverseSnapshot()->setFrequency(cfg->getStartBlockFrequency());
       }
-   else //cfg has already been set somewhere else
+   else //cfg has already been set in computeCallRatio()
       {
       TR::CFG* cfg = node->getCallTarget()->_cfg;
       cfg->getStartForReverseSnapshot()->setFrequency(cfg->getStartBlockFrequency());
@@ -147,7 +129,6 @@ bool IDTBuilder::buildIDTHelper(IDTNode* node, AbsState* invokeState, int caller
       }
    
    return true;
-
    }
 
 //Perform abstract interpretation while building the IDT (adding children)
@@ -195,55 +176,46 @@ void IDTBuilder::addChild(IDTNode*node, int callerIndex, TR_ResolvedMethod* cont
    //There should be only one call Target in callsite (disable multiTargetInlining)
    TR_CallTarget* callTarget = callsite->getTarget(0);
 
-   //At this point we have the callsite, next thing is to compute the call ratio of each call target of this call site.
-   computeCallRatio(callTarget, callStack, block, callerCfg);
-
-   //Adding all call targets as Child IDTNodes to the current IDTNode
-
    TR::ResolvedMethodSymbol * resolvedMethodSymbol = TR::ResolvedMethodSymbol::create(comp()->trHeapMemory(), callTarget->_calleeMethod, comp());
+
    int remainingBudget = node->getBudget() - callTarget->_calleeMethod->maxBytecodeIndex();
-   
    if (remainingBudget < 0 )
       {
       AbsInterpreter::cleanInvokeState(containingMethod, cpIndex, invokeState, kind, getRegion(), comp());
       return;
       }
       
-   
+   //At this point we have the callsite, next thing is to compute the call ratio of the call target.
+   float callRatio = computeCallRatio(callTarget, callStack, block, callerCfg);
+
    IDTNode* child = node->addChild(
-                           _idt->getNextGlobalIDTNodeIdx(),
+                           _idt->getNextGlobalIDTNodeIndex(),
                            kind,
-                           callsite->_byteCodeIndex,
                            callTarget,
+                           callsite->_byteCodeIndex,
                            resolvedMethodSymbol,
-                           0,
-                           callsite,
-                           callTarget->_callRatioCallerCallee,
+                           callRatio,
                            _idt->getMemoryRegion()
                            );
-   if (child == NULL)
+
+   if (child == NULL) // Fail to add the Node to IDT
       {
       AbsInterpreter::cleanInvokeState(containingMethod, cpIndex, invokeState, kind, getRegion(),comp());   
       return;
       }
    
    //If successfully add this child to the IDT
-      
-  
    _idt->increaseGlobalIDTNodeIndex();
-   _idt->addCost(callTarget->_calleeMethod->maxBytecodeIndex());
-   child->setCallStack(callStack);
-   child->setCallTarget(callTarget);
 
-   if (!comp()->incInlineDepth(resolvedMethodSymbol, child->getCallSite()->_bcInfo, child->getCallSite()->_cpIndex,NULL, !child->getCallSite()->isIndirectCall(),0))
+   if (!comp()->incInlineDepth(resolvedMethodSymbol, callsite->_bcInfo, callsite->_cpIndex,NULL, !callsite->isIndirectCall(),0))
       {
       AbsInterpreter::cleanInvokeState(containingMethod, cpIndex, invokeState, kind, getRegion(), comp());
       return;
       }
 
-   bool success = buildIDTHelper(child, invokeState, callerIndex + 1, child->getBudget(), callStack);
+   bool toBeAbstractInterpreted = buildIDTHelper(child, invokeState, callerIndex + 1, child->getBudget(), callStack);
 
-   if (!success)
+   if (!toBeAbstractInterpreted)
       AbsInterpreter::cleanInvokeState(containingMethod, cpIndex, invokeState, kind, getRegion(), comp());
 
    comp()->decInlineDepth(true); 
@@ -253,13 +225,16 @@ void IDTBuilder::addChild(IDTNode*node, int callerIndex, TR_ResolvedMethod* cont
       
    }
 
-void IDTBuilder::computeCallRatio(TR_CallTarget* callTarget, TR_CallStack* callStack, TR::Block* block, TR::CFG* callerCfg)
+float IDTBuilder::computeCallRatio(TR_CallTarget* callTarget, TR_CallStack* callStack, TR::Block* block, TR::CFG* callerCfg)
    {
    TR_ASSERT_FATAL(callTarget, "Call Target is NULL!");
+
    TR::CFG* cfg = generateCFG(callTarget, callStack); //Now the callTarget has its own CFG
    TR::ResolvedMethodSymbol *caller = callStack->_methodSymbol;
+
    cfg->computeMethodBranchProfileInfo(getUtil(), callTarget, caller, _callSiteIndex++, block, callerCfg);
-   callTarget->_callRatioCallerCallee = ((float)block->getFrequency() / (float) callerCfg->getStartBlockFrequency());  
+
+   return ((float)block->getFrequency() / (float) callerCfg->getStartBlockFrequency());  
    }
 
 TR_CallSite* IDTBuilder::findCallSiteTargets(
