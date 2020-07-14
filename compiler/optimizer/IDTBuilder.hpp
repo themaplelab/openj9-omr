@@ -16,17 +16,18 @@ class IDTBuilder
    friend class AbsInterpreter;
 
    public:
-   IDTBuilder(TR::ResolvedMethodSymbol* symbol, int32_t budget, TR::Region& region, TR::Compilation* comp, OMR::BenefitInliner* inliner);
+   IDTBuilder(TR::ResolvedMethodSymbol* symbol, int32_t budget, TR::Region& stackRegion, TR::Region& idtRegion, TR::Compilation* comp, OMR::BenefitInliner* inliner);
    IDT* buildIDT();
 
    private:
    bool buildIDTHelper(IDTNode* node, AbsState* invokeState, int callerIndex, int32_t budget, TR_CallStack* callStack);
-   void performAbstractInterpretation(IDTNode* node, AbsState* invokeState,  int callerIndex, TR_CallStack* callStack, IDTNodeDeque& idtNodeChildren);
+   void performAbstractInterpretation(IDTNode* node, AbsState* invokeState,  int callerIndex, TR_CallStack* callStack);
    float computeCallRatio(TR_CallTarget* callTarget, TR_CallStack* callStack, TR::Block* block, TR::CFG* callerCfg );
 
    TR::SymbolReference* getSymbolReference(TR::ResolvedMethodSymbol *callerSymbol, int cpIndex, TR::MethodSymbol::Kinds kind);
    TR::Compilation* comp() {  return _comp;  };
-   TR::Region& getRegion() {  return _region;  };
+   TR::Region& getIdtRegion() {  return _idtRegion;  };
+   TR::Region& getStackRegion() {  return _stackRegion;  };
 
    IDTNode* getInterpretedMethod(TR::ResolvedMethodSymbol* symbol);
    void addInterpretedMethod(TR::ResolvedMethodSymbol *symbol, IDTNode* node);
@@ -46,8 +47,7 @@ class IDTBuilder
       int bcIndex, 
       int cpIndex, 
       TR::MethodSymbol::Kinds kind, 
-      TR_CallStack* callStack, 
-      IDTNodeDeque* idtNodeChildren, 
+      TR_CallStack* callStack,
       TR::Block* block, 
       TR::CFG* cfg);
 
@@ -92,7 +92,8 @@ class IDTBuilder
 
    int _callSiteIndex;
    int32_t _rootBudget;
-   TR::Region& _region;
+   TR::Region& _idtRegion;
+   TR::Region& _stackRegion;
    TR::Compilation* _comp;
    TR::ValuePropagation *_valuePropagation;
    OMR::BenefitInliner* _inliner;

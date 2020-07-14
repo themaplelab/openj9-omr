@@ -1,11 +1,9 @@
-#include "compiler/optimizer/InliningProposal.hpp"
+#include "optimizer/InliningProposal.hpp"
 #include "infra/deque.hpp"
-
-#ifdef J9_PROJECT_SPECIFIC
 #include "compile/Compilation.hpp"
 #include "env/Region.hpp"
 #include "infra/BitVector.hpp" // for BitVector
-#endif
+
 
 InliningProposal::InliningProposal(TR::Region& region, IDT *idt):
    _cost(-1),
@@ -41,6 +39,8 @@ void InliningProposal::print(TR::Compilation* comp)
       }
 
    int32_t numMethodsInlined =  _nodes->elementCount()-1;
+  
+   TR_ASSERT_FATAL(_idt, "IDT is NULL");
 
    char header[1024];
    sprintf(header,"#Proposal: %d methods inlined into %s", numMethodsInlined, _idt->getRoot()->getName());
@@ -58,15 +58,15 @@ void InliningProposal::print(TR::Compilation* comp)
       {
       IDTNode* currentNode = idtNodeQueue->front();
       idtNodeQueue->pop_front();
-      int calleeIndex = currentNode->getCalleeIndex();
+      int index = currentNode->getGlobalIndex();
 
-      if (calleeIndex != -1) //do not print the root node
+      if (index != -1) //do not print the root node
          { 
          char line[1024];
          sprintf(line, "#Proposal: #%d : #%d %s @%d -> bcsz=%d %s target %s, benefit = %d, cost = %d, budget = %d",
-            currentNode->getCalleeIndex(),
-            currentNode->getCallerIndex(),
-            _nodes->isSet(calleeIndex+1) ? "inlined" : "not inlined",
+            currentNode->getGlobalIndex(),
+            currentNode->getParentGloablIndex(),
+            _nodes->isSet(index + 1) ? "inlined" : "not inlined",
             currentNode->getByteCodeIndex(),
             currentNode->getByteCodeSize(),
             currentNode->getCallTarget()->_calleeSymbol ? currentNode->getCallTarget()->_calleeSymbol->signature(comp->trMemory()) : "no callee symbol???",
@@ -86,9 +86,8 @@ void InliningProposal::print(TR::Compilation* comp)
       int32_t numChildren = currentNode->getNumChildren();
 
       for (int32_t i = 0; i < numChildren; i++)
-         {
          idtNodeQueue->push_back(currentNode->getChild(i));
-         }
+         
       } 
 
    traceMsg(comp, "\nBit Vector\n");
@@ -101,7 +100,7 @@ void InliningProposal::pushBack(IDTNode *node)
    {
    ensureBitVectorInitialized();
 
-   int32_t calleeIdx = node->getCalleeIndex() + 1;
+   int32_t calleeIdx = node->getGlobalIndex() + 1;
    if (this->_nodes->isSet(calleeIdx))
       {
       return;
@@ -148,7 +147,7 @@ void InliningProposal::computeCostAndBenefit()
    while (bvi.hasMoreElements()) 
       {
       igNodeIndex = bvi.getNextElement();
-      IDTNode *node = _idt->getNodeByCalleeIndex(igNodeIndex - 1);
+      IDTNode *node = _idt->getNodeByGlobalIndex(igNodeIndex - 1);
       if (node == NULL) 
          {
          continue;
@@ -181,7 +180,7 @@ bool InliningProposal::inSet(IDTNode* node)
       return false;
    if (this->_nodes->isEmpty())
       return false;
-   int32_t callee_idx = node->getCalleeIndex() + 1;
+   int32_t callee_idx = node->getGlobalIndex() + 1;
 
    return this->_nodes->isSet(callee_idx);
    }

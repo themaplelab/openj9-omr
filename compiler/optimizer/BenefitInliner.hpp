@@ -76,7 +76,6 @@ class BenefitInliner: public BenefitInlinerBase
       void addEverything();
       void addEverythingRecursively(IDTNode*);
       void buildIDT();
-      void updateIDT();
       
       BenefitInliner(TR::Optimizer *, TR::Optimization *, uint32_t);
       
@@ -85,19 +84,9 @@ class BenefitInliner: public BenefitInlinerBase
       TR::Region _holdingProposalRegion;
       inline const uint32_t budget() const { return this->_budget; }
    private:
-      typedef TR::typed_allocator<std::pair<TR_OpaqueMethodBlock*, IDTNode*>, TR::Region&> MethodSummaryMapAllocator;
-      typedef std::less<TR_OpaqueMethodBlock*> MethodSummaryMapComparator;
-      typedef std::map<TR_OpaqueMethodBlock *, IDTNode*, MethodSummaryMapComparator, MethodSummaryMapAllocator> MethodSummaryMap;
-
-      IDTBuilder* _idtBuilder;
+      TR::Region _idtRegion;
       TR::CFG *_rootRms;
-      TR::Region _absEnvRegion;
-      TR::Region _callSitesRegion;
-      TR::Region _callStacksRegion;
-      TR::Region _mapRegion;
-      TR::Region _IDTConstructorRegion;
-      MethodSummaryMap _methodSummaryMap;
-      TR_CallStack *_inliningCallStack;
+
       const uint32_t _budget;
 
      

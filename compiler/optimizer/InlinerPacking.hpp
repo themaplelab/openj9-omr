@@ -5,7 +5,7 @@
 #include "compiler/optimizer/IDT.hpp"
 #include "compiler/optimizer/InliningProposal.hpp"
 #include "compiler/optimizer/PriorityPreorder.hpp"
-#include "compiler/optimizer/Growable_2d_array.hpp"
+#include "compiler/optimizer/Growable2dArray.hpp"
 
 namespace OMR {class BenefitInliner; }
 
@@ -17,6 +17,6 @@ namespace OMR {class BenefitInliner; }
 #endif
 
 InliningProposal* 
-forwards_BitVectorImpl(int, PriorityPreorder&, Growable_2d_array_BitVectorImpl*, TR::Compilation *, OMR::BenefitInliner*, IDT*);
+forwards_BitVectorImpl(int, PriorityPreorder&, Growable2dArray*, TR::Compilation *, OMR::BenefitInliner*, IDT*);
 
 #endif

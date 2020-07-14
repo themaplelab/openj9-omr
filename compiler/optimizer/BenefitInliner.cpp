@@ -13,7 +13,6 @@
 #include "optimizer/MethodSummary.hpp"
 #include "optimizer/J9EstimateCodeSize.hpp"
 #include "optimizer/PriorityPreorder.hpp"
-#include "optimizer/Growable_2d_array.hpp"
 #include "optimizer/InlinerPacking.hpp"
 #include "optimizer/InliningProposal.hpp"
 #include "optimizer/IDTBuilder.hpp"
@@ -107,12 +106,8 @@ OMR::BenefitInliner::addEverythingRecursively(IDTNode *node)
 
 void OMR::BenefitInliner::buildIDT()
    {
-   _idt = _idtBuilder->buildIDT();
-
-   }
-
-void OMR::BenefitInliner::updateIDT()
-   {
+   IDTBuilder idtBuilder(comp()->getMethodSymbol(), _budget, comp()->trMemory()->currentStackRegion(), _idtRegion, comp(), this);
+   _idt = idtBuilder.buildIDT();
    }
 
 bool
@@ -375,7 +370,7 @@ OMR::BenefitInliner::analyzeIDT()
       PriorityPreorder items(this->_idt, this->comp());
       // traceMsg(TR::comp(), "Inlining Proposal: \n");
       // traceMsg(TR::comp(), "size = %d, budget = %d\n", items.size(), this->budget());
-      Growable_2d_array_BitVectorImpl results(this->comp(), items.size(), this->budget() + 1, this);
+      Growable2dArray results(this->comp(), items.size(), this->budget() + 1, this);
       TR_ASSERT_FATAL(_idt, "IDT NULL");
       _inliningProposal = forwards_BitVectorImpl(this->budget(), items, &results, this->comp(), this, this->_idt);
       _inliningProposal->print(comp());
@@ -721,18 +716,11 @@ OMR::BenefitInlinerBase::BenefitInlinerBase(TR::Optimizer *optimizer, TR::Optimi
 
 OMR::BenefitInliner::BenefitInliner(TR::Optimizer *optimizer, TR::Optimization *optimization, uint32_t budget) : 
          BenefitInlinerBase(optimizer, optimization),
-         _absEnvRegion(optimizer->comp()->region()),
-         _callSitesRegion(optimizer->comp()->region()),
-         _callStacksRegion(optimizer->comp()->region()),
-         _holdingProposalRegion(optimizer->comp()->region()),
-         _mapRegion(optimizer->comp()->region()),
-         _IDTConstructorRegion(optimizer->comp()->region()),
-         _inliningCallStack(NULL),
+         _holdingProposalRegion(comp()->trMemory()->heapMemoryRegion()),
+         _idtRegion(comp()->trMemory()->heapMemoryRegion()),
          _rootRms(NULL),
-         _budget(budget),
-         _methodSummaryMap(MethodSummaryMapComparator(), MethodSummaryMapAllocator(_mapRegion))
+         _budget(budget)
          {
-         _idtBuilder = new (comp()->trMemory()->heapMemoryRegion()) IDTBuilder(comp()->getMethodSymbol(), budget, comp()->trMemory()->heapMemoryRegion(), comp(), this);
          }
 
 void

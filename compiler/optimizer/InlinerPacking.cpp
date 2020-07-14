@@ -1,10 +1,10 @@
 #include "compiler/optimizer/InliningProposal.hpp"
-#include "compiler/optimizer/Growable_2d_array.hpp"
+#include "compiler/optimizer/Growable2dArray.hpp"
 #include "compiler/optimizer/BenefitInliner.hpp"
 #include "compiler/optimizer/PriorityPreorder.hpp"
 
 InliningProposal*
-forwards_BitVectorImpl(const int cost_budget, PriorityPreorder& items, Growable_2d_array_BitVectorImpl* table, TR::Compilation* comp, OMR::BenefitInliner *inliner, IDT *idt)
+forwards_BitVectorImpl(const int cost_budget, PriorityPreorder& items, Growable2dArray* table, TR::Compilation* comp, OMR::BenefitInliner *inliner, IDT *idt)
 {
   size_t max = items.size();
   InliningProposal new_proposal(inliner->comp()->trMemory()->currentStackRegion(), idt);

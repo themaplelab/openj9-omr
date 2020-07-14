@@ -16,7 +16,6 @@ class AbsInterpreter
       IDTBuilder* idtBuilder, 
       TR::ValuePropagation* valuePropagation, 
       TR_CallStack* callStack,
-      IDTNodeDeque* idtNodeChildren,
       TR::Region& region, 
       TR::Compilation* comp);
 

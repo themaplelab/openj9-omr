@@ -2,7 +2,7 @@
 #include <iostream>
 #include <algorithm>
 
-#include "compiler/optimizer/Growable_2d_array.hpp"
+#include "compiler/optimizer/Growable2dArray.hpp"
 #include "compiler/optimizer/InliningProposal.hpp"
 #include "compile/Compilation.hpp"
 #include "env/TypedAllocator.hpp"
@@ -11,7 +11,7 @@
 #include "infra/BitVector.hpp"
 
 
-Growable_2d_array_BitVectorImpl::Growable_2d_array_BitVectorImpl(TR::Compilation *comp, size_t rows, size_t cols, OMR::BenefitInliner*inliner)
+Growable2dArray::Growable2dArray(TR::Compilation *comp, size_t rows, size_t cols, OMR::BenefitInliner*inliner)
   : _rows(rows + 1)
   , _default(NULL)
   , _cols(cols)
@@ -29,17 +29,17 @@ Growable_2d_array_BitVectorImpl::Growable_2d_array_BitVectorImpl(TR::Compilation
 }
 
 TR::Region&
-Growable_2d_array_BitVectorImpl::region() {
+Growable2dArray::region() {
   return this->_inliner->_holdingProposalRegion;
 }
 
 const InliningProposal&
-Growable_2d_array_BitVectorImpl::proposal() {
+Growable2dArray::proposal() {
   return *this->_default;
 }
 
 const InliningProposal&
-Growable_2d_array_BitVectorImpl::get(int row, int col) {
+Growable2dArray::get(int row, int col) {
   if (row < 0 or col < 0) {
     return this->proposal();
   }
@@ -54,7 +54,7 @@ Growable_2d_array_BitVectorImpl::get(int row, int col) {
 }
 
 InliningProposal*
-Growable_2d_array_BitVectorImpl::_get(const int row, const int col) {
+Growable2dArray::_get(const int row, const int col) {
   if (row < 0 or col < 0) {
     return this->_default;
   }
@@ -66,21 +66,21 @@ Growable_2d_array_BitVectorImpl::_get(const int row, const int col) {
 }
 
 InliningProposal&
-Growable_2d_array_BitVectorImpl::get_best() {
+Growable2dArray::get_best() {
   size_t row = this->_rows;
   size_t col = this->_cols;
   return *this->_get(row - 1, col);
 }
 
 InliningProposal*
-Growable_2d_array_BitVectorImpl::get_new(const int row, const int col) {
+Growable2dArray::get_new(const int row, const int col) {
   InliningProposal*heap = new (region()) InliningProposal(*this->_default, this->_inliner->comp()->trMemory()->currentStackRegion());
   this->_table[row][col] = heap;
   return heap;
 }
 
 void
-Growable_2d_array_BitVectorImpl::put(int row, int col, InliningProposal& proposal) {
+Growable2dArray::put(int row, int col, InliningProposal& proposal) {
   if (row < 0 or col < 0) {
     TR_ASSERT(false, "putting in negative is not cool, this might fail first");
     traceMsg(TR::comp(), "putting in %d, %d\n", row, col);
@@ -98,7 +98,7 @@ Growable_2d_array_BitVectorImpl::put(int row, int col, InliningProposal& proposa
 }
 
 void
-Growable_2d_array_BitVectorImpl::_put(int row, int col, InliningProposal* proposal) {
+Growable2dArray::_put(int row, int col, InliningProposal* proposal) {
   if (row < 0 or col < 0) {
     TR_ASSERT(false, "putting in negative is not cool, this might fail first");
     traceMsg(TR::comp(), "putting in %d, %d\n", row, col);

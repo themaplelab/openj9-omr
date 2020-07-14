@@ -1,4 +1,3 @@
-#pragma once
 
 #ifndef GROWABLE_2D_ARRAY_INCL
 #define GROWABLE_2D_ARRAY_INCL
@@ -9,9 +8,9 @@
 #include "compiler/optimizer/BenefitInliner.hpp"
 
 
-class Growable_2d_array_BitVectorImpl {
+class Growable2dArray {
 public:
-  Growable_2d_array_BitVectorImpl(TR::Compilation*, size_t, size_t, OMR::BenefitInliner*);
+  Growable2dArray(TR::Compilation*, size_t, size_t, OMR::BenefitInliner*);
   const InliningProposal& proposal();
   const InliningProposal& get(int, int);
   InliningProposal* get_new(const int, const int);

@@ -1,5 +1,5 @@
-#ifndef INLININGPROPOSAL_INCL
-#define INLININGPROPOSAL_INCL
+#ifndef INLINING_PROPOSAL_INCL
+#define INLINING_PROPOSAL_INCL
 
 #include <functional>
 #include <unordered_set>

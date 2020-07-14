@@ -7,7 +7,6 @@ AbsInterpreter::AbsInterpreter(
    IDTBuilder* idtBuilder, 
    TR::ValuePropagation* valuePropagation,
    TR_CallStack* callStack,
-   IDTNodeDeque* idtNodeChildren,
    TR::Region& region,
    TR::Compilation* comp
    ):
@@ -18,7 +17,6 @@ AbsInterpreter::AbsInterpreter(
       _comp(comp),
       _valuePropagation(valuePropagation),
       _callStack(callStack),
-      _idtNodeChildren(idtNodeChildren),
       _bcIterator(node->getResolvedMethodSymbol(),static_cast<TR_ResolvedJ9Method*>(node->getCallTarget()->_calleeMethod),static_cast<TR_J9VMBase*>(this->comp()->fe()), this->comp())
    {
    TR_ASSERT_FATAL(idtBuilder, "IDTBuilder cannot be NULL");
@@ -3051,7 +3049,7 @@ AbsState* AbsInterpreter::invokeinterface(AbsState* absState, int bcIndex, int c
 void AbsInterpreter::invoke(int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind, TR_ResolvedMethod* method, AbsState* absState, TR::Block* block) 
    {
    TR::Method *j9Method = comp()->fej9()->createMethod(comp()->trMemory(), method->containingClass(), cpIndex);
-   _idtBuilder->addChild(_idtNode, _callerIndex, method, absState, bcIndex, cpIndex, kind, _callStack, _idtNodeChildren ,block, _idtNode->getCallTarget()->_cfg);
+   _idtBuilder->addChild(_idtNode, _callerIndex, method, absState, bcIndex, cpIndex, kind, _callStack ,block, _idtNode->getCallTarget()->_cfg);
    }
 
 void AbsInterpreter::cleanInvokeState(TR_ResolvedMethod* containingMethod, int cpIndex, AbsState* invokeState, TR::MethodSymbol::Kinds kind, TR::Region& region, TR::Compilation* comp)

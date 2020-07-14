@@ -4,7 +4,7 @@ IDT::IDT(TR::Region& region, TR::ResolvedMethodSymbol* symbol, TR_CallTarget* ca
       _region(region),
       _maxIdx(-1),
       _comp(comp),
-      _root(new (_region) IDTNode(getNextGlobalIDTNodeIndex(), TR::MethodSymbol::Static, callTarget, -1, symbol, 1, NULL, budget)),
+      _root(new (_region) IDTNode(getNextGlobalIDTNodeIndex(), symbol->getMethodKind(), callTarget, -1, symbol, 1, NULL, budget)),
       _indices(NULL)
    {   
    increaseGlobalIDTNodeIndex();
@@ -86,7 +86,7 @@ void IDT::buildIndices()
    {
    if (_indices != NULL)
       return;
-      
+
    //initialize nodes index array
    unsigned int numNodes = getNumNodes()+1;
    _indices = new (_region) IDTNode *[numNodes];
