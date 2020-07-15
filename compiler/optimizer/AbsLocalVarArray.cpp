@@ -92,11 +92,11 @@ AbsValue* AbsLocalVarArray::at(unsigned int index)
 void AbsLocalVarArray::trace(TR::ValuePropagation *vp)
    {
    TR::Compilation *comp = TR::comp();
-   traceMsg(comp, "Contents of Abstract Variable Array:\n");
+   traceMsg(comp, "Contents of Abstract Local Variable Array:\n");
    int size = this->size();
    for (int i = 0; i < size; i++)
       {
-      traceMsg(comp, "a[%d] = ", i);
+      traceMsg(comp, "A[%d] = ", i);
       if (!this->at(i))
          {
          traceMsg(comp, "NULL\n");

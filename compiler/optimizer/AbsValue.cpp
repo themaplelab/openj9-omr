@@ -50,12 +50,16 @@ AbsValue* AbsValue::merge(AbsValue *other, TR::Region &region, OMR::ValuePropaga
    return mergedValue;
    }
 
-void AbsValue::print(OMR::ValuePropagation *vp)    
+void AbsValue::print(TR::ValuePropagation *vp)    
    {
    traceMsg(TR::comp(), "AbsValue: type: %s ", TR::DataType::getName(_dataType));
    if (!_constraint)
+      {
+      traceMsg(TR::comp(), "TOP (unknown)");
       return;
-   traceMsg(TR::comp(), "constraint: ");
+      }
+
+   traceMsg(TR::comp(), "Constraint: ");
    _constraint->print(vp);
-   traceMsg(TR::comp(), "param pos: %d\n", _paramPos);
+   traceMsg(TR::comp(), " param position: %d", _paramPos);
    }

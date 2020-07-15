@@ -19,10 +19,10 @@ class AbsInterpreter
       TR::Region& region, 
       TR::Compilation* comp);
 
-
+   // invokeState is parent method's AbsState at the time the current method is invoked.
    void interpret(AbsState* invokeState);
 
-   //For those methods failed to add to the IDT, we need to clean its abs state (pop and push).
+   //For those methods failed to add to the IDT, we need to clean its abs state (pop and push) to ensure the abstract state is valid.
    static void cleanInvokeState(TR_ResolvedMethod* containingMethod, int cpIndex, AbsState* invokeState, TR::MethodSymbol::Kinds kind, TR::Region& region, TR::Compilation* comp);
 
    private:
@@ -32,29 +32,22 @@ class AbsInterpreter
    AbsValue* getClassAbsValue(TR_OpaqueClassBlock* opaqueClass, TR::VPClassPresence *presence = NULL, TR::VPArrayInfo *info = NULL);
    AbsValue* getTOPAbsValue(TR::DataType dataType);
 
+   //Helper method for cleanInvokeState()
    static AbsValue* getTOPAbsValue(TR::DataType dataType, TR::Region& region);
 
-   //Interpreter helpers
-   void invoke(int, int, TR::MethodSymbol::Kinds, TR_ResolvedMethod* method, AbsState* absState, TR::Block* block);
-   void iconst(AbsState* absState, int n);
-   void ldcString(int, TR_ResolvedMethod*, AbsState*);
-   void ldcAddress(int, TR_ResolvedMethod*, AbsState*); 
-   void ldcInt32(int, TR_ResolvedMethod*, AbsState*); 
-   void ldcInt64(int, TR_ResolvedMethod*, AbsState*); 
-   void ldcFloat(AbsState*);
-   void ldcDouble(AbsState*);
-   
+   AbsState* initializeAbsState(TR::ResolvedMethodSymbol* symbol);
 
-   AbsState* enterMethod(TR::ResolvedMethodSymbol* symbol);
-   void updateIDTNodeWithMethodSummary(IDTNode* child, AbsState* absState);
+   void updateStaticBenefitWithMethodSummary(IDTNode* child, AbsState* invokeAbsState);
+
    void transferAbsStates(TR::Block* block);
    AbsState* mergeAllPredecessors(TR::Block* block);
    
-   void traverseBasicBlocks(TR::CFG* cfg);
-   void traverseByteCode(TR::Block *block);
+   //Three methods Used to walk the bytecode
+   void walkBasicBlocks(TR::CFG* cfg);
+   void walkByteCode(TR::Block *block);
    void interpretByteCode(AbsState* absState, TR_J9ByteCode bc, TR_J9ByteCodeIterator&, TR::Block* block);
    
-   //For interpreting bytecode
+   //For interpreting bytecode and updating AbsState
    AbsState* aaload(AbsState*);
    AbsState* aastore(AbsState*);
    AbsState* aconstnull(AbsState*);
@@ -260,12 +253,21 @@ class AbsInterpreter
    AbsState* tableswitch(AbsState*);
 // AbsState* wide(AbsState*);
 
+   //Interpreter helpers
+   void invoke(int, int, TR::MethodSymbol::Kinds, TR_ResolvedMethod* method, AbsState* absState, TR::Block* block);
+   void iconst(AbsState* absState, int n);
+   void ldcString(int, TR_ResolvedMethod*, AbsState*);
+   void ldcAddress(int, TR_ResolvedMethod*, AbsState*); 
+   void ldcInt32(int, TR_ResolvedMethod*, AbsState*); 
+   void ldcInt64(int, TR_ResolvedMethod*, AbsState*); 
+   void ldcFloat(AbsState*);
+   void ldcDouble(AbsState*);
+
    MethodSummary* _methodSummary;
    IDTBuilder* _idtBuilder;
    IDTNode* _idtNode;
    int _callerIndex;
    TR_CallStack* _callStack;
-   IDTNodeDeque* _idtNodeChildren;
    TR::Region& _region;
    TR::Compilation* _comp;
    TR_J9ByteCodeIterator _bcIterator;

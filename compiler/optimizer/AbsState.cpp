@@ -29,9 +29,6 @@ void AbsState::merge(AbsState* other, TR::ValuePropagation *vp)
    AbsState copyOfOther(other);
    _array.merge(copyOfOther._array, _region, vp);
    _stack.merge(copyOfOther._stack, _region, vp);
-
-   if (TR::comp()->trace(OMR::benefitInliner)) 
-      trace(vp);
    }
 
 AbsValue* AbsState::pop()
@@ -54,6 +51,7 @@ void AbsState::push(AbsValue *absValue)
 
 void AbsState::trace(TR::ValuePropagation *vp)
    {
+   traceMsg(TR::comp(), "\n#### Content of Abstract State ####\n");
    _array.trace(vp);
    _stack.trace(vp);
    }

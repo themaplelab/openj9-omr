@@ -102,7 +102,7 @@ void AbsOpStack::trace(TR::ValuePropagation *vp)
       {
       AbsValue *value = copy.top();
       copy.pop();
-      traceMsg(comp, "fp[%d] = ", stackSize - i - 1);
+      traceMsg(comp, "S[%d] = ", stackSize - i - 1);
       if (value) value->print(vp);
       traceMsg(comp, "\n");
       }

@@ -23,7 +23,7 @@ AbsInterpreter::AbsInterpreter(
    _methodSummary = new (_region) MethodSummary(_region, valuePropagation);
    }
 
-void AbsInterpreter::interpret(AbsState* invokeState)
+void AbsInterpreter::interpret(AbsState* invokeAbsState)
    {
    TR_CallTarget* callTarget = _idtNode->getCallTarget();
    TR_ASSERT_FATAL(callTarget,"Call Target is NULL!");
@@ -32,13 +32,13 @@ void AbsInterpreter::interpret(AbsState* invokeState)
    TR_ASSERT_FATAL(cfg, "CFG is NULL!");
 
    callTarget->_calleeSymbol->setFlowGraph(cfg);
-   traverseBasicBlocks(cfg);
+   walkBasicBlocks(cfg);
 
    _idtNode->setMethodSummary(_methodSummary);
-
+   _methodSummary->trace(); 
    //At this point, we have the method summary
    if (!_idtNode->isRoot())
-      updateIDTNodeWithMethodSummary(_idtNode, invokeState);
+      updateStaticBenefitWithMethodSummary(_idtNode, invokeAbsState);
    
    }
 
@@ -63,12 +63,11 @@ AbsValue* AbsInterpreter::getTOPAbsValue(TR::DataType dataType, TR::Region& regi
    }
 
 //get the abstract state of the start block of CFG
-AbsState* AbsInterpreter::enterMethod(TR::ResolvedMethodSymbol* symbol)
+AbsState* AbsInterpreter::initializeAbsState(TR::ResolvedMethodSymbol* symbol)
    {
-      //printf("enter Method %s\n",symbol->signature(comp()->trMemory()));
+    
    if (comp()->getOption(TR_TraceAbstractInterpretation)) 
       traceMsg(comp(), "- 1. Abstract Interpreter: Enter method: %s\n", symbol->signature(comp()->trMemory()));
-   //printf("- 1. Abstract Interpreter: Enter method: %s\n", symbol->signature(comp()->trMemory()));
 
    AbsState* absState = new (region()) AbsState(region());
 
@@ -86,13 +85,16 @@ AbsState* AbsInterpreter::enterMethod(TR::ResolvedMethodSymbol* symbol)
       {
       TR_OpaqueClassBlock *implicitParameterClass = resolvedMethod->containingClass();
       AbsValue* value = getClassAbsValue(implicitParameterClass);
+      value->setParamPosition(0);
       absState->set(0, value);
       }
     
     TR_MethodParameterIterator *parameterIterator = resolvedMethod->getParameterIterator(*comp());
 
    //setting the rest explicit parameters
-   for (int32_t i = numberOfImplicitParameters; !parameterIterator->atEnd(); parameterIterator->advanceCursor(), i++)
+   uint32_t paramPos = numberOfImplicitParameters; // The actual paramter position
+
+   for (uint32_t slot = numberOfImplicitParameters; !parameterIterator->atEnd(); parameterIterator->advanceCursor(), slot++, paramPos++)
       {
       TR::DataType dataType = parameterIterator->getDataType();
       AbsValue* temp;
@@ -101,53 +103,52 @@ AbsState* AbsInterpreter::enterMethod(TR::ResolvedMethodSymbol* symbol)
       switch (dataType)
          {
          case TR::Int8:
-            temp = new (region()) AbsValue(NULL, TR::Int32);
-            temp->setParamPosition(i);
-            absState->set(i,temp);
+            temp = getTOPAbsValue(TR::Int32);
+            temp->setParamPosition(paramPos);
+            absState->set(slot,temp);
             continue;
             break;
 
          case TR::Int16:
-            temp = new (region()) AbsValue(NULL, TR::Int32);
-            temp->setParamPosition(i);
-            absState->set(i, temp);
+            temp = getTOPAbsValue(TR::Int32);
+            temp->setParamPosition(paramPos);
+            absState->set(slot, temp);
             continue;
             break;
 
          case TR::Int32:
-            temp = new (region()) AbsValue(NULL, dataType);
-            temp->setParamPosition(i);
-            absState->set(i, temp);
+            temp = getTOPAbsValue(TR::Int32);
+            temp->setParamPosition(paramPos);
+            absState->set(slot, temp);
             continue;
             break;
 
          case TR::Int64:
-            temp = new (region()) AbsValue(NULL, dataType);
-            temp->setParamPosition(i);
-            absState->set(i, temp);
-            i = i+1;
-            absState->set(i, new (region()) AbsValue(NULL, TR::NoType));
+            temp = getTOPAbsValue(TR::Int64);
+            temp->setParamPosition(paramPos);
+            absState->set(slot, temp);
+            slot++;
+            absState->set(slot, getTOPAbsValue(TR::NoType));
             continue;
             break;
 
          case TR::Float:
-            temp = new (region()) AbsValue(NULL, dataType);
-            temp->setParamPosition(i);
-            absState->set(i, temp);
+            temp = getTOPAbsValue(TR::Float);
+            temp->setParamPosition(paramPos);
+            absState->set(slot, temp);
             continue;
             break;
 
          case TR::Double:
-            temp = new (region()) AbsValue(NULL, dataType);
-            temp->setParamPosition(i);
-            absState->set(i, temp);
-            i = i+1;
-            absState->set(i, new (region()) AbsValue(NULL, TR::NoType));
+            temp =getTOPAbsValue(TR::Double);
+            temp->setParamPosition(paramPos);
+            absState->set(slot, temp);
+            slot++;
+            absState->set(slot, getTOPAbsValue(TR::NoType));
             continue;
             break;
 
          default:
-            //TODO: what about vectors and aggregates?
             break;
          }
 
@@ -155,9 +156,9 @@ AbsState* AbsInterpreter::enterMethod(TR::ResolvedMethodSymbol* symbol)
       bool isClass = parameterIterator->isClass();
       if (!isClass) // not a class
          {
-         temp = new (region()) AbsValue(NULL, TR::Address);
-         temp->setParamPosition(i);
-         absState->set(i,temp);
+         temp = getTOPAbsValue(TR::Address);
+         temp->setParamPosition(paramPos);
+         absState->set(slot,temp);
          continue;
          }
       else // a class
@@ -165,16 +166,16 @@ AbsState* AbsInterpreter::enterMethod(TR::ResolvedMethodSymbol* symbol)
          TR_OpaqueClassBlock *parameterClass = parameterIterator->getOpaqueClass();
          if (!parameterClass)
             {
-            temp = new (region()) AbsValue(NULL, TR::Address);
-            temp->setParamPosition(i);
-            absState->set(i,temp);
+            temp = getTOPAbsValue(TR::Address);
+            temp->setParamPosition(paramPos);
+            absState->set(slot,temp);
             continue;
             }
          else 
             {
             temp = getClassAbsValue(parameterClass);
-            temp->setParamPosition(i);
-            absState->set(i,temp);
+            temp->setParamPosition(paramPos);
+            absState->set(slot, temp);
             continue;
             }   
          }
@@ -185,7 +186,7 @@ AbsState* AbsInterpreter::enterMethod(TR::ResolvedMethodSymbol* symbol)
 
 AbsState* AbsInterpreter::mergeAllPredecessors(TR::Block* block)
    {
-   //printf("--merge predecessor of block %d\n", block->getNumber());
+
    TR::CFGEdgeList &predecessors = block->getPredecessors();
    AbsState* absState = NULL;
 
@@ -198,26 +199,23 @@ AbsState* AbsInterpreter::mergeAllPredecessors(TR::Block* block)
       TR::Block *check = edge->getTo()->asBlock();
       if (check != block)
          continue;
-      
-      //TODO: can aBlock->_absState be null?
-      TR_ASSERT_FATAL(aBlock->getAbsState(), "absState is NULL, i don't think this is possible");
-      //printf(  "   pre : %d\n", aBlock->getNumber());
+
+      if (comp()->trace(OMR::benefitInliner))
+         {
+         traceMsg(comp(), "Merge Abstract State Predecessor: #%d\n", aBlock->getNumber());
+         //absState->trace(_valuePropagation);
+         }
+
       if (first) 
          {
          first = false;
          absState = new (region()) AbsState(aBlock->getAbsState());
 
-         if (comp()->trace(OMR::benefitInliner))
-            absState->trace(_valuePropagation);
          continue;
          }
 
-      // merge with the rest;    
-      //printf("merge with # %d\n", aBlock->getNumber());
+      // merge with the rest;
       absState->merge(aBlock->getAbsState(), _valuePropagation);
-      
-      if (comp()->trace(OMR::benefitInliner))
-         absState->trace(_valuePropagation);
       }
 
       return absState;
@@ -225,7 +223,6 @@ AbsState* AbsInterpreter::mergeAllPredecessors(TR::Block* block)
 
 void AbsInterpreter::transferAbsStates(TR::Block* block)
    {
-   //printf("-    4. Abstract Interpreter: Transfer abstract states\n");
    bool traceAbstractInterpretion = comp()->getOption(TR_TraceAbstractInterpretation);
 
    if (traceAbstractInterpretion) 
@@ -235,7 +232,7 @@ void AbsInterpreter::transferAbsStates(TR::Block* block)
       {
       if (traceAbstractInterpretion)
          traceMsg(comp(), "      No predecessors. Stop.\n");
-      //printf("      No predecessors. Stop.\n");
+
       return;
       }
       
@@ -243,11 +240,9 @@ void AbsInterpreter::transferAbsStates(TR::Block* block)
    // this can happen I think if we have a loop that has some CFG inside. So its better to just return without assigning anything
    // as we should only visit if we actually have abs state to propagate
    if (block->hasOnlyOnePredecessor() && !block->getPredecessors().front()->getFrom()->asBlock()->getAbsState())
-      //TODO: put it at the end of the queue?
       {
       if (traceAbstractInterpretion) 
          traceMsg(comp(), "      There is a loop. Stop.\n");
-      //printf("      There is a loop. Stop.\n");
       return;
       }
       
@@ -255,11 +250,15 @@ void AbsInterpreter::transferAbsStates(TR::Block* block)
    // If we only have one predecessor and there are no loops.
    if (block->hasOnlyOnePredecessor() && block->getPredecessors().front()->getFrom()->asBlock()->getAbsState()) 
       {
-      if (traceAbstractInterpretion) 
-         traceMsg(comp(), "      There is only one predecessor %d and interpreted. Pass this abstract state.\n",block->getPredecessors().front()->getFrom()->asBlock()->getNumber() );
-      //printf("      There is only one predecessor %d and interpreted. Pass this abstract state.\n",block->getPredecessors().front()->getFrom()->asBlock()->getNumber());
+      
       AbsState *absState = new (region()) AbsState(block->getPredecessors().front()->getFrom()->asBlock()->getAbsState());
       block->setAbsState(absState);
+      if (traceAbstractInterpretion) 
+         {
+         traceMsg(comp(), "      There is only one predecessor: #%d and interpreted. Pass this abstract state.\n",block->getPredecessors().front()->getFrom()->asBlock()->getNumber() );
+         //absState->trace(_valuePropagation);
+         }
+        
       return;
       }
 
@@ -269,7 +268,7 @@ void AbsInterpreter::transferAbsStates(TR::Block* block)
       {
       if (traceAbstractInterpretion) 
          traceMsg(comp(), "      There are multiple predecessors and all interpreted. Merge their abstract states.\n");
-      //printf("      There are multiple predecessors and all interpreted. Merge their abstract states.\n");
+
       block->setAbsState( mergeAllPredecessors(block) );
       return;
       }
@@ -279,7 +278,7 @@ void AbsInterpreter::transferAbsStates(TR::Block* block)
    // look for a predecessor that has been interpreted
    if (traceAbstractInterpretion) 
       traceMsg(comp(), "      Not all predecessors are interpreted. Finding one interpretd...\n");
-   //printf("      Not all predecessors are interpreted. Finding one interpretd...\n");
+  
    TR::CFGEdgeList &predecessors = block->getPredecessors();
    for (auto i = predecessors.begin(), e = predecessors.end(); i != e; ++i)
       {
@@ -298,8 +297,8 @@ void AbsInterpreter::transferAbsStates(TR::Block* block)
          
 
       if (traceAbstractInterpretion)
-         traceMsg(comp(), "      Find a predecessor interpreted. Use its type info and setting all abstract values to be TOP\n");
-      //printf("      Find a predecessor interpreted. Use its type info and setting all abstract values to be TOP\n");
+         traceMsg(comp(), "      Find a predecessor: #%d interpreted. Use its type info and setting all abstract values to be TOP\n", parentBlock->getNumber());
+   
 
       // We find a predecessor interpreted. Use its type info with all AbsValues being TOP (unkown)
       AbsState *parentState = parentBlock->getAbsState();
@@ -334,16 +333,17 @@ void AbsInterpreter::transferAbsStates(TR::Block* block)
       
    if (traceAbstractInterpretion)
       traceMsg(comp(), "      No predecessor is interpreted. Stop.");
-   //printf( "      No predecessor is interpreted. Stop.");
    }
 
-void AbsInterpreter::traverseBasicBlocks(TR::CFG* cfg)
+void AbsInterpreter::walkBasicBlocks(TR::CFG* cfg)
    {
-   //get start block's AbsState
-   AbsState *startBlockState = enterMethod(_idtNode->getResolvedMethodSymbol());
+   bool traceAbstractInterpretation = comp()->getOption(TR_TraceAbstractInterpretation);
 
-   if (comp()->getOption(TR_TraceAbstractInterpretation)) 
-      traceMsg(comp(), "-  2. Abstract Interpreter: Traverse basic blocks\n");
+   //get start block's AbsState
+   AbsState *startBlockState = initializeAbsState(_idtNode->getResolvedMethodSymbol());
+
+   if (traceAbstractInterpretation) 
+      traceMsg(comp(), "-  2. Abstract Interpreter: Walk basic blocks\n");
   
    TR::CFGNode *startNode = cfg->getStartForReverseSnapshot();
    TR_ASSERT_FATAL(startNode, "Start Node is NULL");
@@ -358,16 +358,16 @@ void AbsInterpreter::traverseBasicBlocks(TR::CFG* cfg)
          block->setAbsState(startBlockState);
          
       block->setVisitCount(0);
-      traverseByteCode(block);
+      walkByteCode(block);
       }
    }
 
-void AbsInterpreter::traverseByteCode(TR::Block* block)
+void AbsInterpreter::walkByteCode(TR::Block* block)
    {
-   //printf("-   3. Abstract Interpreter: Traverse bytecode in basic block #:%d\n",block->getNumber());
+  
    bool traceAbstractInterpretation = comp()->getOption(TR_TraceAbstractInterpretation);
    if (traceAbstractInterpretation) 
-      traceMsg(comp(), "-   3. Abstract Interpreter: Traverse bytecode in basic block #:%d\n",block->getNumber());
+      traceMsg(comp(), "-   3. Abstract Interpreter: Walk bytecode in basic block #:%d\n",block->getNumber());
 
    int32_t start = block->getBlockBCIndex();
    int32_t end = start + block->getBlockSize();
@@ -400,6 +400,12 @@ void AbsInterpreter::traverseByteCode(TR::Block* block)
          break;
          }
       
+      }
+
+   if (traceAbstractInterpretation)
+      {
+      traceMsg(comp(), "#### Basic Block: %d in %s Finishes Abstract Interpretation ####\n", block->getNumber(), _idtNode->getName(comp()->trMemory()));
+      block->getAbsState()->trace(_valuePropagation);
       }
 
    }
@@ -1663,7 +1669,6 @@ AbsState* AbsInterpreter::ifgt(AbsState* absState, int branchOffset, int bytecod
 
 AbsState* AbsInterpreter::ifge(AbsState* absState, int branchOffset, int bytecodeIndex) 
    {
-
    AbsValue* absValue = absState->top();
    if (absValue->getParamPosition() >= 0)
       _methodSummary->addIfGe(absValue->getParamPosition());
@@ -1674,12 +1679,20 @@ AbsState* AbsInterpreter::ifge(AbsState* absState, int branchOffset, int bytecod
 
 AbsState* AbsInterpreter::ifnull(AbsState* absState, int branchOffset, int bytecodeIndex) 
    {
+   AbsValue* absValue = absState->top();
+   if (absValue->getParamPosition() >= 0)
+      _methodSummary->addIfNonNull(absValue->getParamPosition());
+
    absState->pop();
    return absState;
    }
 
 AbsState* AbsInterpreter::ifnonnull(AbsState* absState, int branchOffset, int bytecodeIndex)
    {
+   AbsValue* absValue = absState->top();
+   if (absValue->getParamPosition() >= 0)
+      _methodSummary->addIfNonNull(absValue->getParamPosition());
+
    absState->pop();
    return absState;
    }
@@ -3049,13 +3062,16 @@ AbsState* AbsInterpreter::invokeinterface(AbsState* absState, int bcIndex, int c
 void AbsInterpreter::invoke(int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind, TR_ResolvedMethod* method, AbsState* absState, TR::Block* block) 
    {
    TR::Method *j9Method = comp()->fej9()->createMethod(comp()->trMemory(), method->containingClass(), cpIndex);
+
+   //Pass the AbsState to its child. So the Child can use this AbsState to perform method summary stuff.
+   //Note: Child MUST ensure the validness of this AbsState ( pop and push )
    _idtBuilder->addChild(_idtNode, _callerIndex, method, absState, bcIndex, cpIndex, kind, _callStack ,block, _idtNode->getCallTarget()->_cfg);
    }
 
-void AbsInterpreter::cleanInvokeState(TR_ResolvedMethod* containingMethod, int cpIndex, AbsState* invokeState, TR::MethodSymbol::Kinds kind, TR::Region& region, TR::Compilation* comp)
+void AbsInterpreter::cleanInvokeState(TR_ResolvedMethod* containingMethod, int cpIndex, AbsState* invokeAbsState, TR::MethodSymbol::Kinds kind, TR::Region& region, TR::Compilation* comp)
    {
    
-   TR_ASSERT_FATAL(invokeState, "invoke state is NULL");
+   TR_ASSERT_FATAL(invokeAbsState, "invoke state is NULL");
    TR::Method *j9Method = comp->fej9()->createMethod(comp->trMemory(), containingMethod->containingClass(), cpIndex);
    
    uint32_t params = j9Method->numberOfExplicitParameters();
@@ -3063,14 +3079,14 @@ void AbsInterpreter::cleanInvokeState(TR_ResolvedMethod* containingMethod, int c
 
    for (int i = 0; i < params; i++) 
       {
-      absValue = invokeState->pop();
+      absValue = invokeAbsState->pop();
       AbsValue *absValue2 = NULL;
       TR::DataType datatype = j9Method->parmType(i);
       switch (datatype) 
          {
          case TR::Double:
          case TR::Int64:
-            absValue2 = invokeState->pop();
+            absValue2 = invokeAbsState->pop();
             break;
          default:
             break;
@@ -3079,7 +3095,7 @@ void AbsInterpreter::cleanInvokeState(TR_ResolvedMethod* containingMethod, int c
       }
    int isStatic = kind == TR::MethodSymbol::Kinds::Static;
    int numberOfImplicitParameters = isStatic ? 0 : 1;
-   if (numberOfImplicitParameters == 1) absValue = invokeState->pop();
+   if (numberOfImplicitParameters == 1) absValue = invokeAbsState->pop();
 
    //pushes?
    if (j9Method->returnTypeWidth() == 0) return;
@@ -3095,16 +3111,16 @@ void AbsInterpreter::cleanInvokeState(TR_ResolvedMethod* containingMethod, int c
       case TR::Address:
          {
          AbsValue *result = getTOPAbsValue(datatype, region);
-         invokeState->push(result);
+         invokeAbsState->push(result);
          }
          break;
       case TR::Double:
       case TR::Int64:
          {
          AbsValue *result = getTOPAbsValue(datatype, region);
-         invokeState->push(result);
+         invokeAbsState->push(result);
          AbsValue *result2 = getTOPAbsValue(TR::NoType, region);
-         invokeState->push(result2);
+         invokeAbsState->push(result2);
          }
          break;
       case TR::NoType:
@@ -3113,55 +3129,53 @@ void AbsInterpreter::cleanInvokeState(TR_ResolvedMethod* containingMethod, int c
          {
          //TODO: 
          AbsValue *result = getTOPAbsValue(TR::Address, region);
-         invokeState->push(result);
+         invokeAbsState->push(result);
          }
          break;
       }
    }
 
-void AbsInterpreter::updateIDTNodeWithMethodSummary(IDTNode* node, AbsState* invokeState)
+void AbsInterpreter::updateStaticBenefitWithMethodSummary(IDTNode* node, AbsState* invokeAbsState)
    {
+   TR_ASSERT_FATAL(invokeAbsState, "invoke state is NULL");
 
-   TR_ASSERT_FATAL(invokeState, "invoke state is NULL");
+   traceMsg(comp(), "#### Invoke State ####\n");
+   invokeAbsState->trace(_valuePropagation);
+
    TR_ResolvedMethod* method = node->getResolvedMethodSymbol()->getResolvedMethod();
 
    TR::MethodSymbol::Kinds kind = node->getMethodKind();
 
    uint32_t numExplicitParams = method->numberOfExplicitParameters();
+
    bool isStatic = kind == TR::MethodSymbol::Kinds::Static;
    uint32_t numImplicitParams = isStatic ? 0 : 1;
 
-   AbsValue *absValue = NULL;
-   uint32_t totalNumParams = numImplicitParams + numExplicitParams;
+   uint32_t totalNumParams = numImplicitParams + numExplicitParams; 
 
    AbsValue *paramsArray[totalNumParams];
 
    for (uint32_t i = 0 ; i < numExplicitParams; i ++)
       {
-      absValue = invokeState->pop();
+      AbsValue* absValue = invokeAbsState->pop();
       AbsValue* absValue2 = NULL;
-      TR::DataType dataType = method->parmType(i);
-      if (dataType == TR::Int64 || dataType == TR::Double)
-         absValue2 = invokeState->pop();
+
+      if (absValue->getDataType() == TR::NoType)
+         absValue2 = invokeAbsState->pop();
 
       paramsArray[totalNumParams -i - 1] = absValue2 ? absValue2 : absValue;
       }
 
    if (numImplicitParams == 1)
-      paramsArray[0] = invokeState->pop();
-      
-      
+      paramsArray[0] = invokeAbsState->pop();
 
    int benefit = 0;
-   traceMsg(comp()," Num of Params %d\n",totalNumParams);
-   for (int i = 0; i < totalNumParams; i ++)
-      {
-      if (paramsArray[i])
-         paramsArray[i]->setParamPosition(i);
 
+   TR_ASSERT_FATAL(node->getMethodSummary(), "Method Summary is NULL");
+   for (uint32_t i = 0; i < totalNumParams; i ++)
+      {
       AbsValue* value = paramsArray[i];
-      value->print(_valuePropagation);
-      benefit += node->getMethodSummary() ? node->getMethodSummary()->predicates(value->getConstraint(), i) : 0;
+      benefit += node->getMethodSummary()->predicates(value->getConstraint(), i);
       }
 
    // Update the Node's benefit
@@ -3182,16 +3196,16 @@ void AbsInterpreter::updateIDTNodeWithMethodSummary(IDTNode* node, AbsState* inv
       case TR::Address:
          {
          AbsValue *result = getTOPAbsValue(datatype);
-         invokeState->push(result);
+         invokeAbsState->push(result);
          }
          break;
       case TR::Double:
       case TR::Int64:
          {
          AbsValue *result = getTOPAbsValue(datatype);
-         invokeState->push(result);
+         invokeAbsState->push(result);
          AbsValue *result2 = getTOPAbsValue(TR::NoType);
-         invokeState->push(result2);
+         invokeAbsState->push(result2);
          }
          break;
       case TR::NoType:
@@ -3200,7 +3214,7 @@ void AbsInterpreter::updateIDTNodeWithMethodSummary(IDTNode* node, AbsState* inv
          {
          //TODO: 
          AbsValue *result = getTOPAbsValue(TR::Address);
-         invokeState->push(result);
+         invokeAbsState->push(result);
          }
          break;
       }

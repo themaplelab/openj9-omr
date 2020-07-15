@@ -34,7 +34,7 @@ class AbsValue
    
    AbsValue *merge(AbsValue *other, TR::Region &region, OMR::ValuePropagation *vp);
    
-   void print(OMR::ValuePropagation *vp);
+   void print(TR::ValuePropagation *vp);
 
    bool isType2() { return _dataType == TR::Double || _dataType == TR::Int64; };
    int getParamPosition() { return _paramPos; };

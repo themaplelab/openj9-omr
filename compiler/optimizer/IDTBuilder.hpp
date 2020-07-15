@@ -25,15 +25,15 @@ class IDTBuilder
    float computeCallRatio(TR_CallTarget* callTarget, TR_CallStack* callStack, TR::Block* block, TR::CFG* callerCfg );
 
    TR::SymbolReference* getSymbolReference(TR::ResolvedMethodSymbol *callerSymbol, int cpIndex, TR::MethodSymbol::Kinds kind);
-   TR::Compilation* comp() {  return _comp;  };
-   TR::Region& getIdtRegion() {  return _idtRegion;  };
-   TR::Region& getStackRegion() {  return _stackRegion;  };
+   TR::Compilation* comp() { return _comp; };
+   TR::Region& getIdtRegion() { return _idtRegion; };
+   TR::Region& getStackRegion() { return _stackRegion; };
 
    IDTNode* getInterpretedMethod(TR::ResolvedMethodSymbol* symbol);
    void addInterpretedMethod(TR::ResolvedMethodSymbol *symbol, IDTNode* node);
 
    //Why do we need an Inliner here? Because we need its applyPolicyToTargets()
-   OMR::BenefitInliner* getInliner()  {  return _inliner;  };
+   OMR::BenefitInliner* getInliner()  { return _inliner; };
    
    //Used for calculating method branch profile
    OMR::BenefitInlinerUtil* getUtil();
