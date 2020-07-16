@@ -53,7 +53,7 @@ class AbsInterpreter
    AbsState* aconstnull(AbsState*);
    AbsState* aload(AbsState*, int);
    AbsState* aload0(AbsState*);
-   AbsState* aload0getfield(AbsState*, int);
+   AbsState* aload0getfield(AbsState*);
    AbsState* aload1(AbsState*);
    AbsState* aload2(AbsState*);
    AbsState* aload3(AbsState*);

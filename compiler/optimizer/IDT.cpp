@@ -4,7 +4,7 @@ IDT::IDT(TR::Region& region, TR::ResolvedMethodSymbol* symbol, TR_CallTarget* ca
       _region(region),
       _maxIdx(-1),
       _comp(comp),
-      _root(new (_region) IDTNode(getNextGlobalIDTNodeIndex(), symbol->getMethodKind(), callTarget, -1, symbol, 1, NULL, budget)),
+      _root(new (_region) IDTNode(getNextGlobalIDTNodeIndex(), callTarget, -1, symbol, 1, NULL, budget)),
       _indices(NULL)
    {   
    increaseGlobalIDTNodeIndex();
@@ -38,13 +38,14 @@ void IDT::printTrace()
       }
 
    //print the IDT nodes in BFS
-   TR::deque<IDTNode*, TR::Region&> *idtNodeQueue = new (_region)TR::deque<IDTNode*, TR::Region&>(_region);
-   idtNodeQueue->push_back(getRoot());
+   IDTNodeDeque idtNodeQueue(comp()->trMemory()->currentStackRegion());
 
-   while (!idtNodeQueue->empty())
+   idtNodeQueue.push_back(getRoot());
+
+   while (!idtNodeQueue.empty())
       {
-      IDTNode* currentNode = idtNodeQueue->front();
-      idtNodeQueue->pop_front();
+      IDTNode* currentNode = idtNodeQueue.front();
+      idtNodeQueue.pop_front();
 
       int index = currentNode->getGlobalIndex();
 
@@ -76,7 +77,7 @@ void IDT::printTrace()
          
       //process children
       for (unsigned int i = 0; i < currentNode->getNumChildren(); i ++)
-         idtNodeQueue->push_back(currentNode->getChild(i));
+         idtNodeQueue.push_back(currentNode->getChild(i));
          
       }
          
@@ -93,13 +94,13 @@ void IDT::buildIndices()
    memset(_indices,0,sizeof(IDTNode*) * numNodes);
 
    //add all the descendents of the root node to the indices array
-   TR::deque<IDTNode*, TR::Region&> *idtNodeQueue = new (_region)TR::deque<IDTNode*, TR::Region&>(_region);
-   idtNodeQueue->push_back(getRoot());
+   IDTNodeDeque idtNodeQueue(comp()->trMemory()->currentStackRegion());
+   idtNodeQueue.push_back(getRoot());
 
-   while (!idtNodeQueue->empty())
+   while (!idtNodeQueue.empty())
       {
-      IDTNode* currentNode = idtNodeQueue->front();
-      idtNodeQueue->pop_front();
+      IDTNode* currentNode = idtNodeQueue.front();
+      idtNodeQueue.pop_front();
 
       int calleeIndex = currentNode->getGlobalIndex();
       TR_ASSERT_FATAL(_indices[calleeIndex+1] == 0, "Callee index not unique!\n");
@@ -108,7 +109,7 @@ void IDT::buildIndices()
 
       for (unsigned int i = 0;i < currentNode->getNumChildren(); i ++)
          {
-         idtNodeQueue->push_back(currentNode->getChild(i));
+         idtNodeQueue.push_back(currentNode->getChild(i));
          }
       }
    }
@@ -138,7 +139,6 @@ void IDT::copyDescendants(IDTNode* fromNode, IDTNode* toNode)
 
       IDTNode* copiedChild = toNode->addChild(
                            getNextGlobalIDTNodeIndex(),
-                           child->getMethodKind(),
                            child->getCallTarget(),
                            child->getByteCodeIndex(),
                            child->getResolvedMethodSymbol(),

@@ -10,7 +10,6 @@ bool IDTNodePtrOrder::operator()(IDTNode *left, IDTNode *right)
 
 IDTNode::IDTNode(
       int idx, 
-      TR::MethodSymbol::Kinds kind,
       TR_CallTarget* callTarget,
       int32_t callSiteBci, 
       TR::ResolvedMethodSymbol* symbol,
@@ -18,7 +17,6 @@ IDTNode::IDTNode(
       IDTNode *parent, 
       int budget):
    _idx(idx),
-   _kind(kind),
    _callTarget(callTarget),
    _staticBenefit(0),
    _callSiteBci(callSiteBci),
@@ -34,7 +32,6 @@ IDTNode::IDTNode(
 
 IDTNode* IDTNode::addChild(
       int idx,
-      TR::MethodSymbol::Kinds kind,
       TR_CallTarget* callTarget,
       int32_t callSiteBci, 
       TR::ResolvedMethodSymbol* symbol, 
@@ -55,7 +52,6 @@ IDTNode* IDTNode::addChild(
       {
       IDTNode* newNode = new (region) IDTNode(
                            idx, 
-                           kind,
                            callTarget,
                            callSiteBci, 
                            symbol, 
@@ -90,7 +86,6 @@ IDTNode* IDTNode::addChild(
 
    IDTNode *newChild = new (region) IDTNode(
                         idx, 
-                        kind,
                         callTarget,
                         callSiteBci, 
                         symbol, 

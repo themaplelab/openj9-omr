@@ -190,7 +190,6 @@ void IDTBuilder::addChild(IDTNode*node, int callerIndex, TR_ResolvedMethod* cont
 
    IDTNode* child = node->addChild(
                            _idt->getNextGlobalIDTNodeIndex(),
-                           kind,
                            callTarget,
                            callsite->_byteCodeIndex,
                            resolvedMethodSymbol,

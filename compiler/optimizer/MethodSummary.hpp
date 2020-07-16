@@ -44,7 +44,7 @@ class BranchFolding : public PotentialOptimization
       PotentialOptimization(constraint, paramPosition),
       _kind(kind)
    {};
-   
+
    virtual int predicate(TR::VPConstraint *other, TR::ValuePropagation* vp);
    virtual void trace(TR::ValuePropagation *vp); 
 
@@ -63,6 +63,39 @@ class NullBranchFolding : public BranchFolding
    virtual int predicate(TR::VPConstraint* other, TR::ValuePropagation* vp);
    };
 
+class NullCheckFolding : public PotentialOptimization
+   {
+   public:
+   NullCheckFolding(TR::VPConstraint* constraint, int paramPosition) :
+      PotentialOptimization(constraint, paramPosition)
+   {};
+
+   virtual int predicate(TR::VPConstraint *other, TR::ValuePropagation* vp);
+   virtual void trace(TR::ValuePropagation *vp);
+
+   };
+
+class InstanceOfFolding : public PotentialOptimization
+   {
+   public:
+   InstanceOfFolding(TR::VPConstraint* constraint, int paramPosition) :
+      PotentialOptimization(constraint, paramPosition)
+   {};
+
+   virtual int predicate(TR::VPConstraint* other, TR::ValuePropagation* vp);
+   virtual void trace(TR::ValuePropagation* vp);
+   };
+
+class CheckCastFolding : public PotentialOptimization
+   {
+   public:
+   CheckCastFolding(TR::VPConstraint* constraint, int paramPosition) :
+      PotentialOptimization(constraint, paramPosition)
+   {};
+
+   virtual int predicate(TR::VPConstraint* other, TR::ValuePropagation* vp);
+   virtual void trace(TR::ValuePropagation* vp);
+   };
 
 //The followings are to be completed in the future.
 
@@ -117,6 +150,12 @@ class MethodSummary
    void addIfNull(int paramPosition);
    void addIfNonNull(int paramPosition);
 
+   void addNullCheck(int paramPosition);
+
+   void addInstanceOf(int paramPosition, TR::VPFixedClass* classType);
+
+   void addCheckCast(int paraPostion, TR::VPFixedClass* classType);
+   
    void trace();
    private:
    void add(PotentialOptimization*);

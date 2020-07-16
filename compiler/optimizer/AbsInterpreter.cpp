@@ -44,11 +44,18 @@ void AbsInterpreter::interpret(AbsState* invokeAbsState)
 
 AbsValue* AbsInterpreter::getClassAbsValue(TR_OpaqueClassBlock* opaqueClass, TR::VPClassPresence *presence, TR::VPArrayInfo *info)
    {
-   if (!opaqueClass)
-      return new (region()) AbsValue(NULL,TR::Address);
+   TR::VPConstraint *classConstraint;
 
-   TR::VPClassType *fixedClass = TR::VPFixedClass::create(_valuePropagation, opaqueClass);
-   TR::VPConstraint *classConstraint = TR::VPClass::create(_valuePropagation, fixedClass, presence, NULL, info, NULL);
+   if (opaqueClass)
+      {
+      TR::VPClassType *fixedClass = TR::VPFixedClass::create(_valuePropagation, opaqueClass);
+      classConstraint = TR::VPClass::create(_valuePropagation, fixedClass, presence, NULL, info, NULL);
+      }
+   else
+      {
+      classConstraint = TR::VPClass::create(_valuePropagation, NULL, presence, NULL, info, NULL); 
+      }
+   
    return new (region()) AbsValue (classConstraint, TR::Address);
    }
 
@@ -218,6 +225,8 @@ AbsState* AbsInterpreter::mergeAllPredecessors(TR::Block* block)
       absState->merge(aBlock->getAbsState(), _valuePropagation);
       }
 
+      traceMsg(comp(), "Merged Abstract State:\n");
+      absState->trace(_valuePropagation);
       return absState;
    }
 
@@ -515,7 +524,7 @@ void AbsInterpreter::interpretByteCode(AbsState* state, TR_J9ByteCode bc, TR_J9B
       case J9BCaconstnull: aconstnull(state); break;
       case J9BCaload: aload(state, bci.nextByte()); break;
       case J9BCaload0: aload0(state); break;
-      case /* aload0getfield */ 215: aload0getfield(state, 0); break;
+      case /* aload0getfield */ 215: aload0getfield(state); break;
       case J9BCaload1: aload1(state); break;
       case J9BCaload2: aload2(state); break;
       case J9BCaload3: aload3(state); break;
@@ -934,7 +943,7 @@ AbsState* AbsInterpreter::aload(AbsState* absState, int n)
    return absState;
    }
 
-AbsState* AbsInterpreter::aload0getfield(AbsState* absState, int i)
+AbsState* AbsInterpreter::aload0getfield(AbsState* absState)
    {
    aload0(absState);
    return absState;
@@ -1023,47 +1032,61 @@ AbsState* AbsInterpreter::baload(AbsState* absState)
    return absState;
    }
 
-//Jack: need inspection
 AbsState* AbsInterpreter::checkcast(AbsState* absState, int cpIndex, int bytecodeIndex, TR_ResolvedMethod* method) 
    {
-   AbsValue *absValue = absState->pop();
-   if (!absValue)
-      {
-      AbsValue *value1 = getTOPAbsValue(TR::Address);
-      absState->push(absValue);
-      return absState;
-      }
-   TR::VPConstraint *objectRef = absValue->getConstraint();
+   AbsValue *objRef = absState->pop();
 
-   if (!objectRef)
+   TR_OpaqueClassBlock* classBlock = method->getClassFromConstantPool(comp(), cpIndex);
+   if (classBlock && objRef->getParamPosition() >= 0 )
       {
-      absState->push(absValue);
-      return absState;
+      TR::VPFixedClass *classType = TR::VPFixedClass::create(_valuePropagation, classBlock);
+      _methodSummary->addCheckCast(objRef->getParamPosition(), classType);
       }
 
-   // TODO: can we do this some other way? I don't want to pass TR::comp();
-   TR_OpaqueClassBlock* type = method->getClassFromConstantPool(comp(), cpIndex);
-   if (!type)
+   if (!objRef->getConstraint()) //Top
       {
-      absState->push(absValue);
+      absState->push(objRef);
       return absState;
       }
 
-   TR::VPClassType *fixedClass = TR::VPFixedClass::create(_valuePropagation, type);
-   if (!fixedClass)
+   if (objRef->getConstraint()->asNullObject()) // checkcast null
       {
-      absState->push(absValue);
+      absState->push(objRef);
       return absState;
       }
-   TR::VPConstraint *typeConstraint= TR::VPClass::create(_valuePropagation, fixedClass, NULL, NULL, NULL, NULL);
-   if (!typeConstraint)
-      {
-      absState->push(absValue);
-      return absState;
-      }
-   // If objectRef is not assignable to a class of type type then throw an exception.
 
-   absState->push(new (region()) AbsValue(typeConstraint, TR::Address));
+   if (!objRef->getConstraint()->asClass()) // well, we have no idea what it is
+      {
+      absState->push(getTOPAbsValue(TR::Address));
+      return absState;
+      }
+
+   TR::VPClass *classConstraint = objRef->getConstraint()->asClass();
+   TR::VPFixedClass *classType = classConstraint->getClassType()->asFixedClass();
+
+   if (!classType)
+      {
+      absState->push(getTOPAbsValue(TR::Address));
+      return absState;
+      }
+
+   //Statically, we only know the checkcast will succeed if and only if both are the exact same type
+   //Otherwise, we don't know. We don't make any optimistic assumptions. Therefore, push TOP
+   if (!classBlock)
+      {
+      absState->push(getTOPAbsValue(TR::Address));
+      return absState;
+      }
+
+   //Same types
+   if (classBlock == classType->getClass() )
+      {
+      absState->push(objRef);
+      return absState;
+      }
+
+
+   absState->push(getTOPAbsValue(TR::Address));
    return absState;
    }
 
@@ -1191,6 +1214,12 @@ AbsState* AbsInterpreter::getstatic(AbsState* absState, int cpIndex, TR_Resolved
 
 AbsState* AbsInterpreter::getfield(AbsState* absState, int cpIndex, TR_ResolvedMethod* method)
    {
+   AbsValue* absValue = absState->top();
+   if (absValue->getParamPosition() >= 0)
+      {
+      _methodSummary->addNullCheck(absValue->getParamPosition());
+      }
+
    AbsValue *objectref = absState->pop();
    uint32_t fieldOffset;
    TR::DataType type = TR::NoType;
@@ -1247,82 +1276,56 @@ AbsState* AbsInterpreter::iand(AbsState* absState)
    return absState;
    }
 
-//Jack: issue?
+
+//TODO: instanceof <interface> Current implementation does not support intereface.
 AbsState* AbsInterpreter::instanceof(AbsState* absState, int cpIndex, int byteCodeIndex, TR_ResolvedMethod* method)
    {
-   // if (isForBuildingIDT()) //Build MethodSummary
-   //    {
-   //    if (absState->top()->getParamPosition() >= 0)
-   //       {
-   //       TR_OpaqueClassBlock *block = method->getClassFromConstantPool(comp(), cpIndex);   
-   //       if (block)
-   //          {
-            
-   //          //printf("add instance of in %s\n",_idtNode->getResolvedMethodSymbol()->signature(comp()->trMemory()));
-   //          TR::VPClassType *fixedClass = TR::VPFixedClass::create(_valuePropagation, block);
-   //          TR::VPNonNullObject *nonnull = TR::VPNonNullObject::create(_valuePropagation);
-   //          TR::VPNullObject *null = TR::VPNullObject::create(_valuePropagation);
-   //          TR::VPConstraint *typeConstraint= TR::VPClass::create(_valuePropagation, fixedClass, nonnull, NULL, NULL, NULL);
-   //          AbsValue *absValue = new (region()) AbsValue(typeConstraint, TR::Address);
-   //          AbsValue *absValue2 = new (region()) AbsValue(null, TR::Address);
-   //          // _methodSummary->addInstanceOfFolding(byteCodeIndex, absValue, absState->top()->getParamPosition());
-   //          // _methodSummary->addNullCheckFolding(byteCodeIndex, absValue2, absState->top()->getParamPosition());
-   //          }
-   //       }
-   //    }
-
+   
    AbsValue *objectRef = absState->pop();
+
+   TR_OpaqueClassBlock *block = method->getClassFromConstantPool(comp(), cpIndex); //The class to be compared with
+   
+
+   if (block && objectRef->getParamPosition() >= 0 )
+      {
+      TR::VPFixedClass* classType = TR::VPFixedClass::create(_valuePropagation, block);
+      _methodSummary->addInstanceOf(objectRef->getParamPosition(), classType);
+      }
+      
+
+   //Constraint Top
    if (!objectRef->getConstraint())
+      {
+      absState->push(new (region()) AbsValue(TR::VPIntRange::create(_valuePropagation, 0, 1), TR::Int32));
+      return absState;
+      }
+
+   //null object, push false to stack
+   if (objectRef->getConstraint()->asNullObject())
       {
       absState->push(new (region()) AbsValue(TR::VPIntConst::create(_valuePropagation, 0), TR::Int32));
       return absState;
       }
-
-
-   TR_OpaqueClassBlock *block = method->getClassFromConstantPool(comp(), cpIndex);
+  
+   //Class Info is not available
    if (!block)
       {
       absState->push(new (region()) AbsValue(TR::VPIntRange::create(_valuePropagation, 0, 1), TR::Int32));
       return absState;
       }
 
-   TR::VPClassType *fixedClass = TR::VPFixedClass::create(_valuePropagation, block);
-   TR::VPNonNullObject *nonnull = TR::VPNonNullObject::create(_valuePropagation);
-   TR::VPConstraint *typeConstraint= TR::VPClass::create(_valuePropagation, fixedClass, nonnull, NULL, NULL, NULL);
-   /*
-   * The following rules are used to determine whether an objectref that is
-   * not null is an instance of the resolved type: 
-   * If S is the class of the object referred to by objectref and 
-   *    T is the resolved class, array, or interface type
-   * instanceof determines whether objectref is an instance of T as follows:
-   */
-
-   /*
-   * If S is an ordinary (nonarray) class, then:
-   */
+   //We Have the class info
    if (objectRef->getConstraint()->asClass())
       {
-      /*
-      * If T is a class type, then S must be the same class as T, or S
-      * must be a subclass of T;
-      */
-      if(typeConstraint->intersect(objectRef->getConstraint(), _valuePropagation))
+      if(block == objectRef->getConstraint()->getClass()) //instanceof must be true if they are exact same type
          absState->push(new (region()) AbsValue(TR::VPIntConst::create(_valuePropagation, 1), TR::Int32));
-      else
-         absState->push(new (region()) AbsValue(TR::VPIntConst::create(_valuePropagation, 0), TR::Int32));
+      else // we don't know what instanceof will actually return. 
+         absState->push(new (region()) AbsValue(TR::VPIntRange::create(_valuePropagation, 0, 1), TR::Int32));
+
       return absState;
       }
 
-   /* If S is an interface type, then: */
-   /* If T is a class type, then T must be Object. */
-   /* If T is an interface type, then T must be the same interface as S or a superinterface of S. */
-   /* If S is a class representing the array type SC[], that is, an array of components of type SC, then: */
-   /* If T is a class type, then T must be Object */
-   /* If T is an interface type, then T must be one of the interfaces implemented by arrays */
-   /* If T is an array type TC[], that is, an array of components of type TC, then one of the following must be true:
-      TC and SC are the same primitive type.
-      TC and SC are reference types, and type SC can be cast to TC by these run-time rules. */
-
+   
    absState->push(new (region()) AbsValue(TR::VPIntRange::create(_valuePropagation, 0, 1), TR::Int32));
    return absState;
    }
@@ -3031,6 +3034,12 @@ AbsState* AbsInterpreter::newarray(AbsState* absState, int atype)
 
 AbsState* AbsInterpreter::invokevirtual(AbsState* absState, int bcIndex, int cpIndex, TR_ResolvedMethod* method, TR::Block* block)
    {
+   AbsValue* absValue = absState->top();
+
+   if (absValue->getParamPosition() >= 0)
+      {
+      _methodSummary->addNullCheck(absValue->getParamPosition());
+      }
    invoke(bcIndex, cpIndex, TR::MethodSymbol::Kinds::Virtual, method, absState, block);
    return absState;
    }
@@ -3081,16 +3090,9 @@ void AbsInterpreter::cleanInvokeState(TR_ResolvedMethod* containingMethod, int c
       {
       absValue = invokeAbsState->pop();
       AbsValue *absValue2 = NULL;
-      TR::DataType datatype = j9Method->parmType(i);
-      switch (datatype) 
-         {
-         case TR::Double:
-         case TR::Int64:
-            absValue2 = invokeAbsState->pop();
-            break;
-         default:
-            break;
-         }
+      
+      if (absValue->getDataType() == TR::NoType)
+         absValue2 = invokeAbsState->pop();
 
       }
    int isStatic = kind == TR::MethodSymbol::Kinds::Static;
@@ -3144,11 +3146,9 @@ void AbsInterpreter::updateStaticBenefitWithMethodSummary(IDTNode* node, AbsStat
 
    TR_ResolvedMethod* method = node->getResolvedMethodSymbol()->getResolvedMethod();
 
-   TR::MethodSymbol::Kinds kind = node->getMethodKind();
-
    uint32_t numExplicitParams = method->numberOfExplicitParameters();
 
-   bool isStatic = kind == TR::MethodSymbol::Kinds::Static;
+   bool isStatic = node->getResolvedMethodSymbol()->getMethodKind() == TR::MethodSymbol::Kinds::Static;
    uint32_t numImplicitParams = isStatic ? 0 : 1;
 
    uint32_t totalNumParams = numImplicitParams + numExplicitParams; 
@@ -3180,7 +3180,8 @@ void AbsInterpreter::updateStaticBenefitWithMethodSummary(IDTNode* node, AbsStat
 
    // Update the Node's benefit
    node->setStaticBenefit(benefit);
-
+   // if (benefit >= 3)
+   //    printf("%d: === %s\n",benefit, node->getName());
    //pushes?
    if (method->returnTypeWidth() == 0)
       return;

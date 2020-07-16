@@ -77,51 +77,97 @@ int NullBranchFolding::predicate(TR::VPConstraint *other, TR::ValuePropagation* 
    other->print(vp);
    traceMsg(TR::comp(), "\n");
 
-   TR::VPClass* otherClass = other->asClass();
+   TR::VPClass* otherClass = other->asClass(); 
+
    TR::VPNullObject* otherNullObject = other->asNullObject();
-   TR::VPNonNullObject* otherNonNullObject = other->asNonNullObject();
 
    TR::VPNullObject* constraintNullObject = _constraint->asNullObject();
    TR::VPNonNullObject* constraintNonNullObject = _constraint->asNonNullObject();
 
-   if (otherClass || otherNonNullObject)
-      {
-      if (constraintNonNullObject)
-         return 1;
-      return 0;
-      }
+   if (constraintNullObject && otherNullObject) //both null
+      return 1; 
 
-   if (otherNullObject)
-      {
-      if (constraintNullObject)
-         return 1;
+   if (constraintNonNullObject && otherClass && otherClass->getClassPresence()->asNonNullObject() ) //both non null
+      return 1;
+
+   return 0;
+   }
+
+int NullCheckFolding::predicate(TR::VPConstraint* other, TR::ValuePropagation *vp)
+   {
+   if (!other)
       return 0;
+
+   traceMsg(TR::comp(), "Contraint to Compare: ");
+   other->print(vp);
+   traceMsg(TR::comp(), "\n");
+
+   TR::VPClass* otherClass = other->asClass(); 
+   TR::VPNullObject* otherNullObject = other->asNullObject();
+
+   TR::VPNullObject* constraintNullObject = _constraint->asNullObject();
+   TR::VPNonNullObject* constraintNonNullObject = _constraint->asNonNullObject();
+
+   if (constraintNullObject && otherNullObject) //both null
+      return 1; 
+
+   if (constraintNonNullObject && otherClass && otherClass->getClassPresence()->asNonNullObject()) //both non null
+      return 1;
+      
+   return 0;
+   }
+
+
+//Note: other can be VPClass or VPNullObject
+// constraint is VPFixedClass or VPNullObject
+int InstanceOfFolding::predicate(TR::VPConstraint* other, TR::ValuePropagation *vp)
+   {
+   if (!other)
+      return 0;
+
+   traceMsg(TR::comp(), "Contraint to Compare: ");
+   other->print(vp);
+   traceMsg(TR::comp(), "\n");
+
+   TR::VPNullObject* constraintNullObject = _constraint->asNullObject();
+   TR::VPFixedClass* constraintClassType = _constraint->asFixedClass();
+
+   TR::VPNullObject* otherNullObject = other->asNullObject();
+   TR::VPClass* otherClass = other->asClass();
+
+   if (constraintNullObject && otherNullObject) //Both are null
+      return 1;
+      
+   if (constraintClassType && otherClass && otherClass->getClassType() && otherClass->getClassType()->asFixedClass()) //Both are types
+      {
+
+      if (constraintClassType->getClass() == otherClass->getClassType()->getClass())
+         return 1;
+
       }
 
    return 0;
    }
 
-// int
-// NullCheckFolding::test(AbsValue *argumentEstimate, TR::ValuePropagation *valueProp)
-// {
-//   if (!argumentEstimate) return 0;
+int CheckCastFolding::predicate(TR::VPConstraint* other, TR::ValuePropagation *vp)
+   {
+   if (!other)
+      return 0;
 
-//   if (!this->_constraint) return 0;
+   traceMsg(TR::comp(), "Contraint to Compare: ");
+   other->print(vp);
+   traceMsg(TR::comp(), "\n");
 
-//   TR::VPConstraint *argumentEstimateVP = argumentEstimate->getConstraint(); // aClass...
-//   if (!argumentEstimateVP) return 0;
+   TR::VPClass* otherClass = other->asClass();
 
-//   TR::VPClass *argEst = argumentEstimateVP->asClass();
-//   if (!argEst) return 0;
+   TR::VPFixedClass* constraintClassType = _constraint->getClassType()->asFixedClass();
 
-//   TR::VPClassPresence *argPres = argEst->getClassPresence();
-//   if (!argPres) return 0;
-
-//   TR::VPConstraint *c = _constraint->getConstraint(); // NULL or non-NULL...
-//   if (!c) return 0;
-
-//   return argPres->mustBeEqual(argumentEstimateVP, valueProp) == false ? 0 : 1;
-// }
+   if (otherClass && otherClass->getClassType()->asFixedClass() && constraintClassType)
+      if (otherClass->getClassType()->getClass() == constraintClassType->getClass())
+         return 1;
+   
+   return 0;
+   }
 
 int MethodSummary::predicates(TR::VPConstraint *constraint, int paramPosition)
    {
@@ -165,31 +211,6 @@ void MethodSummary::trace()
       opt = iter.getNext();
       }
    }
-
-// void CheckCastFolding::trace(TR::ValuePropagation *vp)
-// {
-//    traceMsg(TR::comp(), "%s in bytecode %d for argument %d constraint", CheckCastFolding::name, this->_bytecode_idx, this->_argPos);
-//    this->_constraint->print(vp);
-//    traceMsg(TR::comp(), "\n");
-   
-// }
-
-// void
-// InstanceOfFolding::trace(TR::ValuePropagation *vp)
-// {
-//    traceMsg(TR::comp(), "%s in bytecode %d for argument %d constraint", InstanceOfFolding::name, this->_bytecode_idx, this->_argPos);
-//    this->_constraint->print(vp);
-//    traceMsg(TR::comp(), "\n");
-   
-// }
-
-// void
-// NullCheckFolding::trace(TR::ValuePropagation *vp)
-// {
-//    traceMsg(TR::comp(), "%s in bytecode %d for argument %d constraint", NullCheckFolding::name, this->_bytecode_idx, this->_argPos);
-//    this->_constraint->print(vp);
-//    traceMsg(TR::comp(), "\n");
-// }
 
 void BranchFolding::trace(TR::ValuePropagation *vp)
    {
@@ -235,6 +256,27 @@ void BranchFolding::trace(TR::ValuePropagation *vp)
       }
 
    traceMsg(TR::comp(), "Branch Folding %s for argument %d constraint: ", branchFoldingName, _paramPosition);
+   _constraint->print(vp);
+   traceMsg(TR::comp(), "\n");
+   }
+
+void NullCheckFolding::trace(TR::ValuePropagation *vp)
+   {
+   traceMsg(TR::comp(), "Null Check Folding for argument %d constraint: ", _paramPosition);
+   _constraint->print(vp);
+   traceMsg(TR::comp(), "\n");
+   }
+
+void InstanceOfFolding::trace(TR::ValuePropagation *vp)
+   {
+   traceMsg(TR::comp(), "Instanceof Folding for argument %d constraint: ", _paramPosition);
+   _constraint->print(vp);
+   traceMsg(TR::comp(), "\n");
+   }
+
+void CheckCastFolding::trace(TR::ValuePropagation *vp)
+   {
+   traceMsg(TR::comp(), "Checkcast Folding for argument %d constraint: ", _paramPosition);
    _constraint->print(vp);
    traceMsg(TR::comp(), "\n");
    }
@@ -315,6 +357,30 @@ void MethodSummary::addIfNonNull(int paramPosition)
    add(p2);
    }
 
+void MethodSummary::addNullCheck(int paramPosition)
+   {
+   NullCheckFolding* p1 = new (_region) NullCheckFolding(TR::VPNullObject::create(_vp), paramPosition);
+   NullCheckFolding* p2 = new (_region) NullCheckFolding(TR::VPNonNullObject::create(_vp), paramPosition);
+
+   add(p1);
+   add(p2);
+   }
+
+void MethodSummary::addInstanceOf(int paramPosition, TR::VPFixedClass* classType)
+   {
+   InstanceOfFolding* p1 = new (_region) InstanceOfFolding(classType, paramPosition);
+   InstanceOfFolding* p2 = new (_region) InstanceOfFolding(TR::VPNullObject::create(_vp), paramPosition);
+
+   add(p1);
+   add(p2);
+   }
+
+void MethodSummary::addCheckCast(int paramPostion, TR::VPFixedClass* classType)
+   {
+   CheckCastFolding* p = new (_region) CheckCastFolding(classType, paramPostion);
+
+   add(p);
+   }
 // void
 // MethodSummary::addInstanceOfFolding(int bc_index, AbsValue *constraint, int argPos)
 //    {

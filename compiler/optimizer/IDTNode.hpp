@@ -30,7 +30,6 @@ class IDTNode
    public:
    IDTNode(
       int idx,
-      TR::MethodSymbol::Kinds kind,
       TR_CallTarget* callTarget,
       int32_t callSiteBci, 
       TR::ResolvedMethodSymbol*,
@@ -40,14 +39,12 @@ class IDTNode
 
    IDTNode* addChild(
       int idx,
-      TR::MethodSymbol::Kinds kind,
       TR_CallTarget* callTarget,
       int32_t callSiteBci, 
       TR::ResolvedMethodSymbol*,  
       float callRatio, 
       TR::Region& region);
 
-   TR::MethodSymbol::Kinds getMethodKind() { return _kind; };
    MethodSummary* getMethodSummary() { return _methodSummary; };
    void setMethodSummary(MethodSummary* methodSummary) { _methodSummary = methodSummary; };
 
@@ -90,7 +87,6 @@ class IDTNode
    private:
    TR_CallTarget *_callTarget;
    IDTNode *_parent;
-   TR::MethodSymbol::Kinds _kind;
 
    int _idx;
    int _callSiteBci;

@@ -50,14 +50,14 @@ void InliningProposal::print(TR::Compilation* comp)
    if (verboseInlining)
       TR_VerboseLog::writeLineLocked(TR_Vlog_SIP, header);
 
-   TR::deque<IDTNode*, TR::Region&> *idtNodeQueue =  new (_region) TR::deque<IDTNode*, TR::Region&>(_region) ;
-   idtNodeQueue->push_back(_idt->getRoot());
+   IDTNodeDeque idtNodeQueue(comp->trMemory()->currentStackRegion());
+   idtNodeQueue.push_back(_idt->getRoot());
 
    //BFS 
-   while (!idtNodeQueue->empty()) 
+   while (!idtNodeQueue.empty()) 
       {
-      IDTNode* currentNode = idtNodeQueue->front();
-      idtNodeQueue->pop_front();
+      IDTNode* currentNode = idtNodeQueue.front();
+      idtNodeQueue.pop_front();
       int index = currentNode->getGlobalIndex();
 
       if (index != -1) //do not print the root node
@@ -86,7 +86,7 @@ void InliningProposal::print(TR::Compilation* comp)
       int32_t numChildren = currentNode->getNumChildren();
 
       for (int32_t i = 0; i < numChildren; i++)
-         idtNodeQueue->push_back(currentNode->getChild(i));
+         idtNodeQueue.push_back(currentNode->getChild(i));
          
       } 
 
