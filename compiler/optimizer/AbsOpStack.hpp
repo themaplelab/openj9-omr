@@ -31,13 +31,11 @@
 #include "optimizer/ValuePropagation.hpp"
 #include "optimizer/AbsValue.hpp"
 
-//TODO: can we inherit instead of encapsulating?
-//TODO: use AbsValue instead of VPConstraint
 class AbsOpStack
    {
    public:
    AbsOpStack(TR::Region& region);
-   AbsOpStack(AbsOpStack&, TR::Region &);
+   AbsOpStack(AbsOpStack&, TR::Region&);
 
    void merge(AbsOpStack&, TR::Region&, TR::ValuePropagation *);
 

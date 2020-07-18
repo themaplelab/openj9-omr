@@ -37,29 +37,39 @@ AbsValue::AbsValue(AbsValue* other):
 
 AbsValue* AbsValue::merge(AbsValue *other, TR::Region &region, OMR::ValuePropagation *vp)
    {
-   if (!other)
-      return NULL; // This is necessary :/
-   if (!_constraint)
+   TR_ASSERT_FATAL(other, "Cannot merge with a NULL AbsValue");
+   
+   //If two values to be merged are not the same type. Set as TOP with dataType to be TR::NoType
+   //This can happen when merging two basic blocks in two different scopes.
+   if (other->getDataType() != getDataType())
+      {
+      AbsValue *mergedValue = new (region) AbsValue(NULL, TR::NoType);
+      return mergedValue;
+      }
+
+   if (isTOP())
       return this;
-   if (!other->_constraint)
+
+   if (other->isTOP())
       return other;
 
-   TR::VPConstraint *constraint = _constraint->merge(other->getConstraint(), vp);
-   AbsValue *mergedValue = new (region) AbsValue(constraint, _dataType);
-   mergedValue->setParamPosition(-1); // modified;
+   TR::VPConstraint *mergedConstraint = getConstraint()->merge(other->getConstraint(), vp);
+   AbsValue *mergedValue = new (region) AbsValue(mergedConstraint, getDataType());
    return mergedValue;
    }
 
 void AbsValue::print(TR::ValuePropagation *vp)    
    {
    traceMsg(TR::comp(), "AbsValue: type: %s ", TR::DataType::getName(_dataType));
-   if (!_constraint)
+   if (isTOP())
       {
-      traceMsg(TR::comp(), "TOP (unknown)");
-      return;
+      traceMsg(TR::comp(), "TOP");
+      }
+   else 
+      {
+      traceMsg(TR::comp(), "Constraint: ");
+      _constraint->print(vp);
       }
 
-   traceMsg(TR::comp(), "Constraint: ");
-   _constraint->print(vp);
    traceMsg(TR::comp(), " param position: %d", _paramPos);
    }

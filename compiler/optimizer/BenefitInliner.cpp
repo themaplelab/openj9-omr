@@ -5,7 +5,7 @@
 #include "il/Block.hpp"
 #include "ilgen/J9ByteCodeIterator.hpp"
 #include "infra/Cfg.hpp"
-#include "infra/CfgNode.hpp" // for CFGNode
+#include "infra/CfgNode.hpp"
 #include "infra/ILWalk.hpp"
 #include "compiler/env/PersistentCHTable.hpp"
 #include "infra/SimpleRegex.hpp"

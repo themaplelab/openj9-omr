@@ -44,14 +44,22 @@ void AbsInterpreter::interpret(AbsState* invokeAbsState)
 
 AbsValue* AbsInterpreter::getClassAbsValue(TR_OpaqueClassBlock* opaqueClass, TR::VPClassPresence *presence, TR::VPArrayInfo *info)
    {
-   TR::VPConstraint *classConstraint;
+   TR::VPConstraint *classConstraint;  
 
    if (opaqueClass)
       {
-      TR::VPClassType *fixedClass = TR::VPFixedClass::create(_valuePropagation, opaqueClass);
-      classConstraint = TR::VPClass::create(_valuePropagation, fixedClass, presence, NULL, info, NULL);
+      TR_OpaqueClassBlock *resolvedClass = comp()->fe()->getClassClassPointer(opaqueClass);
+
+      TR::VPClassType *classType;
+
+      if (resolvedClass) //If this class is resolved
+         classType = TR::VPResolvedClass::create(_valuePropagation, opaqueClass); 
+      else // Not resolved
+         classType = TR::VPFixedClass::create(_valuePropagation, opaqueClass);
+      
+      classConstraint = TR::VPClass::create(_valuePropagation, classType, presence, NULL, info, NULL);
       }
-   else
+   else //This case we don't even know which class it is
       {
       classConstraint = TR::VPClass::create(_valuePropagation, NULL, presence, NULL, info, NULL); 
       }
@@ -74,8 +82,8 @@ AbsState* AbsInterpreter::initializeAbsState(TR::ResolvedMethodSymbol* symbol)
    {
     
    if (comp()->getOption(TR_TraceAbstractInterpretation)) 
-      traceMsg(comp(), "- 1. Abstract Interpreter: Enter method: %s\n", symbol->signature(comp()->trMemory()));
-
+      traceMsg(comp(), "- 1. Abstract Interpreter: Init method : %s AbsState\n", symbol->signature(comp()->trMemory()));
+   //printf("- 1. Abstract Interpreter: Enter method: %s\n", symbol->signature(comp()->trMemory()));
    AbsState* absState = new (region()) AbsState(region());
 
    TR_ResolvedMethod *callerResolvedMethod = _bcIterator.method();
@@ -193,7 +201,7 @@ AbsState* AbsInterpreter::initializeAbsState(TR::ResolvedMethodSymbol* symbol)
 
 AbsState* AbsInterpreter::mergeAllPredecessors(TR::Block* block)
    {
-
+   //printf("Merge all predecesor of block %d\n", block->getNumber());
    TR::CFGEdgeList &predecessors = block->getPredecessors();
    AbsState* absState = NULL;
 
@@ -212,6 +220,7 @@ AbsState* AbsInterpreter::mergeAllPredecessors(TR::Block* block)
          traceMsg(comp(), "Merge Abstract State Predecessor: #%d\n", aBlock->getNumber());
          //absState->trace(_valuePropagation);
          }
+      //printf("Merge Abstract State Predecessor: #%d\n", aBlock->getNumber());
 
       if (first) 
          {
@@ -233,7 +242,7 @@ AbsState* AbsInterpreter::mergeAllPredecessors(TR::Block* block)
 void AbsInterpreter::transferAbsStates(TR::Block* block)
    {
    bool traceAbstractInterpretion = comp()->getOption(TR_TraceAbstractInterpretation);
-
+   //printf("-    4. Abstract Interpreter: Transfer abstract states\n");
    if (traceAbstractInterpretion) 
       traceMsg(comp(), "-    4. Abstract Interpreter: Transfer abstract states\n");
 
@@ -241,7 +250,7 @@ void AbsInterpreter::transferAbsStates(TR::Block* block)
       {
       if (traceAbstractInterpretion)
          traceMsg(comp(), "      No predecessors. Stop.\n");
-
+      //printf("No predecessors. Stop.\n");
       return;
       }
       
@@ -250,6 +259,7 @@ void AbsInterpreter::transferAbsStates(TR::Block* block)
    // as we should only visit if we actually have abs state to propagate
    if (block->hasOnlyOnePredecessor() && !block->getPredecessors().front()->getFrom()->asBlock()->getAbsState())
       {
+         //printf("      There is a loop. Stop.\n");
       if (traceAbstractInterpretion) 
          traceMsg(comp(), "      There is a loop. Stop.\n");
       return;
@@ -267,6 +277,7 @@ void AbsInterpreter::transferAbsStates(TR::Block* block)
          traceMsg(comp(), "      There is only one predecessor: #%d and interpreted. Pass this abstract state.\n",block->getPredecessors().front()->getFrom()->asBlock()->getNumber() );
          //absState->trace(_valuePropagation);
          }
+      //printf("      There is only one predecessor: #%d and interpreted. Pass this abstract state.\n",block->getPredecessors().front()->getFrom()->asBlock()->getNumber());
         
       return;
       }
@@ -275,6 +286,7 @@ void AbsInterpreter::transferAbsStates(TR::Block* block)
    // multiple predecessors...all interpreted
    if (block->hasAbstractInterpretedAllPredecessors()) 
       {
+      //printf("      There are multiple predecessors and all interpreted. Merge their abstract states.\n");
       if (traceAbstractInterpretion) 
          traceMsg(comp(), "      There are multiple predecessors and all interpreted. Merge their abstract states.\n");
 
@@ -285,6 +297,7 @@ void AbsInterpreter::transferAbsStates(TR::Block* block)
    //Case: 4
    // we have not interpreted all predecessors...
    // look for a predecessor that has been interpreted
+   //printf("      Not all predecessors are interpreted. Finding one interpretd...\n");
    if (traceAbstractInterpretion) 
       traceMsg(comp(), "      Not all predecessors are interpreted. Finding one interpretd...\n");
   
@@ -308,6 +321,7 @@ void AbsInterpreter::transferAbsStates(TR::Block* block)
       if (traceAbstractInterpretion)
          traceMsg(comp(), "      Find a predecessor: #%d interpreted. Use its type info and setting all abstract values to be TOP\n", parentBlock->getNumber());
    
+      //printf("      Find a predecessor: #%d interpreted. Use its type info and setting all abstract values to be TOP\n", parentBlock->getNumber());
 
       // We find a predecessor interpreted. Use its type info with all AbsValues being TOP (unkown)
       AbsState *parentState = parentBlock->getAbsState();
@@ -373,7 +387,7 @@ void AbsInterpreter::walkBasicBlocks(TR::CFG* cfg)
 
 void AbsInterpreter::walkByteCode(TR::Block* block)
    {
-  
+      //printf("==== Walk basic block #%d ==== \n", block->getNumber());
    bool traceAbstractInterpretation = comp()->getOption(TR_TraceAbstractInterpretation);
    if (traceAbstractInterpretation) 
       traceMsg(comp(), "-   3. Abstract Interpreter: Walk bytecode in basic block #:%d\n",block->getNumber());
@@ -515,7 +529,7 @@ void AbsInterpreter::interpretByteCode(AbsState* state, TR_J9ByteCode bc, TR_J9B
    bool traceAbstractInterpretation = comp()->getOption(TR_TraceAbstractInterpretation);
    if (traceAbstractInterpretation) 
       traceMsg(comp(), "-     5. Abstract Interpreter: interpret Byte Code\n");
-   //printf("+Bytecode: %s\n",J9_ByteCode_Strings[bc]);
+   //printf("+Bytecode: %s | %d\n",J9_ByteCode_Strings[bc], bci.nextByte());
    switch(bc)
       {
       //alphabetical order
@@ -1037,6 +1051,8 @@ AbsState* AbsInterpreter::checkcast(AbsState* absState, int cpIndex, int bytecod
    AbsValue *objRef = absState->pop();
 
    TR_OpaqueClassBlock* classBlock = method->getClassFromConstantPool(comp(), cpIndex);
+
+   //adding to inlining summary
    if (classBlock && objRef->getParamPosition() >= 0 )
       {
       TR::VPFixedClass *classType = TR::VPFixedClass::create(_valuePropagation, classBlock);
@@ -1049,43 +1065,48 @@ AbsState* AbsInterpreter::checkcast(AbsState* absState, int cpIndex, int bytecod
       return absState;
       }
 
-   if (objRef->getConstraint()->asNullObject()) // checkcast null
+   if (objRef->getConstraint()->asNullObject()) // checkcast null object
       {
       absState->push(objRef);
       return absState;
       }
 
-   if (!objRef->getConstraint()->asClass()) // well, we have no idea what it is
+   if (!objRef->getConstraint()->asClass()) // well, we have no idea what it is, it is not even a class constraint
       {
       absState->push(getTOPAbsValue(TR::Address));
       return absState;
       }
 
    TR::VPClass *classConstraint = objRef->getConstraint()->asClass();
-   TR::VPFixedClass *classType = classConstraint->getClassType()->asFixedClass();
+   TR::VPClassType *classType = classConstraint->getClassType();
 
-   if (!classType)
+   if (!classType || !classBlock) //If we do not have the class type or the cast class
       {
       absState->push(getTOPAbsValue(TR::Address));
       return absState;
       }
 
-   //Statically, we only know the checkcast will succeed if and only if both are the exact same type
-   //Otherwise, we don't know. We don't make any optimistic assumptions. Therefore, push TOP
-   if (!classBlock)
+   //Now we have all info to check the class hierachy
+   TR_YesNoMaybe yesNoMaybe = comp()->fe()->isInstanceOf(classType->getClass(), classBlock, true, true);
+   if (yesNoMaybe == TR_yes)
+      {
+      if (classBlock == classType->getClass()) //cast into the same type, no change
+         {
+         absState->push(objRef);
+         return absState;
+         }
+      else //cast into a different type
+         {
+         absState->push(getClassAbsValue(classBlock, classConstraint->getClassPresence()));
+         return absState;   
+         }
+      }
+   else 
       {
       absState->push(getTOPAbsValue(TR::Address));
       return absState;
       }
-
-   //Same types
-   if (classBlock == classType->getClass() )
-      {
-      absState->push(objRef);
-      return absState;
-      }
-
-
+   
    absState->push(getTOPAbsValue(TR::Address));
    return absState;
    }
@@ -1277,15 +1298,14 @@ AbsState* AbsInterpreter::iand(AbsState* absState)
    }
 
 
-//TODO: instanceof <interface> Current implementation does not support intereface.
+//TODO: instanceof <interface>. Current implementation does not support intereface.
 AbsState* AbsInterpreter::instanceof(AbsState* absState, int cpIndex, int byteCodeIndex, TR_ResolvedMethod* method)
    {
-   
    AbsValue *objectRef = absState->pop();
 
-   TR_OpaqueClassBlock *block = method->getClassFromConstantPool(comp(), cpIndex); //The class to be compared with
+   TR_OpaqueClassBlock *block = method->getClassFromConstantPool(comp(), cpIndex); //The cast class to be compared with
    
-
+   //Add to the inlining summary
    if (block && objectRef->getParamPosition() >= 0 )
       {
       TR::VPFixedClass* classType = TR::VPFixedClass::create(_valuePropagation, block);
@@ -1293,35 +1313,44 @@ AbsState* AbsInterpreter::instanceof(AbsState* absState, int cpIndex, int byteCo
       }
       
 
-   //Constraint Top
+   //Instance Constraint is Top
    if (!objectRef->getConstraint())
       {
       absState->push(new (region()) AbsValue(TR::VPIntRange::create(_valuePropagation, 0, 1), TR::Int32));
       return absState;
       }
 
-   //null object, push false to stack
+   //isntance is null object, push false to stack
    if (objectRef->getConstraint()->asNullObject())
       {
       absState->push(new (region()) AbsValue(TR::VPIntConst::create(_valuePropagation, 0), TR::Int32));
       return absState;
       }
   
-   //Class Info is not available
+   //Cast Class Info is not available
    if (!block)
       {
       absState->push(new (region()) AbsValue(TR::VPIntRange::create(_valuePropagation, 0, 1), TR::Int32));
       return absState;
       }
 
-   //We Have the class info
+   //We Have the class info, Check the class hierachy
    if (objectRef->getConstraint()->asClass())
       {
-      if(block == objectRef->getConstraint()->getClass()) //instanceof must be true if they are exact same type
+      TR_YesNoMaybe yesNoMaybe = comp()->fe()->isInstanceOf(objectRef->getConstraint()->getClass(), block, true, true);
+      if( yesNoMaybe == TR_yes) //Instanceof must be true;
+         {
          absState->push(new (region()) AbsValue(TR::VPIntConst::create(_valuePropagation, 1), TR::Int32));
-      else // we don't know what instanceof will actually return. 
+         } 
+      else if (yesNoMaybe = TR_no) //Instanceof must be false;
+         {
+         absState->push(new (region()) AbsValue(TR::VPIntConst::create(_valuePropagation, 0), TR::Int32));
+         }
+      else // we don't know
+         {
          absState->push(new (region()) AbsValue(TR::VPIntRange::create(_valuePropagation, 0, 1), TR::Int32));
-
+         } 
+         
       return absState;
       }
 
@@ -3079,25 +3108,30 @@ void AbsInterpreter::invoke(int bcIndex, int cpIndex, TR::MethodSymbol::Kinds ki
 
 void AbsInterpreter::cleanInvokeState(TR_ResolvedMethod* containingMethod, int cpIndex, AbsState* invokeAbsState, TR::MethodSymbol::Kinds kind, TR::Region& region, TR::Compilation* comp)
    {
-   
+   //printf("clean Invoke State\n");
    TR_ASSERT_FATAL(invokeAbsState, "invoke state is NULL");
    TR::Method *j9Method = comp->fej9()->createMethod(comp->trMemory(), containingMethod->containingClass(), cpIndex);
    
    uint32_t params = j9Method->numberOfExplicitParameters();
    AbsValue *absValue = NULL;
-
+   //printf("=== %s\n",j9Method->signature(comp->trMemory()));
    for (int i = 0; i < params; i++) 
       {
       absValue = invokeAbsState->pop();
       AbsValue *absValue2 = NULL;
       
-      if (absValue->getDataType() == TR::NoType)
+      TR::DataType dataType = j9Method->parmType(params - i - 1);
+      //printf("Param %d, Type: %s\n",params - i - 1, TR::DataType::getName(dataType));
+      if (dataType == TR::Double || dataType == TR::Int64)
          absValue2 = invokeAbsState->pop();
-
       }
+
    int isStatic = kind == TR::MethodSymbol::Kinds::Static;
+
    int numberOfImplicitParameters = isStatic ? 0 : 1;
-   if (numberOfImplicitParameters == 1) absValue = invokeAbsState->pop();
+
+   if (numberOfImplicitParameters == 1)
+      absValue = invokeAbsState->pop();
 
    //pushes?
    if (j9Method->returnTypeWidth() == 0) return;
@@ -3106,16 +3140,21 @@ void AbsInterpreter::cleanInvokeState(TR_ResolvedMethod* containingMethod, int c
    TR::DataType datatype = j9Method->returnType();
    switch(datatype) 
       {
-      case TR::Float:
       case TR::Int32:
       case TR::Int16:
       case TR::Int8:
+         {
+         AbsValue *result = getTOPAbsValue(TR::Int32, region);
+         invokeAbsState->push(result);
+         break;
+         }
+      case TR::Float:
       case TR::Address:
          {
          AbsValue *result = getTOPAbsValue(datatype, region);
          invokeAbsState->push(result);
-         }
          break;
+         }  
       case TR::Double:
       case TR::Int64:
          {
@@ -3123,28 +3162,23 @@ void AbsInterpreter::cleanInvokeState(TR_ResolvedMethod* containingMethod, int c
          invokeAbsState->push(result);
          AbsValue *result2 = getTOPAbsValue(TR::NoType, region);
          invokeAbsState->push(result2);
+         break;
          }
-         break;
-      case TR::NoType:
-         break;
       default:
-         {
-         //TODO: 
-         AbsValue *result = getTOPAbsValue(TR::Address, region);
-         invokeAbsState->push(result);
-         }
          break;
       }
    }
 
 void AbsInterpreter::updateStaticBenefitWithMethodSummary(IDTNode* node, AbsState* invokeAbsState)
    {
+   //printf("update IDT with method summary\n");
    TR_ASSERT_FATAL(invokeAbsState, "invoke state is NULL");
 
    traceMsg(comp(), "#### Invoke State ####\n");
    invokeAbsState->trace(_valuePropagation);
 
    TR_ResolvedMethod* method = node->getResolvedMethodSymbol()->getResolvedMethod();
+   //printf("=== %s\n",method->signature(comp()->trMemory()));
 
    uint32_t numExplicitParams = method->numberOfExplicitParameters();
 
@@ -3160,7 +3194,9 @@ void AbsInterpreter::updateStaticBenefitWithMethodSummary(IDTNode* node, AbsStat
       AbsValue* absValue = invokeAbsState->pop();
       AbsValue* absValue2 = NULL;
 
-      if (absValue->getDataType() == TR::NoType)
+      TR::DataType dataType = method->parmType(numExplicitParams -i - 1);
+      //printf("Param %d, Type: %s\n",numExplicitParams -i - 1, TR::DataType::getName(dataType));
+      if (dataType == TR::Double || dataType == TR::Int64)
          absValue2 = invokeAbsState->pop();
 
       paramsArray[totalNumParams -i - 1] = absValue2 ? absValue2 : absValue;
@@ -3181,7 +3217,7 @@ void AbsInterpreter::updateStaticBenefitWithMethodSummary(IDTNode* node, AbsStat
    // Update the Node's benefit
    node->setStaticBenefit(benefit);
    // if (benefit >= 3)
-   //    printf("%d: === %s\n",benefit, node->getName());
+   //    //printf("%d: === %s\n",benefit, node->getName());
    //pushes?
    if (method->returnTypeWidth() == 0)
       return;
@@ -3189,36 +3225,34 @@ void AbsInterpreter::updateStaticBenefitWithMethodSummary(IDTNode* node, AbsStat
    //how many pushes?
    TR::DataType datatype = method->returnType();
    switch(datatype) 
-      {
-      case TR::Float:
-      case TR::Int32:
-      case TR::Int16:
-      case TR::Int8:
-      case TR::Address:
          {
-         AbsValue *result = getTOPAbsValue(datatype);
-         invokeAbsState->push(result);
-         }
-         break;
-      case TR::Double:
-      case TR::Int64:
-         {
-         AbsValue *result = getTOPAbsValue(datatype);
-         invokeAbsState->push(result);
-         AbsValue *result2 = getTOPAbsValue(TR::NoType);
-         invokeAbsState->push(result2);
-         }
-         break;
-      case TR::NoType:
-         break;
-      default:
-         {
-         //TODO: 
-         AbsValue *result = getTOPAbsValue(TR::Address);
-         invokeAbsState->push(result);
-         }
-         break;
-      }
+         case TR::Int32:
+         case TR::Int16:
+         case TR::Int8:
+            {
+            AbsValue *result = getTOPAbsValue(TR::Int32);
+            invokeAbsState->push(result);
+            break;
+            }
+         case TR::Float:
+         case TR::Address:
+            {
+            AbsValue *result = getTOPAbsValue(datatype);
+            invokeAbsState->push(result);
+            break;
+            }  
+         case TR::Double:
+         case TR::Int64:
+            {
+            AbsValue *result = getTOPAbsValue(datatype);
+            invokeAbsState->push(result);
+            AbsValue *result2 = getTOPAbsValue(TR::NoType);
+            invokeAbsState->push(result2);
+            break;
+            }
+         default:
+            break;
+         }  
    }
 
    

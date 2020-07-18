@@ -31,8 +31,6 @@
 #include "optimizer/ValuePropagation.hpp"
 #include "optimizer/AbsValue.hpp"
 
-//TODO: can we inherit instead of encapsulating?
-//TODO: use AbsValue instead of VPConstraint
 class AbsLocalVarArray
    {
    public:

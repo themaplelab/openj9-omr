@@ -38,6 +38,7 @@ void AbsLocalVarArray::merge(AbsLocalVarArray &other, TR::Region &region, TR::Va
    int mergedSize = std::max(selfSize, otherSize);
    for (int i = 0; i < mergedSize; i++)
       {
+      //printf("Merge %d\n",i);
       AbsValue *selfValue = i < size() ? at(i) : NULL;
       AbsValue *otherValue = i < other.size() ? other.at(i) : NULL;
 
@@ -61,17 +62,17 @@ void AbsLocalVarArray::merge(AbsLocalVarArray &other, TR::Region &region, TR::Va
       }
    }
 
-void AbsLocalVarArray::set(unsigned int index, AbsValue *constraint)
+void AbsLocalVarArray::set(unsigned int index, AbsValue *absValue)
    {
    if (size() > index)
       {
-      _array.at(index) = constraint;
+      _array.at(index) = absValue;
       return;
       }
 
    if (index == size())
       {
-      _array.push_back(constraint);
+      _array.push_back(absValue);
       return;
       }
       
@@ -80,7 +81,7 @@ void AbsLocalVarArray::set(unsigned int index, AbsValue *constraint)
       _array.push_back(NULL);
       }
 
-      _array.push_back(constraint);
+      _array.push_back(absValue);
    }
    
 AbsValue* AbsLocalVarArray::at(unsigned int index)

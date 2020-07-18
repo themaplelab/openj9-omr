@@ -34,17 +34,20 @@ class AbsState
     AbsState(TR::Region &region);
     AbsState(AbsState* other);
 
-    //For AbsArray
+    //For getting and setting AbsValues in AbsArray
     void set(unsigned int, AbsValue*);
     AbsValue *at(unsigned int);
 
-    //For AbsOpStack
+    //For getting and setting AbsValues in AbsOpStack
     void push(AbsValue *);
     AbsValue* pop();
     AbsValue* top();
+
     void merge(AbsState*, TR::ValuePropagation*);
+
     size_t getStackSize() {   return _stack.size();  };
     size_t getArraySize() {  return _array.size();  };
+    
     void trace(TR::ValuePropagation*);
 
     private:

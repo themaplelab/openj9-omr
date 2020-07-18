@@ -26,6 +26,7 @@
 #include "il/OMRDataTypes.hpp"
 #include "optimizer/ValuePropagation.hpp"
 
+
 class AbsValue
    {
    public:
@@ -36,7 +37,10 @@ class AbsValue
    
    void print(TR::ValuePropagation *vp);
 
+   bool isTOP() { return _constraint == NULL; }; //'TOP' is a notion in lattice theory, denoting the 'maximum' in the lattice. 
    bool isType2() { return _dataType == TR::Double || _dataType == TR::Int64; };
+   bool isParameter() { return _paramPos >= 0; };
+
    int getParamPosition() { return _paramPos; };
    void setParamPosition(int paramPos) { _paramPos = paramPos; };
 
