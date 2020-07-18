@@ -1354,7 +1354,6 @@ AbsState* AbsInterpreter::instanceof(AbsState* absState, int cpIndex, int byteCo
       return absState;
       }
 
-   
    absState->push(new (region()) AbsValue(TR::VPIntRange::create(_valuePropagation, 0, 1), TR::Int32));
    return absState;
    }
@@ -2648,29 +2647,150 @@ AbsState* AbsInterpreter::dstore3(AbsState* absState)
 
 AbsState* AbsInterpreter::lconst0(AbsState* absState)
    {
-   AbsValue *result = getTOPAbsValue(TR::Int64);
-   absState->push(result);
-   AbsValue *result2 = getTOPAbsValue(TR::NoType);
-   absState->push(result2);
+   AbsValue* value1 = new (region()) AbsValue(TR::VPLongConst::create(_valuePropagation, 0), TR::Int64);
+   absState->push(value1);
+   AbsValue *value2 = getTOPAbsValue(TR::NoType);
+   absState->push(value2);
    return absState;
    }
 
 AbsState* AbsInterpreter::lconst1(AbsState* absState)
    {
-   AbsValue *result = getTOPAbsValue(TR::Int64);
-   absState->push(result);
-   AbsValue *result2 = getTOPAbsValue(TR::NoType);
-   absState->push(result2);
+   AbsValue* value1 = new (region()) AbsValue(TR::VPLongConst::create(_valuePropagation, 1), TR::Int64);
+   absState->push(value1);
+   AbsValue *value2 = getTOPAbsValue(TR::NoType);
+   absState->push(value2);
    return absState;
    }
 
 AbsState* AbsInterpreter::lcmp(AbsState* absState)
    {
    absState->pop();
+   AbsValue* value2 = absState->pop();
    absState->pop();
-   absState->pop();
-   absState->pop();
-   AbsValue *result = getTOPAbsValue(TR::Int32);
+   AbsValue* value1 = absState->pop();
+
+   if (value1->isTOP() || value2->isTOP())
+      {
+      AbsValue *result = new (region()) AbsValue(TR::VPIntRange::create(_valuePropagation, -1, 1), TR::Int32);
+      absState->push(result); 
+      return absState;
+      }
+   else
+      {
+      TR::VPLongConst* value1Const = value1->getConstraint()->asLongConst();
+      TR::VPLongConst* value2Const = value2->getConstraint()->asLongConst();
+
+      TR::VPConstraint* value1Range = value1->getConstraint()->asLongRange();
+      TR::VPConstraint* value2Range = value2->getConstraint()->asLongRange();
+
+      TR::VPConstraint* value1MergedRange = value1->getConstraint()->asMergedLongConstraints();
+      TR::VPConstraint* value2MergedRange = value2->getConstraint()->asMergedLongConstraints();
+
+      //both long consts
+      if (value1Const && value2Const) 
+         {
+         long value1Long = value1Const->getLong();
+         long value2Long = value2Const->getLong();
+
+         if (value1Long == value2Long)
+            {
+            AbsValue* result = new (region()) AbsValue(TR::VPIntConst::create(_valuePropagation, 0), TR::Int32);
+            absState->push(result);
+            return absState;
+            }
+         else if (value1Long > value2Long)
+            {
+            AbsValue* result = new (region()) AbsValue(TR::VPIntConst::create(_valuePropagation, 1), TR::Int32);
+            absState->push(result);
+            return absState;
+            }
+         else 
+            {
+            AbsValue* result = new (region()) AbsValue(TR::VPIntConst::create(_valuePropagation, -1), TR::Int32);
+            absState->push(result);
+            return absState;
+            }
+         }
+
+         if (value1Const && (value2Range || value2MergedRange)) // value1 const, value2 range
+            {
+            TR::VPConstraint* range = value2Range ? value2Range : value2MergedRange;
+
+            long value1Long = value1Const->getLong();
+            if (value1Long > range->getHighLong()) //strictly greater than
+               {
+               AbsValue* result = new (region()) AbsValue(TR::VPIntConst::create(_valuePropagation, 1), TR::Int32);
+               absState->push(result);
+               return absState;
+               }
+            else if (value1Long < range->getLowLong()) //strictly smaller than
+               {
+               AbsValue* result = new (region()) AbsValue(TR::VPIntConst::create(_valuePropagation, -1), TR::Int32);
+               absState->push(result);
+               return absState;
+               }
+            else //we dont't know
+               {
+               AbsValue* result = new (region()) AbsValue(TR::VPIntRange::create(_valuePropagation, -1, 1), TR::Int32);
+               absState->push(result);
+               return absState;
+               }
+            
+            }
+
+         if (value2Const && (value1Range ||value1MergedRange)) // value2 const, value1 range
+            {
+            TR::VPConstraint* range = value1Range ? value1Range : value1MergedRange;
+            long value2Long = value2Const->getLong();
+
+            if (range->getLowLong() > value2Long) //strictly greater than
+               {
+               AbsValue* result = new (region()) AbsValue(TR::VPIntConst::create(_valuePropagation, 1), TR::Int32);
+               absState->push(result);
+               return absState;
+               }
+            else if (range->getHighLong() < value2Long) //strictly smaller than
+               {
+               AbsValue* result = new (region()) AbsValue(TR::VPIntConst::create(_valuePropagation, -1), TR::Int32);
+               absState->push(result);
+               return absState;
+               }
+            else //we dont't know
+               {
+               AbsValue* result = new (region()) AbsValue(TR::VPIntRange::create(_valuePropagation, -1, 1), TR::Int32);
+               absState->push(result);
+               return absState;
+               }
+            }
+
+         if (( value1Range || value1MergedRange) && (value2Range || value2MergedRange)) // both ranges
+            {
+            TR::VPConstraint *range1 = value1Range ? value1Range : value1MergedRange;
+            TR::VPConstraint *range2 = value2Range ? value2Range : value2MergedRange;
+
+            if (range1->getLowLong() > range2->getHighLong() ) //strictly greater than
+               {
+               AbsValue* result = new (region()) AbsValue(TR::VPIntConst::create(_valuePropagation, 1), TR::Int32);
+               absState->push(result);
+               return absState;
+               }
+            else if (range1->getHighLong() < range2->getLowLong()) //strictly smaller than
+               {
+               AbsValue* result = new (region()) AbsValue(TR::VPIntConst::create(_valuePropagation, -1), TR::Int32);
+               absState->push(result);
+               return absState;
+               }
+            else //we don't know
+               {
+               AbsValue* result = new (region()) AbsValue(TR::VPIntRange::create(_valuePropagation, -1, 1), TR::Int32);
+               absState->push(result);
+               return absState;
+               }
+            }
+      }
+   
+   AbsValue *result =  new (region()) AbsValue(TR::VPIntRange::create(_valuePropagation, -1, 1), TR::Int32);
    absState->push(result);
    return absState;
    }
@@ -2903,7 +3023,7 @@ void AbsInterpreter::ldcInt32(int cpIndex, TR_ResolvedMethod* method, AbsState* 
 
 void AbsInterpreter::ldcInt64(int cpIndex, TR_ResolvedMethod* method, AbsState* absState)
    {
-   auto value = method->intConstant(cpIndex);
+   auto value = method->longConstant(cpIndex);
    TR::VPLongConst *constraint = TR::VPLongConst::create(_valuePropagation, value);
    AbsValue *result = new (region()) AbsValue(constraint, TR::Int64);
    absState->push(result);
@@ -2943,7 +3063,7 @@ void AbsInterpreter::ldcString(int cpIndex, TR_ResolvedMethod* method, AbsState*
    {
    // TODO: we might need the resolved method symbol here
    // TODO: aAbsState* _rms    
-   auto callerResolvedMethodSymbol = TR::ResolvedMethodSymbol::create(comp()->trHeapMemory(), method, comp());
+   TR::ResolvedMethodSymbol* callerResolvedMethodSymbol = TR::ResolvedMethodSymbol::create(comp()->trHeapMemory(), method, comp());
    TR::SymbolReference *symRef = comp()->getSymRefTab()->findOrCreateStringSymbol(callerResolvedMethodSymbol, cpIndex);
    if (symRef->isUnresolved())
       {
