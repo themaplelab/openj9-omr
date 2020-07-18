@@ -1334,8 +1334,9 @@ AbsState* AbsInterpreter::instanceof(AbsState* absState, int cpIndex, int byteCo
       return absState;
       }
 
-   //We Have the class info, Check the class hierachy
-   if (objectRef->getConstraint()->asClass())
+   //We Have the class info
+   //Check the class hierachy
+   if (objectRef->getConstraint()->asClass() || objectRef->getConstraint()->asConstString() )
       {
       TR_YesNoMaybe yesNoMaybe = comp()->fe()->isInstanceOf(objectRef->getConstraint()->getClass(), block, true, true);
       if( yesNoMaybe == TR_yes) //Instanceof must be true;
