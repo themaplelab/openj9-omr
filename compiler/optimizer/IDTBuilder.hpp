@@ -16,18 +16,23 @@ class IDTBuilder
    friend class AbsInterpreter;
 
    public:
-   IDTBuilder(TR::ResolvedMethodSymbol* symbol, int32_t budget, TR::Region& stackRegion, TR::Region& idtRegion, TR::Compilation* comp, OMR::BenefitInliner* inliner);
+   IDTBuilder(TR::ResolvedMethodSymbol* symbol, int32_t budget, TR::Region& region, TR::Compilation* comp, OMR::BenefitInliner* inliner);
    IDT* buildIDT();
 
    private:
-   bool buildIDTHelper(IDTNode* node, AbsState* invokeState, int callerIndex, int32_t budget, TR_CallStack* callStack);
-   void performAbstractInterpretation(IDTNode* node, AbsState* invokeState,  int callerIndex, TR_CallStack* callStack);
-   float computeCallRatio(TR_CallTarget* callTarget, TR_CallStack* callStack, TR::Block* block, TR::CFG* callerCfg );
+   void buildIDTHelper(IDTNode* node, AbsState* invokeState, int callerIndex, int32_t budget, TR_CallStack* callStack);
+   void performAbstractInterpretation(IDTNode* node,  int callerIndex, TR_CallStack* callStack);
 
-   TR::SymbolReference* getSymbolReference(TR::ResolvedMethodSymbol *callerSymbol, int cpIndex, TR::MethodSymbol::Kinds kind);
+   float computeCallRatio(TR_CallTarget* callTarget, TR_CallStack* callStack, TR::Block* block, TR::CFG* callerCfg );
+   int computeStaticBenefitWithMethodSummary(TR::Method* calleeMethod, bool isStaticMethod, MethodSummary* methodSummary, AbsState* invokeState);
+
+   //Any method that is not going to be asbtract interpreted should call this method to pop the parameters from AbsState
+   //In order to ensure the Abs Op Stack is valid.
+   void cleanInvokeState(TR::Method* calleeMethod, bool isStaticMethod, AbsState* invokeState);
+
    TR::Compilation* comp() { return _comp; };
-   TR::Region& getIdtRegion() { return _idtRegion; };
-   TR::Region& getStackRegion() { return _stackRegion; };
+   TR::Region& region() { return _region; };
+
 
    IDTNode* getInterpretedMethod(TR::ResolvedMethodSymbol* symbol);
    void addInterpretedMethod(TR::ResolvedMethodSymbol *symbol, IDTNode* node);
@@ -37,49 +42,21 @@ class IDTBuilder
    
    //Used for calculating method branch profile
    OMR::BenefitInlinerUtil* getUtil();
+
+   //TODO: move to absinterpter
    TR::CFG* generateCFG(TR_CallTarget* callTarget, TR_CallStack* callStack=NULL);
    TR::ValuePropagation *getValuePropagation();
 
+
+   //This will be called from AbsInterpreter
    void addChild(IDTNode*node,
       int callerIndex,
-      TR_ResolvedMethod* containingMethod, 
+      TR::Method* calleeMethod, 
+      bool isStaticMethod,
+      TR_CallSite* callSite,
       AbsState* invokeState,
-      int bcIndex, 
-      int cpIndex, 
-      TR::MethodSymbol::Kinds kind, 
       TR_CallStack* callStack,
-      TR::Block* block, 
-      TR::CFG* cfg);
-
-   TR_CallSite* findCallSiteTargets(
-      TR::ResolvedMethodSymbol *callerSymbol, 
-      int bcIndex, 
-      int cpIndex, 
-      TR::MethodSymbol::Kinds kind, 
-      int callerIndex, 
-      TR_CallStack* callStack,
-      TR::Block* block,
-      TR::CFG* cfg);
-
-   TR_CallSite* getCallSite(
-      TR::MethodSymbol::Kinds kind,
-      TR_ResolvedMethod *callerResolvedMethod,
-      TR::TreeTop *callNodeTreeTop,
-      TR::Node *parent,
-      TR::Node *callNode,
-      TR::Method * interfaceMethod,
-      TR_OpaqueClassBlock *receiverClass,
-      int32_t vftSlot,
-      int32_t cpIndex,
-      TR_ResolvedMethod *initialCalleeMethod,
-      TR::ResolvedMethodSymbol * initialCalleeSymbol,
-      bool isIndirectCall,
-      bool isInterface,
-      TR_ByteCodeInfo & bcInfo,
-      TR::Compilation *comp,
-      int32_t depth=-1,
-      bool allConsts=false,
-      TR::SymbolReference *symRef=NULL);
+      TR::Block* block);
 
    IDT* _idt;
    TR_J9EstimateCodeSize * _cfgGen;
@@ -92,8 +69,7 @@ class IDTBuilder
 
    int _callSiteIndex;
    int32_t _rootBudget;
-   TR::Region& _idtRegion;
-   TR::Region& _stackRegion;
+   TR::Region& _region;
    TR::Compilation* _comp;
    TR::ValuePropagation *_valuePropagation;
    OMR::BenefitInliner* _inliner;

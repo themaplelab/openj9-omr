@@ -152,9 +152,9 @@ class MethodSummary
 
    void addNullCheck(int paramPosition);
 
-   void addInstanceOf(int paramPosition, TR::VPFixedClass* classType);
+   void addInstanceOf(int paramPosition, TR_OpaqueClassBlock* classBlock);
 
-   void addCheckCast(int paraPostion, TR::VPFixedClass* classType);
+   void addCheckCast(int paraPostion, TR_OpaqueClassBlock* classBlock);
    
    void trace();
    private:

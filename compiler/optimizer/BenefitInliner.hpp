@@ -11,6 +11,7 @@
 #include "optimizer/IDT.hpp"
 #include "optimizer/MethodSummary.hpp"
 #include "compiler/ilgen/J9ByteCodeIterator.hpp"
+#include <deque>
 
 
 
@@ -53,6 +54,7 @@ class BenefitInlinerBase: public TR_InlinerBase
       virtual void applyPolicyToTargets(TR_CallStack *, TR_CallSite *, TR::Block *block=NULL, TR::CFG* callerCFG=NULL);
       int _callerIndex;
       int _nodes;
+      //std::deque<int> inlinedNodes;
       //void performInlining(TR::ResolvedMethodSymbol *);
 protected:
       virtual bool inlineCallTargets(TR::ResolvedMethodSymbol *, TR_CallStack *, TR_InnerPreexistenceInfo *info);
@@ -63,6 +65,7 @@ protected:
       IDTNode *_currentChild;
       InliningProposal *_inliningProposal;
    private:
+      
       BenefitInlinerUtil *_util2;
       void setAbsEnvUtil(BenefitInlinerUtil *u) { this->_util2 = u; }
       BenefitInlinerUtil *getAbsEnvUtil() { return this->_util2; }

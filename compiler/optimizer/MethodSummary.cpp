@@ -129,24 +129,26 @@ int InstanceOfFolding::predicate(TR::VPConstraint* other, TR::ValuePropagation *
    other->print(vp);
    traceMsg(TR::comp(), "\n");
 
-   TR::VPNullObject* constraintNullObject = _constraint->asNullObject();
-   TR::VPFixedClass* constraintClassType = _constraint->asFixedClass();
-
+   TR::VPClass* otherClass = other->asClass(); //if other is a class object
    TR::VPNullObject* otherNullObject = other->asNullObject();
-   TR::VPClass* otherClass = other->asClass();
 
-   if (constraintNullObject && otherNullObject) //Both are null
-      return 1;
-      
-   if (constraintClassType && otherClass && otherClass->getClassType() && otherClass->getClassType()->asFixedClass()) //Both are types
+   TR::VPClassType* constraintClassType = _constraint->asClassType(); //check if constraint is classType
+   TR::VPNullObject* constraintNullObject = _constraint->asNullObject();//check if constraint is null object
+
+   //instance of null object
+   if (constraintNullObject && otherNullObject)
       {
-
-      if (constraintClassType->getClass() == otherClass->getClassType()->getClass())
-         return 1;
-
+      return 1;
       }
 
-   return 0;
+   if (otherClass && constraintClassType)
+      {
+      if (otherClass->getClassType()->getClass() == constraintClassType->getClass())    //Exact same type
+         return 1;
+      return 0;
+      }
+
+      return 0;
    }
 
 int CheckCastFolding::predicate(TR::VPConstraint* other, TR::ValuePropagation *vp)
@@ -158,13 +160,25 @@ int CheckCastFolding::predicate(TR::VPConstraint* other, TR::ValuePropagation *v
    other->print(vp);
    traceMsg(TR::comp(), "\n");
 
-   TR::VPClass* otherClass = other->asClass();
+   TR::VPClass* otherClass = other->asClass(); //if other is a class object
+   TR::VPNullObject* otherNullObject = other->asNullObject();
 
-   TR::VPFixedClass* constraintClassType = _constraint->getClassType()->asFixedClass();
+   TR::VPClassType* constraintClassType = _constraint->asClassType(); //check if constraint is classType
+   TR::VPNullObject* constraintNullObject = _constraint->asNullObject();//check if constraint is null object
 
-   if (otherClass && otherClass->getClassType()->asFixedClass() && constraintClassType)
-      if (otherClass->getClassType()->getClass() == constraintClassType->getClass())
+   //Check cast null object
+   if (constraintNullObject && otherNullObject)
+      {
+      return 1;
+      }
+
+   if (otherClass && constraintClassType)
+      {
+      if (otherClass->getClassType()->getClass() == constraintClassType->getClass())    //Exact same type
          return 1;
+      return 0;
+      }
+      
    
    return 0;
    }
@@ -366,34 +380,37 @@ void MethodSummary::addNullCheck(int paramPosition)
    add(p2);
    }
 
-void MethodSummary::addInstanceOf(int paramPosition, TR::VPFixedClass* classType)
+void MethodSummary::addInstanceOf(int paramPosition, TR_OpaqueClassBlock* classBlock)
    {
-   InstanceOfFolding* p1 = new (_region) InstanceOfFolding(classType, paramPosition);
-   InstanceOfFolding* p2 = new (_region) InstanceOfFolding(TR::VPNullObject::create(_vp), paramPosition);
-
-   add(p1);
-   add(p2);
+   if (classBlock == NULL)
+      {
+      InstanceOfFolding* p1 = new (_region) InstanceOfFolding(TR::VPNullObject::create(_vp), paramPosition);
+      add(p1);
+      }
+   else
+      {
+      InstanceOfFolding* p1 = new (_region) InstanceOfFolding(TR::VPNullObject::create(_vp), paramPosition);
+      InstanceOfFolding* p2 = new (_region) InstanceOfFolding(TR::VPFixedClass::create(_vp, classBlock), paramPosition);
+      add(p1);
+      add(p2);
+      }
    }
 
-void MethodSummary::addCheckCast(int paramPostion, TR::VPFixedClass* classType)
+void MethodSummary::addCheckCast(int paramPosition, TR_OpaqueClassBlock* classBlock)
    {
-   CheckCastFolding* p = new (_region) CheckCastFolding(classType, paramPostion);
-
-   add(p);
+   if (classBlock == NULL)
+      {
+      CheckCastFolding* p1 = new (_region) CheckCastFolding(TR::VPNullObject::create(_vp), paramPosition);
+      add(p1);
+      }
+   else
+      {
+      CheckCastFolding* p1 = new (_region) CheckCastFolding(TR::VPNullObject::create(_vp), paramPosition);
+      CheckCastFolding* p2 = new (_region) CheckCastFolding(TR::VPFixedClass::create(_vp, classBlock), paramPosition);
+      add(p1);
+      add(p2);
+      }
    }
-// void
-// MethodSummary::addInstanceOfFolding(int bc_index, AbsValue *constraint, int argPos)
-//    {
-//    InstanceOfFolding *opt = new (this->_region) InstanceOfFolding(bc_index, constraint, argPos);
-//    this->add(opt);
-//    }
-
-// void
-// MethodSummary::addCheckCastFolding(int bc_index, AbsValue *constraint, int argPos)
-//    {
-//    CheckCastFolding *opt = new (this->_region) CheckCastFolding(bc_index, constraint, argPos);
-//    this->add(opt);
-//    }
 
 void MethodSummary::add(PotentialOptimization *potentialOpt)
    {

@@ -20,9 +20,10 @@ class AbsInterpreter
       TR::Compilation* comp);
 
    // invokeState is parent method's AbsState at the time the current method is invoked.
-   void interpret(AbsState* invokeState);
+   void interpret();
 
-   //For those methods failed to add to the IDT, we need to clean its abs state (pop and push) to ensure the abstract state is valid.
+   //For those methods failed to add to the IDT, we need to clean its abs state (pop and push) 
+   //Pretending it has been actually invoked to ensure the abstract state is valid since they won't be abstract interpreted.
    static void cleanInvokeState(TR_ResolvedMethod* containingMethod, int cpIndex, AbsState* invokeState, TR::MethodSymbol::Kinds kind, TR::Region& region, TR::Compilation* comp);
 
    private:
@@ -42,11 +43,41 @@ class AbsInterpreter
    void transferAbsStates(TR::Block* block);
    AbsState* mergeAllPredecessors(TR::Block* block);
    
-   //Three methods Used to walk the bytecode
+   //Three methods used to walk and interpret the bytecode
    void walkBasicBlocks(TR::CFG* cfg);
    void walkByteCode(TR::Block *block);
    void interpretByteCode(AbsState* absState, TR_J9ByteCode bc, TR_J9ByteCodeIterator&, TR::Block* block);
-   
+
+   TR::SymbolReference* getSymbolReference(TR::ResolvedMethodSymbol *callerSymbol, int cpIndex, TR::MethodSymbol::Kinds kind);
+
+   TR_CallSite* findCallSiteTargets(
+      TR_ResolvedMethod *caller, 
+      int bcIndex, 
+      int cpIndex, 
+      TR::MethodSymbol::Kinds kind, 
+      int callerIndex, 
+      TR_CallStack* callStack,
+      TR::Block* block);
+
+   TR_CallSite* getCallSite(
+      TR::MethodSymbol::Kinds kind,
+      TR_ResolvedMethod *callerResolvedMethod,
+      TR::TreeTop *callNodeTreeTop,
+      TR::Node *parent,
+      TR::Node *callNode,
+      TR::Method * interfaceMethod,
+      TR_OpaqueClassBlock *receiverClass,
+      int32_t vftSlot,
+      int32_t cpIndex,
+      TR_ResolvedMethod *initialCalleeMethod,
+      TR::ResolvedMethodSymbol * initialCalleeSymbol,
+      bool isIndirectCall,
+      bool isInterface,
+      TR_ByteCodeInfo & bcInfo,
+      int32_t depth=-1,
+      bool allConsts=false,
+      TR::SymbolReference *symRef=NULL);
+      
    //For interpreting bytecode and updating AbsState
    AbsState* aaload(AbsState*);
    AbsState* aastore(AbsState*);
@@ -238,7 +269,7 @@ class AbsInterpreter
    AbsState* monitorexit(AbsState*);
    AbsState* multianewarray(AbsState*, int, int);
    AbsState* _new(AbsState*, int, TR_ResolvedMethod*);
-   AbsState* newarray(AbsState*, int);
+   AbsState* newarray(AbsState*, int, TR_ResolvedMethod*);
 // AbsState* nop(AbsState*);
 // AbsState* pop(AbsState*);
    AbsState* pop2(AbsState*);

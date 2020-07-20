@@ -23,7 +23,7 @@ int32_t OMR::BenefitInlinerWrapper::perform()
    {
   
    TR::ResolvedMethodSymbol * sym = comp()->getMethodSymbol();
-       //printf("======= %s\n",sym->signature(comp()->trMemory()));
+   //printf("======= %s\n",sym->signature(comp()->trMemory()));
    TR::CFG *prevCFG = sym->getFlowGraph();
    int32_t budget = getBudget(sym);
    if (budget < 0)
@@ -83,6 +83,14 @@ int32_t OMR::BenefitInlinerWrapper::perform()
    inliner._idt->printTrace();
    inliner._currentNode = inliner._idt->getRoot();
    inliner.performInlining(sym);
+
+   // while (inliner.inlinedNodes.empty() == false)
+   //    {
+   //    printf(" %d  ,", inliner.inlinedNodes.front());
+   //    inliner.inlinedNodes.pop_front();
+   //    }
+   // printf("\n");
+
    return 1;
    }
 
@@ -108,7 +116,7 @@ OMR::BenefitInliner::addEverythingRecursively(IDTNode *node)
 
 void OMR::BenefitInliner::buildIDT()
    {
-   IDTBuilder idtBuilder(comp()->getMethodSymbol(), _budget, comp()->trMemory()->currentStackRegion(), _idtRegion, comp(), this);
+   IDTBuilder idtBuilder(comp()->getMethodSymbol(), _budget, comp()->trMemory()->currentStackRegion(), comp(), this);
    _idt = idtBuilder.buildIDT();
    }
 
@@ -202,6 +210,7 @@ OMR::BenefitInlinerBase::usedSavedInformation(TR::ResolvedMethodSymbol *rms, TR_
          bool success = analyzeCallSite(callStack, tt, parent, node, child->getCallTarget());
          if (success)
              {
+            //inlinedNodes.push_back(child->getGlobalIndex());
              inlineCount++;
 #define MAX_INLINE_COUNT 1000
                if (inlineCount >= MAX_INLINE_COUNT)
@@ -603,17 +612,16 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
             }
          }
 
-
          bool allowInliningColdCallSites = false;
          bool allowInliningColdTargets = false;
-         TR::ResolvedMethodSymbol *caller = callStack->_methodSymbol;
-         TR::CFG *cfg = callerCFG;
-         TR_ASSERT_FATAL(cfg, "cfg is null");
-         //int frequency1 = comp()->convertNonDeterministicInput(comp()->fej9()->getIProfilerCallCount(callsite->_bcInfo, comp()), MAX_BLOCK_COUNT + MAX_COLD_BLOCK_COUNT, randomGenerator(), 0);
-         int frequency2 = comp()->convertNonDeterministicInput(callblock->getFrequency(), MAX_BLOCK_COUNT + MAX_COLD_BLOCK_COUNT, randomGenerator(), 0);
-         bool isColdCall = cfg->isColdCall(callsite->_bcInfo, this);
+         
+         TR_ASSERT_FATAL(callerCFG, "cfg is null");
+         TR_ASSERT_FATAL(callblock, "block is null");
+        
+         int frequency = comp()->convertNonDeterministicInput(callblock->getFrequency(), MAX_BLOCK_COUNT + MAX_COLD_BLOCK_COUNT, randomGenerator(), 0);
+         bool isColdCall = callerCFG->isColdCall(callsite->_bcInfo, this);
 
-         bool isCold = (isColdCall &&  (frequency2 <= MAX_COLD_BLOCK_COUNT));
+         bool isCold = (isColdCall &&  (frequency <= MAX_COLD_BLOCK_COUNT));
          if (!allowInliningColdCallSites && isCold)
             {
             if (comp()->getOption(TR_TraceBIIDTGen))
@@ -637,7 +645,6 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
             return;
             }
 
-       
          if (!allowInliningColdTargets && callblock->getFrequency() <= 6)
             {
             if (comp()->getOption(TR_TraceBIIDTGen))
@@ -648,7 +655,6 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
             i--;
             continue;
             }
-        
       }
    return;
    }
@@ -669,10 +675,8 @@ OMR::BenefitInlinerUtil::computeMethodBranchProfileInfo2(TR::Block *cfgBlock, TR
          {
 
          mbpInfo = TR_MethodBranchProfileInfo::addMethodBranchProfileInfo (callerIndex, comp());
-         //calleeSymbol->setFlowGraph(calltarget->_cfg);
          calleeSymbol->getFlowGraph()->computeInitialBlockFrequencyBasedOnExternalProfiler(comp());
          uint32_t firstBlockFreq = calleeSymbol->getFlowGraph()->getInitialBlockFrequency();
-         //uint32_t firstBlockFreq = calleeSymbol->getFlowGraph()->getStartBlockFrequency(); //?
          //TODO: What is the difference between initialBlockFrequency and callerSymbol->getFirstTreeTop()->getNode()->getBlock()->getFrequency()
 
          int32_t blockFreq = callblock->getFrequency();
@@ -685,7 +689,6 @@ OMR::BenefitInlinerUtil::computeMethodBranchProfileInfo2(TR::Block *cfgBlock, TR
             freqScaleFactor = (float)(blockFreq)/callerCFG->getStartBlockFrequency();
             if (callerCFG->getInitialBlockFrequency() > 0)
                freqScaleFactor *= (float)(callerCFG->getInitialBlockFrequency())/(float)firstBlockFreq;
-              // freqScaleFactor *= (float)(callerSymbol->getFlowGraph()->getStartBlockFrequency())/(float)firstBlockFreq;
             }
          mbpInfo->setInitialBlockFrequency(firstBlockFreq);
          mbpInfo->setCallFactor(freqScaleFactor);

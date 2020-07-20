@@ -54,6 +54,7 @@ AbsValue* AbsValue::merge(AbsValue *other, TR::Region &region, OMR::ValuePropaga
       return other;
 
    TR::VPConstraint *mergedConstraint = getConstraint()->merge(other->getConstraint(), vp);
+   
    AbsValue *mergedValue = new (region) AbsValue(mergedConstraint, getDataType());
    return mergedValue;
    }

@@ -23,7 +23,7 @@ AbsInterpreter::AbsInterpreter(
    _methodSummary = new (_region) MethodSummary(_region, valuePropagation);
    }
 
-void AbsInterpreter::interpret(AbsState* invokeAbsState)
+void AbsInterpreter::interpret()
    {
    TR_CallTarget* callTarget = _idtNode->getCallTarget();
    TR_ASSERT_FATAL(callTarget,"Call Target is NULL!");
@@ -37,11 +37,9 @@ void AbsInterpreter::interpret(AbsState* invokeAbsState)
    _idtNode->setMethodSummary(_methodSummary);
    _methodSummary->trace(); 
    //At this point, we have the method summary
-   if (!_idtNode->isRoot())
-      updateStaticBenefitWithMethodSummary(_idtNode, invokeAbsState);
-   
    }
 
+//Note: Do not use this for primitive type array
 AbsValue* AbsInterpreter::getClassAbsValue(TR_OpaqueClassBlock* opaqueClass, TR::VPClassPresence *presence, TR::VPArrayInfo *info)
    {
    TR::VPConstraint *classConstraint;  
@@ -51,7 +49,6 @@ AbsValue* AbsInterpreter::getClassAbsValue(TR_OpaqueClassBlock* opaqueClass, TR:
       TR_OpaqueClassBlock *resolvedClass = comp()->fe()->getClassClassPointer(opaqueClass);
 
       TR::VPClassType *classType;
-
       if (resolvedClass) //If this class is resolved
          classType = TR::VPResolvedClass::create(_valuePropagation, opaqueClass); 
       else // Not resolved
@@ -86,9 +83,9 @@ AbsState* AbsInterpreter::initializeAbsState(TR::ResolvedMethodSymbol* symbol)
    //printf("- 1. Abstract Interpreter: Enter method: %s\n", symbol->signature(comp()->trMemory()));
    AbsState* absState = new (region()) AbsState(region());
 
-   TR_ResolvedMethod *callerResolvedMethod = _bcIterator.method();
-   TR::ResolvedMethodSymbol* callerResolvedMethodSymbol = TR::ResolvedMethodSymbol::create(comp()->trHeapMemory(), callerResolvedMethod, comp());
-   TR_ResolvedMethod *resolvedMethod = callerResolvedMethodSymbol->getResolvedMethod();
+   // TR_ResolvedMethod *callerResolvedMethod = _bcIterator.method();
+   // TR::ResolvedMethodSymbol* callerResolvedMethodSymbol = TR::ResolvedMethodSymbol::create(comp()->trHeapMemory(), callerResolvedMethod, comp());
+   TR_ResolvedMethod *resolvedMethod = symbol->getResolvedMethod();
 
    int32_t numberOfParameters = resolvedMethod->numberOfParameters();
    int32_t numberOfExplicitParameters = resolvedMethod->numberOfExplicitParameters();
@@ -543,7 +540,7 @@ void AbsInterpreter::interpretByteCode(AbsState* state, TR_J9ByteCode bc, TR_J9B
       case J9BCaload2: aload2(state); break;
       case J9BCaload3: aload3(state); break;
       case J9BCanewarray: anewarray(state, bci.next2Bytes(), bci.method()); break;
-      //case J9BCareturn: 
+      //case J9BCareturn:  state->pop(); break;
       case J9BCarraylength: arraylength(state); break;
       case J9BCastore: astore(state, bci.nextByte()); break;
       case J9BCastore0: astore0(state); break;
@@ -554,7 +551,7 @@ void AbsInterpreter::interpretByteCode(AbsState* state, TR_J9ByteCode bc, TR_J9B
       case J9BCathrow: athrow(state); break;
       case J9BCbaload: baload(state); break;
       case J9BCbastore: bastore(state); break;
-      case J9BCbipush: bipush(state, bci.nextByte()); break;
+      case J9BCbipush: bipush(state, bci.nextByteSigned()); break;
       case J9BCcaload : caload(state); break;
       case J9BCcastore: castore(state); break;
       case J9BCcheckcast: checkcast(state, bci.next2Bytes(), bci.currentByteCodeIndex(), bci.method()); break;
@@ -577,7 +574,7 @@ void AbsInterpreter::interpretByteCode(AbsState* state, TR_J9ByteCode bc, TR_J9B
       case J9BCdmul: dmul(state); break;
       case J9BCdneg: dneg(state); break;
       case J9BCdrem: drem(state); break;
-      //case J9BCdreturn
+      //case J9BCdreturn: state->pop(); state->pop(); break;
       case J9BCdstore: dstore(state, bci.nextByte()); break;
       case J9BCdstorew: dstore(state, bci.next2Bytes()); break; // WARN: internal bytecode
       case J9BCdstore0: dstore0(state); break;
@@ -611,7 +608,7 @@ void AbsInterpreter::interpretByteCode(AbsState* state, TR_J9ByteCode bc, TR_J9B
       case J9BCfmul: fmul(state); break;
       case J9BCfneg: fneg(state); break;
       case J9BCfrem: frem(state); break;
-      //case J9BCfreturn: 
+      //case J9BCfreturn: state->pop(); break;
       case J9BCfstore: fstore(state, bci.nextByte()); break;
       case J9BCfstorew: fstore(state, bci.next2Bytes()); break; // WARN: internal bytecode
       case J9BCfstore0: fstore0(state); break;
@@ -677,7 +674,7 @@ void AbsInterpreter::interpretByteCode(AbsState* state, TR_J9ByteCode bc, TR_J9B
       case J9BCinvokestaticsplit: invokestatic(state, bci.currentByteCodeIndex(), bci.next2Bytes() | J9_STATIC_SPLIT_TABLE_INDEX_FLAG, bci.method(), block); break;
       case J9BCior: ior(state); break;
       case J9BCirem: irem(state); break;
-      //case J9BCireturn:
+      //case J9BCireturn: state->pop(); break;
       case J9BCishl: ishl(state); break;
       case J9BCishr: ishr(state); break;
       case J9BCistore: istore(state, bci.nextByte()); break;
@@ -716,7 +713,7 @@ void AbsInterpreter::interpretByteCode(AbsState* state, TR_J9ByteCode bc, TR_J9B
       case J9BClookupswitch : lookupswitch(state); break;
       case J9BClor: lor(state); break;
       case J9BClrem: lrem(state); break;
-      //case J9BClreturn: 
+      //case J9BClreturn: state->pop(); state->pop(); break;
       case J9BClshl: lshl(state); break;
       case J9BClshr: lshr(state); break;
       case J9BClsub: lsub(state); break;
@@ -732,7 +729,7 @@ void AbsInterpreter::interpretByteCode(AbsState* state, TR_J9ByteCode bc, TR_J9B
       case J9BCmonitorexit: monitorexit(state); break;
       case J9BCmultianewarray: multianewarray(state, bci.next2Bytes(), bci.nextByteSigned(3)); break;
       case J9BCnew: _new(state, bci.next2Bytes(), bci.method()); break;
-      case J9BCnewarray: newarray(state, bci.nextByte()); break;
+      case J9BCnewarray: newarray(state, bci.next2Bytes(), bci.method()); break;
       case J9BCnop: /* yeah nothing */ break;
       case J9BCpop: state->pop(); break;
       case J9BCpop2: pop2(state); break;
@@ -776,16 +773,34 @@ void AbsInterpreter::interpretByteCode(AbsState* state, TR_J9ByteCode bc, TR_J9B
    
    }
 
+//TODO: Add Type of the array to the contraint
+//-- Checked
 AbsState* AbsInterpreter::multianewarray(AbsState* absState, int cpIndex, int dimensions)
    {
-   for (int i = 0; i < dimensions; i++)
+   for (int i = 0; i < dimensions-1; i++)
       {
       absState->pop();
       }
-   absState->push(getTOPAbsValue(TR::Address));
+
+   AbsValue* length = absState->pop(); 
+
+   TR::VPNonNullObject *presence = TR::VPNonNullObject::create(_valuePropagation);
+
+   if (length->isTOP() || !length->getConstraint()->asIntConstraint() && !length->getConstraint()->asMergedIntConstraints() )
+      {
+      TR::VPArrayInfo *info = TR::VPArrayInfo::create(_valuePropagation, 0, INT_MAX , 4);
+      TR::VPConstraint* array = TR::VPClass::create(_valuePropagation, NULL, presence, NULL, info, NULL);
+      absState->push(new (region()) AbsValue(array, TR::Address));
+      return absState;
+      }
+
+   TR::VPArrayInfo *info = TR::VPArrayInfo::create(_valuePropagation, length->getConstraint()->getLowInt(), length->getConstraint()->getHighInt(), 4);
+   TR::VPConstraint* array = TR::VPClass::create(_valuePropagation, NULL, presence, NULL, info, NULL);
+   absState->push(new (region()) AbsValue(array, TR::Address));
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::caload(AbsState* absState)
    {
    AbsValue *index = absState->pop();
@@ -795,7 +810,7 @@ AbsState* AbsInterpreter::caload(AbsState* absState)
    return absState;
    }
 
-
+//-- Checked
 AbsState* AbsInterpreter::faload(AbsState* absState)
    {
    AbsValue *index = absState->pop();
@@ -805,6 +820,7 @@ AbsState* AbsInterpreter::faload(AbsState* absState)
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::iaload(AbsState* absState)
    {
    AbsValue *index = absState->pop();
@@ -814,6 +830,7 @@ AbsState* AbsInterpreter::iaload(AbsState* absState)
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::saload(AbsState* absState)
    {
    AbsValue *index = absState->pop();
@@ -823,28 +840,21 @@ AbsState* AbsInterpreter::saload(AbsState* absState)
    return absState;
    }
 
-//Jack: is this correct?
+//-- Checked
 AbsState* AbsInterpreter::aaload(AbsState* absState)
    {
    AbsValue *index = absState->pop();
-   AbsValue *arrayRef = absState->pop();
-   // if (!arrayRef || !arrayRef->getConstraint())
-   //    {
-   //    AbsValue *value1 = getTOPAbsValue(TR::Address);
-   //    absState->push(value1);
-   //    return absState;
-   //    }
-   AbsValue *value1 = getTOPAbsValue(TR::Address);
-   absState->push(value1);
+   AbsValue *ref = absState->pop();
+   AbsValue *value = getTOPAbsValue(TR::Address);
+   absState->push(value);
    return absState;
-   // absState->push(arrayRef);
-   // return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::laload(AbsState* absState)
    {
    AbsValue *index = absState->pop();
-   AbsValue *arrayRef = absState->pop();
+   AbsValue *ref = absState->pop();
    AbsValue *value1 = getTOPAbsValue(TR::Int64);
    AbsValue *value2 = getTOPAbsValue(TR::NoType);
    absState->push(value1);
@@ -852,10 +862,11 @@ AbsState* AbsInterpreter::laload(AbsState* absState)
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::daload(AbsState* absState)
    {
    AbsValue *index = absState->pop();
-   AbsValue *arrayRef = absState->pop();
+   AbsValue *ref = absState->pop();
    AbsValue *value1 = getTOPAbsValue(TR::Double);
    AbsValue *value2 = getTOPAbsValue(TR::NoType);
    absState->push(value1);
@@ -863,85 +874,74 @@ AbsState* AbsInterpreter::daload(AbsState* absState)
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::castore(AbsState* absState)
    {
-   //TODO:
    AbsValue *value = absState->pop();
    AbsValue *index = absState->pop();
    AbsValue *arrayRef = absState->pop();
-   // if we have arrayRef, we know arrayRef is not null
-   // if we have index and arrayRef length, we may know if safe to remove bounds checking
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::dastore(AbsState* absState)
    {
-   //TODO:
    AbsValue *value1 = absState->pop();
    AbsValue *value2 = absState->pop();
    AbsValue *index = absState->pop();
-   AbsValue *arrayRef = absState->pop();
-   // if we have arrayRef, we know arrayRef is not null
-   // if we have index and arrayRef length, we may know if safe to remove bounds checking
+   AbsValue *ref = absState->pop();
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::fastore(AbsState* absState)
    {
    //TODO:
    AbsValue *value = absState->pop();
    AbsValue *index = absState->pop();
-   AbsValue *arrayRef = absState->pop();
-   // if we have arrayRef, we know arrayRef is not null
-   // if we have index and arrayRef length, we may know if safe to remove bounds checking
+   AbsValue *ref = absState->pop();
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::iastore(AbsState* absState)
    {
-   //TODO:
+   
    AbsValue *value = absState->pop();
    AbsValue *index = absState->pop();
-   AbsValue *arrayRef = absState->pop();
-   // if we have arrayRef, we know arrayRef is not null
-   // if we have index and arrayRef length, we may know if safe to remove bounds checking
+   AbsValue *ref = absState->pop();
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::lastore(AbsState* absState)
    {
-   //TODO:
    AbsValue *value = absState->pop();
    AbsValue *value2 = absState->pop();
    AbsValue *index = absState->pop();
-   AbsValue *arrayRef = absState->pop();
-   // if we have arrayRef, we know arrayRef is not null
-   // if we have index and arrayRef length, we may know if safe to remove bounds checking
+   AbsValue *ref = absState->pop();
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::sastore(AbsState* absState)
    {
-   //TODO:
    AbsValue *value = absState->pop();
    AbsValue *index = absState->pop();
-   AbsValue *arrayRef = absState->pop();
-   // if we have arrayRef, we know arrayRef is not null
-   // if we have index and arrayRef length, we may know if safe to remove bounds checking
+   AbsValue *ref = absState->pop();
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::aastore(AbsState* absState)
    {
-   //TODO:
    AbsValue *value = absState->pop();
    AbsValue *index = absState->pop();
-   AbsValue *arrayRef = absState->pop();
-   // if we have arrayRef, we know arrayRef is not null
-   // if we have index and arrayRef length, we may know if safe to remove bounds checking
+   AbsValue *ref = absState->pop();
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::aconstnull(AbsState* absState) 
    {
    TR::VPConstraint *null = TR::VPNullObject::create(_valuePropagation);
@@ -950,102 +950,115 @@ AbsState* AbsInterpreter::aconstnull(AbsState* absState)
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::aload(AbsState* absState, int n)
    {
-   AbsValue *constraint = absState->at(n);
-   absState->push(constraint);
+   AbsValue *value = absState->at(n);
+   absState->push(value);
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::aload0getfield(AbsState* absState)
    {
    aload0(absState);
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::aload0(AbsState* absState) 
    {
    aload(absState, 0);
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::aload1(AbsState* absState) 
    {
    aload(absState, 1);
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::aload2(AbsState* absState) 
    {
    aload(absState, 2);
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::aload3(AbsState* absState) 
    {
    aload(absState, 3);
    return absState;
    }
 
-AbsState* AbsInterpreter::astore(AbsState* absState, int varIndex)
+//-- Checked
+AbsState* AbsInterpreter::astore(AbsState* absState, int index)
    {
-   AbsValue* constraint = absState->pop();
-   absState->set(varIndex, constraint);
+   AbsValue* value = absState->pop();
+   absState->set(index, value);
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::astore0(AbsState* absState) 
    {
    astore(absState, 0);
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::astore1(AbsState* absState)
    {
    astore(absState, 1);
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::astore2(AbsState* absState) 
    {
    astore(absState, 2);
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::astore3(AbsState* absState) 
    {
    astore(absState, 3);
    return absState;
    }
 
-//jack modified
+//-- Checked
 AbsState* AbsInterpreter::bipush(AbsState* absState, int byte) 
    {
-   TR::VPIntConst *data = TR::VPIntConst::create(_valuePropagation, byte);
-   AbsValue *absValue = new (region()) AbsValue(data, TR::Int32);
-   absState->push(absValue);
+   TR::VPIntConst *constraint = TR::VPIntConst::create(_valuePropagation, byte);
+   AbsValue *value = new (region()) AbsValue(constraint, TR::Int32);
+   absState->push(value);
    return absState;
    }
 
-//Jack: Modify logic.
+//-- Checked
 AbsState* AbsInterpreter::bastore(AbsState* absState) 
    {
    AbsValue *value = absState->pop();
    AbsValue *index = absState->pop();
-   AbsValue *arrayRef = absState->pop();
+   AbsValue *ref = absState->pop();
    return absState;
    }
 
-//Jack: Modify logic.
+//-- Checked
 AbsState* AbsInterpreter::baload(AbsState* absState)
    {
    AbsValue *index = absState->pop();
-   AbsValue *arrayRef = absState->pop();
-   AbsValue *value1 = getTOPAbsValue(TR::Int32);
-   absState->push(value1);
+   AbsValue *ref = absState->pop();
+   AbsValue *value = getTOPAbsValue(TR::Int32);
+   absState->push(value);
    return absState;
    }
 
+//TODO: checkcast array types, primitive arrays
+//-- Checked
 AbsState* AbsInterpreter::checkcast(AbsState* absState, int cpIndex, int bytecodeIndex, TR_ResolvedMethod* method) 
    {
    AbsValue *objRef = absState->pop();
@@ -1053,10 +1066,9 @@ AbsState* AbsInterpreter::checkcast(AbsState* absState, int cpIndex, int bytecod
    TR_OpaqueClassBlock* classBlock = method->getClassFromConstantPool(comp(), cpIndex);
 
    //adding to inlining summary
-   if (classBlock && objRef->getParamPosition() >= 0 )
+   if ( objRef->getParamPosition() >= 0 )
       {
-      TR::VPFixedClass *classType = TR::VPFixedClass::create(_valuePropagation, classBlock);
-      _methodSummary->addCheckCast(objRef->getParamPosition(), classType);
+      _methodSummary->addCheckCast(objRef->getParamPosition(), classBlock);
       }
 
    if (!objRef->getConstraint()) //Top
@@ -1111,6 +1123,7 @@ AbsState* AbsInterpreter::checkcast(AbsState* absState, int cpIndex, int bytecod
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::dup(AbsState* absState) 
    {
    AbsValue *value = absState->pop();
@@ -1119,6 +1132,7 @@ AbsState* AbsInterpreter::dup(AbsState* absState)
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::dupx1(AbsState* absState) 
    {
    AbsValue *value1 = absState->pop();
@@ -1129,6 +1143,7 @@ AbsState* AbsInterpreter::dupx1(AbsState* absState)
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::dupx2(AbsState* absState) 
    {
    AbsValue *value1 = absState->pop();
@@ -1141,6 +1156,7 @@ AbsState* AbsInterpreter::dupx2(AbsState* absState)
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::dup2(AbsState* absState) 
    {
    AbsValue *value1 = absState->pop();
@@ -1152,6 +1168,7 @@ AbsState* AbsInterpreter::dup2(AbsState* absState)
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::dup2x1(AbsState *absState) 
    {
    AbsValue *value1 = absState->pop();
@@ -1165,6 +1182,7 @@ AbsState* AbsInterpreter::dup2x1(AbsState *absState)
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::dup2x2(AbsState* absState)
    {
    AbsValue *value1 = absState->pop();
@@ -1180,18 +1198,20 @@ AbsState* AbsInterpreter::dup2x2(AbsState* absState)
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::_goto(AbsState* absState, int branch)
    {
    return absState;
    }
 
-
+//-- Checked
 AbsState* AbsInterpreter::_gotow(AbsState* absState, int branch)
    {
    return absState;
    }
 
-//Jack: modify logic
+//TODO: get object with actual type (Not just TR::Address)
+//-- Checked
 AbsState* AbsInterpreter::getstatic(AbsState* absState, int cpIndex, TR_ResolvedMethod* method) 
    {
    void* staticAddress;
@@ -1214,31 +1234,25 @@ AbsState* AbsInterpreter::getstatic(AbsState* absState, int cpIndex, TR_Resolved
                         &isUnresolvedInVP,
                         false); //needsAOTValidation
 
-   if (type != TR::Address) 
-      {
-      AbsValue *value1 = getTOPAbsValue(type);
-      absState->push(value1);
-
-      if (!value1->isType2())
-         return absState;
-
-      AbsValue *value2= getTOPAbsValue(TR::NoType);
-      absState->push(value2);
-      return absState;
-      }
-
+   
    AbsValue *value1 = getTOPAbsValue(type);
    absState->push(value1);
+
+   if (!value1->isType2())
+      return absState;
+
+   AbsValue *value2= getTOPAbsValue(TR::NoType);
+   absState->push(value2);
    return absState;
    }
 
-
+//TODO: get object field with actual type (Not just TR::Address)
+//-- Checked
 AbsState* AbsInterpreter::getfield(AbsState* absState, int cpIndex, TR_ResolvedMethod* method)
    {
-   AbsValue* absValue = absState->top();
-   if (absValue->getParamPosition() >= 0)
+   if (absState->top()->isParameter())
       {
-      _methodSummary->addNullCheck(absValue->getParamPosition());
+      _methodSummary->addNullCheck(absState->top()->getParamPosition());
       }
 
    AbsValue *objectref = absState->pop();
@@ -1271,13 +1285,15 @@ AbsState* AbsInterpreter::getfield(AbsState* absState, int cpIndex, TR_ResolvedM
    return absState;
    }
 
-//Jack: issue?
+//-- Checked
 AbsState* AbsInterpreter::iand(AbsState* absState)
    {
    AbsValue* value1 = absState->pop();
    AbsValue* value2 = absState->pop();
-   bool nonnull = value1->getConstraint() && value2->getConstraint();
-   if (!nonnull)
+
+   bool isTOP = value1->isTOP() || value2->isTOP();
+
+   if (isTOP)
       {
       AbsValue *result = getTOPAbsValue(TR::Int32);
       absState->push(result);
@@ -1292,13 +1308,14 @@ AbsState* AbsInterpreter::iand(AbsState* absState)
       return absState;
       }
 
-   int result = value1->getConstraint()->asIntConst()->getLow() & value2->getConstraint()->asIntConst()->getLow();
+   int result = value1->getConstraint()->asIntConst()->getInt() & value2->getConstraint()->asIntConst()->getInt();
    absState->push(new (region()) AbsValue(TR::VPIntConst::create(_valuePropagation, result), TR::Int32));
    return absState;
    }
 
 
-//TODO: instanceof <interface>. Current implementation does not support intereface.
+//TODO: instanceof <interface>. Current implementation does not support intereface. And instanceof array types
+//-- Checked
 AbsState* AbsInterpreter::instanceof(AbsState* absState, int cpIndex, int byteCodeIndex, TR_ResolvedMethod* method)
    {
    AbsValue *objectRef = absState->pop();
@@ -1306,10 +1323,9 @@ AbsState* AbsInterpreter::instanceof(AbsState* absState, int cpIndex, int byteCo
    TR_OpaqueClassBlock *block = method->getClassFromConstantPool(comp(), cpIndex); //The cast class to be compared with
    
    //Add to the inlining summary
-   if (block && objectRef->getParamPosition() >= 0 )
+   if (objectRef->getParamPosition() >= 0 )
       {
-      TR::VPFixedClass* classType = TR::VPFixedClass::create(_valuePropagation, block);
-      _methodSummary->addInstanceOf(objectRef->getParamPosition(), classType);
+      _methodSummary->addInstanceOf(objectRef->getParamPosition(), block);
       }
       
 
@@ -1327,8 +1343,8 @@ AbsState* AbsInterpreter::instanceof(AbsState* absState, int cpIndex, int byteCo
       return absState;
       }
   
-   //Cast Class Info is not available
-   if (!block)
+   // Class Info is not available
+   if (!block || !objectRef->getConstraint()->getClass())
       {
       absState->push(new (region()) AbsValue(TR::VPIntRange::create(_valuePropagation, 0, 1), TR::Int32));
       return absState;
@@ -1336,7 +1352,7 @@ AbsState* AbsInterpreter::instanceof(AbsState* absState, int cpIndex, int byteCo
 
    //We Have the class info
    //Check the class hierachy
-   if (objectRef->getConstraint()->asClass() || objectRef->getConstraint()->asConstString() )
+   if (objectRef->getConstraint()->asClass() || objectRef->getConstraint()->asConstString())
       {
       TR_YesNoMaybe yesNoMaybe = comp()->fe()->isInstanceOf(objectRef->getConstraint()->getClass(), block, true, true);
       if( yesNoMaybe == TR_yes) //Instanceof must be true;
@@ -1359,12 +1375,14 @@ AbsState* AbsInterpreter::instanceof(AbsState* absState, int cpIndex, int byteCo
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::ior(AbsState* absState)
    {
-   AbsValue *value1 = absState->pop();
-   AbsValue* value2 = absState->pop();
-   bool nonnull = value1->getConstraint() && value2->getConstraint();
-   if (!nonnull)
+   AbsValue *value2 = absState->pop();
+   AbsValue* value1 = absState->pop();
+
+   bool isTOP = value1->isTOP() || value2->isTOP();
+   if (isTOP)
       {
       AbsValue *result = getTOPAbsValue(TR::Int32);
       absState->push(result);
@@ -1379,17 +1397,19 @@ AbsState* AbsInterpreter::ior(AbsState* absState)
       return absState;
       }
 
-   int result = value1->getConstraint()->asIntConst()->getLow() | value2->getConstraint()->asIntConst()->getLow();
+   int result = value1->getConstraint()->asIntConst()->getInt() | value2->getConstraint()->asIntConst()->getInt();
    absState->push(new (region()) AbsValue(TR::VPIntConst::create(_valuePropagation, result), TR::Int32));
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::ixor(AbsState* absState) 
    {
-   AbsValue *value1 = absState->pop();
-   AbsValue* value2 = absState->pop();
-   bool nonnull = value1->getConstraint() && value2->getConstraint();
-   if (!nonnull)
+   AbsValue *value2 = absState->pop();
+   AbsValue* value1 = absState->pop();
+   bool isTOP = value1->isTOP() || value2->isTOP();
+
+   if (isTOP)
       {
       AbsValue *result = getTOPAbsValue(TR::Int32);
       absState->push(result);
@@ -1404,22 +1424,24 @@ AbsState* AbsInterpreter::ixor(AbsState* absState)
       return absState;
       }
 
-   int result = value1->getConstraint()->asIntConst()->getLow() ^ value2->getConstraint()->asIntConst()->getLow();
+   int result = value1->getConstraint()->asIntConst()->getInt() ^ value2->getConstraint()->asIntConst()->getInt();
    absState->push(new (region()) AbsValue(TR::VPIntConst::create(_valuePropagation, result), TR::Int32));
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::irem(AbsState* absState)
    {
-   AbsValue *value1 = absState->pop();
-   AbsValue* value2 = absState->pop();
-   bool nonnull = value1->getConstraint() && value2->getConstraint();
-   if (!nonnull)
+   AbsValue *value2 = absState->pop();
+   AbsValue* value1 = absState->pop();
+   bool isTOP = value1->isTOP() || value2->isTOP();
+   if (isTOP)
       {
       AbsValue *result = getTOPAbsValue(TR::Int32);
       absState->push(result);
       return absState;
       }
+
    bool allConstants = value1->getConstraint()->asIntConst() && value2->getConstraint()->asIntConst();
    if (!allConstants)
       {
@@ -1428,24 +1450,27 @@ AbsState* AbsInterpreter::irem(AbsState* absState)
       return absState;
       }
 
-   int int1 = value1->getConstraint()->asIntConst()->getLow();
-   int int2 = value2->getConstraint()->asIntConst()->getLow();
-   int result = int1 - (int1/ int2) * int2;
+   int int1 = value1->getConstraint()->asIntConst()->getInt();
+   int int2 = value2->getConstraint()->asIntConst()->getInt();
+   int result = int1 % int2;
    absState->push(new (region()) AbsValue(TR::VPIntConst::create(_valuePropagation, result), TR::Int32));
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::ishl(AbsState* absState)
    {
-   AbsValue* value1 = absState->pop();
    AbsValue* value2 = absState->pop();
-   bool nonnull = value1->getConstraint() && value2->getConstraint();
-   if (!nonnull)
+   AbsValue* value1 = absState->pop();
+   bool isTOP = value1->isTOP() || value2->isTOP();
+
+   if (isTOP)
       {
       AbsValue *result = getTOPAbsValue(TR::Int32);
       absState->push(result);
       return absState;
       }
+
    bool allConstants = value1->getConstraint()->asIntConst() && value2->getConstraint()->asIntConst();
    if (!allConstants)
       {
@@ -1461,18 +1486,20 @@ AbsState* AbsInterpreter::ishl(AbsState* absState)
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::ishr(AbsState* absState)
    {
-
-   AbsValue *value1 = absState->pop();
    AbsValue* value2 = absState->pop();
-   bool nonnull = value1->getConstraint() && value2->getConstraint();
-   if (!nonnull)
+   AbsValue* value1 = absState->pop();
+
+   bool isTOP = value1->isTOP() || value2->isTOP();
+   if (isTOP)
       {
       AbsValue *result = getTOPAbsValue(TR::Int32);
       absState->push(result);
       return absState;
       }
+
    bool allConstants = value1->getConstraint()->asIntConst() && value2->getConstraint()->asIntConst();
    if (!allConstants)
       {
@@ -1491,17 +1518,20 @@ AbsState* AbsInterpreter::ishr(AbsState* absState)
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::iushr(AbsState* absState)
    {
-   AbsValue *value1 = absState->pop();
-   AbsValue* value2 = absState->pop();
-   bool nonnull = value1->getConstraint() && value2->getConstraint();
-   if (!nonnull)
+   AbsValue *value2 = absState->pop();
+   AbsValue* value1 = absState->pop();
+
+   bool isTOP = value1->isTOP() || value2->isTOP();
+   if (isTOP)
       {
       AbsValue *result = getTOPAbsValue(TR::Int32);
       absState->push(result);
       return absState;
       }
+
    bool allConstants = value1->getConstraint()->asIntConst() && value2->getConstraint()->asIntConst();
    if (!allConstants)
       {
@@ -1519,17 +1549,19 @@ AbsState* AbsInterpreter::iushr(AbsState* absState)
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::idiv(AbsState* absState)
    {
-   AbsValue *value1 = absState->pop();
-   AbsValue* value2 = absState->pop();
-   bool nonnull = value1->getConstraint() && value2->getConstraint();
-   if (!nonnull)
+   AbsValue *value2 = absState->pop();
+   AbsValue* value1 = absState->pop();
+   bool isTOP = value1->isTOP() || value2->isTOP();
+   if (isTOP)
       {
       AbsValue *result = getTOPAbsValue(TR::Int32);
       absState->push(result);
       return absState;
       }
+
    bool allConstants = value1->getConstraint()->asIntConst() && value2->getConstraint()->asIntConst();
    if (!allConstants)
       {
@@ -1552,17 +1584,20 @@ AbsState* AbsInterpreter::idiv(AbsState* absState)
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::imul(AbsState* absState)
    {
-   AbsValue* value1 = absState->pop();
    AbsValue* value2 = absState->pop();
-   bool nonnull = value1->getConstraint() && value2->getConstraint();
-   if (!nonnull)
+   AbsValue* value1 = absState->pop();
+
+   bool isTOP = value1->isTOP() || value2->isTOP();
+   if (isTOP)
       {
       AbsValue *result = getTOPAbsValue(TR::Int32);
       absState->push(result);
       return absState;
       }
+
    bool allConstants = value1->getConstraint()->asIntConst() && value2->getConstraint()->asIntConst();
    if (!allConstants)
       {
@@ -1578,82 +1613,105 @@ AbsState* AbsInterpreter::imul(AbsState* absState)
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::ineg(AbsState* absState)
    {
-   AbsValue *value1 = absState->pop();
-   bool allConstants = value1->getConstraint() && value1->getConstraint()->asIntConst();
-   if (!allConstants)
+   AbsValue *value = absState->pop();
+
+   if (value->isTOP()) //TOP
       {
       AbsValue *result = getTOPAbsValue(TR::Int32);
       absState->push(result);
       return absState;
       }
 
-   //TODO: more precision for ranges, subtract VPIntConst 0 from value1
-   int int1 = value1->getConstraint()->asIntConst()->getLow();
-   int result = -int1;
-   absState->push(new (region()) AbsValue(TR::VPIntConst::create(_valuePropagation, result), TR::Int32));
+   if (value->getConstraint()->asMergedIntConstraints() || value->getConstraint()->asIntRange()) //range
+      {
+      AbsValue* result = new (region()) AbsValue(TR::VPIntRange::create(_valuePropagation, -value->getConstraint()->getHighInt(), -value->getConstraint()->getLowInt()), TR::Int32);
+      absState->push(result);
+      return absState;
+      }
+
+   if (value->getConstraint()->asIntConst()) //const
+      {
+      AbsValue* result = new (region()) AbsValue(TR::VPIntConst::create(_valuePropagation, -value->getConstraint()->asIntConst()->getInt()), TR::Int32);
+      absState->push(result);
+      return absState;
+      }
+
+   AbsValue *result = getTOPAbsValue(TR::Int32);
+   absState->push(result);
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::iconstm1(AbsState* absState)
    {
    iconst(absState, -1);
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::iconst0(AbsState* absState) 
    {
    iconst(absState, 0);
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::iconst1(AbsState* absState)
    {
    iconst(absState, 1);
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::iconst2(AbsState* absState)
    {
    iconst(absState, 2);
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::iconst3(AbsState* absState)
    {
    iconst(absState, 3);
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::iconst4(AbsState* absState) 
    {
    iconst(absState, 4);
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::iconst5(AbsState* absState)
    {
    iconst(absState, 5);
    return absState;
    }
 
+//-- Checked
 void AbsInterpreter::iconst(AbsState* absState, int n)
    {
    TR::VPIntConst *intConst = TR::VPIntConst::create(_valuePropagation, n);
    absState->push(new (region()) AbsValue(intConst, TR::Int32));
    }
 
+//-- Checked
 AbsState* AbsInterpreter::ifeq(AbsState* absState, int branchOffset, int bytecodeIndex)
    {
    AbsValue *absValue = absState->top();
-   if (absValue->getParamPosition() >= 0)
+   if (absValue->isParameter())
       _methodSummary->addIfEq(absValue->getParamPosition());
       
    absState->pop();
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::ifne(AbsState* absState, int branchOffset, int bytecodeIndex)
    {
 
@@ -1665,10 +1723,9 @@ AbsState* AbsInterpreter::ifne(AbsState* absState, int branchOffset, int bytecod
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::iflt(AbsState* absState, int branchOffset, int bytecodeIndex)
    {
-   
-
    AbsValue* absValue = absState->top();
    if (absValue->getParamPosition() >= 0)
       _methodSummary->addIfLt(absValue->getParamPosition());
@@ -1677,6 +1734,7 @@ AbsState* AbsInterpreter::iflt(AbsState* absState, int branchOffset, int bytecod
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::ifle(AbsState* absState, int branchOffset, int bytecodeIndex)
    {
 
@@ -1688,6 +1746,7 @@ AbsState* AbsInterpreter::ifle(AbsState* absState, int branchOffset, int bytecod
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::ifgt(AbsState* absState, int branchOffset, int bytecodeIndex)
    {
 
@@ -1699,6 +1758,7 @@ AbsState* AbsInterpreter::ifgt(AbsState* absState, int branchOffset, int bytecod
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::ifge(AbsState* absState, int branchOffset, int bytecodeIndex) 
    {
    AbsValue* absValue = absState->top();
@@ -1709,16 +1769,18 @@ AbsState* AbsInterpreter::ifge(AbsState* absState, int branchOffset, int bytecod
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::ifnull(AbsState* absState, int branchOffset, int bytecodeIndex) 
    {
    AbsValue* absValue = absState->top();
    if (absValue->getParamPosition() >= 0)
-      _methodSummary->addIfNonNull(absValue->getParamPosition());
+      _methodSummary->addIfNull(absValue->getParamPosition());
 
    absState->pop();
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::ifnonnull(AbsState* absState, int branchOffset, int bytecodeIndex)
    {
    AbsValue* absValue = absState->top();
@@ -1729,6 +1791,7 @@ AbsState* AbsInterpreter::ifnonnull(AbsState* absState, int branchOffset, int by
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::ificmpge(AbsState* absState, int branchOffset, int bytecodeIndex)
    {
    absState->pop();
@@ -1736,6 +1799,7 @@ AbsState* AbsInterpreter::ificmpge(AbsState* absState, int branchOffset, int byt
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::ificmpeq(AbsState* absState, int branchOffset, int bytecodeIndex)
    {
    absState->pop();
@@ -1743,6 +1807,7 @@ AbsState* AbsInterpreter::ificmpeq(AbsState* absState, int branchOffset, int byt
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::ificmpne(AbsState* absState, int branchOffset, int bytecodeIndex)
    {
    absState->pop();
@@ -1750,6 +1815,7 @@ AbsState* AbsInterpreter::ificmpne(AbsState* absState, int branchOffset, int byt
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::ificmplt(AbsState* absState, int branchOffset, int bytecodeIndex)
    {
    absState->pop();
@@ -1757,6 +1823,7 @@ AbsState* AbsInterpreter::ificmplt(AbsState* absState, int branchOffset, int byt
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::ificmpgt(AbsState* absState, int branchOffset, int bytecodeIndex)
    {
    absState->pop();
@@ -1764,6 +1831,7 @@ AbsState* AbsInterpreter::ificmpgt(AbsState* absState, int branchOffset, int byt
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::ificmple(AbsState* absState, int branchOffset, int bytecodeIndex)
    {
    absState->pop();
@@ -1771,6 +1839,7 @@ AbsState* AbsInterpreter::ificmple(AbsState* absState, int branchOffset, int byt
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::ifacmpeq(AbsState* absState, int branchOffset, int bytecodeIndex)
    {
    absState->pop();
@@ -1778,6 +1847,7 @@ AbsState* AbsInterpreter::ifacmpeq(AbsState* absState, int branchOffset, int byt
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::ifacmpne(AbsState* absState, int branchOffset, int bytecodeIndex)
    {
    absState->pop();
@@ -1785,71 +1855,82 @@ AbsState* AbsInterpreter::ifacmpne(AbsState* absState, int branchOffset, int byt
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::iload(AbsState* absState, int n)
    {
-   AbsValue *constraint = absState->at(n);
-   absState->push(constraint);
+   AbsValue *value = absState->at(n);
+   absState->push(value);
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::iload0(AbsState* absState) 
    {
    iload(absState, 0);
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::iload1(AbsState* absState)
    {
    iload(absState, 1);
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::iload2(AbsState* absState)
    {
    iload(absState, 2);
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::iload3(AbsState* absState)
    {
    iload(absState, 3);
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::istore(AbsState* absState, int n)
    {
    absState->set(n, absState->pop());
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::istore0(AbsState* absState)
    {
    istore(absState,0);
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::istore1(AbsState* absState)
    {
    istore(absState,1);
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::istore2(AbsState* absState)
    {
    istore(absState,2);
    return absState;
    }
 
+//-- Checked
 AbsState* AbsInterpreter::istore3(AbsState* absState)
    {
    istore(absState,3);
    return absState;
    }
 
+//Here 
 AbsState* AbsInterpreter::isub(AbsState* absState)
    {
-   AbsValue *value1 = absState->pop();
    AbsValue *value2 = absState->pop();
+   AbsValue *value1 = absState->pop();
    bool nonnull = value1->getConstraint() && value2->getConstraint();
    if (!nonnull)
       {
@@ -3055,7 +3136,7 @@ void AbsInterpreter::ldcAddress(int cpIndex, TR_ResolvedMethod* method, AbsState
       return;
       }
    //TODO: non string case
-   TR_OpaqueClassBlock* type = method->getClassFromConstantPool(TR::comp(), cpIndex);
+   TR_OpaqueClassBlock* type = method->getClassFromConstantPool(comp(), cpIndex);
    AbsValue* value = getClassAbsValue(type);
    absState->push(value);
    }
@@ -3156,7 +3237,32 @@ AbsState* AbsInterpreter::anewarray(AbsState* absState, int cpIndex, TR_Resolved
 AbsState* AbsInterpreter::arraylength(AbsState* absState)
    {
    //TODO: actually make use of the value
-   absState->pop();
+   AbsValue* arrayRef = absState->pop();
+   if (arrayRef->isTOP())
+      {
+      AbsValue *result = getTOPAbsValue(TR::Int32);
+      absState->push(result);
+      return absState;
+      }
+
+   if (arrayRef->getConstraint()->getArrayInfo())
+      {
+      TR::VPArrayInfo* info = arrayRef->getConstraint()->getArrayInfo();
+      TR::VPConstraint* constraint = NULL;
+      if (info->lowBound() == info->highBound())
+         {
+         constraint = TR::VPIntConst::create(_valuePropagation, info->lowBound());
+         }
+      else
+         {
+         constraint = TR::VPIntRange::create(_valuePropagation, info->lowBound(), info->highBound());
+         }
+      
+      AbsValue* result = new (region()) AbsValue(constraint, TR::Int32);
+      absState->push(result);
+      return absState;
+      }
+   
    AbsValue *result = getTOPAbsValue(TR::Int32);
    absState->push(result);
    return absState;
@@ -3165,7 +3271,7 @@ AbsState* AbsInterpreter::arraylength(AbsState* absState)
 AbsState* AbsInterpreter::_new(AbsState* absState, int cpIndex, TR_ResolvedMethod* method)
    {
    //TODO: actually look at the semantics
-   TR_OpaqueClassBlock* type = method->getClassFromConstantPool(TR::comp(), cpIndex);
+   TR_OpaqueClassBlock* type = method->getClassFromConstantPool(comp(), cpIndex);
    TR::VPNonNullObject *nonnull = TR::VPNonNullObject::create(_valuePropagation);
    AbsValue* value = getClassAbsValue(type,  nonnull, NULL);
 
@@ -3173,12 +3279,32 @@ AbsState* AbsInterpreter::_new(AbsState* absState, int cpIndex, TR_ResolvedMetho
    return absState;
    }
 
-AbsState* AbsInterpreter::newarray(AbsState* absState, int atype)
+//TODO: need array type 
+AbsState* AbsInterpreter::newarray(AbsState* absState, int cpIndex, TR_ResolvedMethod* method)
    {
-   //TODO: actually impement the sematncis
-   absState->pop();
-   AbsValue *result = getTOPAbsValue(TR::Address);
-   absState->push(result);
+   //TR_OpaqueClassBlock* type = method->getClassFromConstantPool(comp(), cpIndex);
+
+   AbsValue* length = absState->pop();
+
+   TR::VPNonNullObject *presence = TR::VPNonNullObject::create(_valuePropagation);
+   // TR::VPClassType* classType = NULL;
+   // if (type)
+   //    //printf("%d\n", TR::Compiler->cls.isPrimitiveArray(comp(), type));
+
+   // if (type)
+   //    classType = TR::VPFixedClass::create(_valuePropagation, type);
+
+   if (length->isTOP() || !length->getConstraint()->asIntConstraint() && !length->getConstraint()->asMergedIntConstraints() )
+      {
+      TR::VPArrayInfo *info = TR::VPArrayInfo::create(_valuePropagation, 0, INT_MAX , 4);
+      TR::VPConstraint* array = TR::VPClass::create(_valuePropagation, NULL, presence, NULL, info, NULL);
+      absState->push(new (region()) AbsValue(array, TR::Address));
+      return absState;
+      }
+
+   TR::VPArrayInfo *info = TR::VPArrayInfo::create(_valuePropagation, length->getConstraint()->getLowInt(), length->getConstraint()->getHighInt(), 4);
+   TR::VPConstraint* array = TR::VPClass::create(_valuePropagation, NULL, presence, NULL, info, NULL);
+   absState->push(new (region()) AbsValue(array, TR::Address));
    return absState;
    }
 
@@ -3218,133 +3344,22 @@ AbsState* AbsInterpreter::invokeinterface(AbsState* absState, int bcIndex, int c
    return absState;
    }
 
-void AbsInterpreter::invoke(int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind, TR_ResolvedMethod* method, AbsState* absState, TR::Block* block) 
+void AbsInterpreter::invoke(int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind, TR_ResolvedMethod* callerMethod, AbsState* absState, TR::Block* block) 
    {
-   TR::Method *j9Method = comp()->fej9()->createMethod(comp()->trMemory(), method->containingClass(), cpIndex);
-
+   TR::Method *calleeMethod = comp()->fej9()->createMethod(comp()->trMemory(), callerMethod->containingClass(), cpIndex);
+   
+   TR_CallSite* callsite = findCallSiteTargets(callerMethod, bcIndex, cpIndex, kind, _callerIndex, _callStack, block); // callsite can be NULL, such case will be handled by addChild().
+   
    //Pass the AbsState to its child. So the Child can use this AbsState to perform method summary stuff.
    //Note: Child MUST ensure the validness of this AbsState ( pop and push )
-   _idtBuilder->addChild(_idtNode, _callerIndex, method, absState, bcIndex, cpIndex, kind, _callStack ,block, _idtNode->getCallTarget()->_cfg);
-   }
-
-void AbsInterpreter::cleanInvokeState(TR_ResolvedMethod* containingMethod, int cpIndex, AbsState* invokeAbsState, TR::MethodSymbol::Kinds kind, TR::Region& region, TR::Compilation* comp)
-   {
-   //printf("clean Invoke State\n");
-   TR_ASSERT_FATAL(invokeAbsState, "invoke state is NULL");
-   TR::Method *j9Method = comp->fej9()->createMethod(comp->trMemory(), containingMethod->containingClass(), cpIndex);
+   _idtBuilder->addChild(_idtNode, _callerIndex, calleeMethod, kind == TR::MethodSymbol::Kinds::Static, callsite, absState, _callStack ,block);
    
-   uint32_t params = j9Method->numberOfExplicitParameters();
-   AbsValue *absValue = NULL;
-   //printf("=== %s\n",j9Method->signature(comp->trMemory()));
-   for (int i = 0; i < params; i++) 
-      {
-      absValue = invokeAbsState->pop();
-      AbsValue *absValue2 = NULL;
-      
-      TR::DataType dataType = j9Method->parmType(params - i - 1);
-      //printf("Param %d, Type: %s\n",params - i - 1, TR::DataType::getName(dataType));
-      if (dataType == TR::Double || dataType == TR::Int64)
-         absValue2 = invokeAbsState->pop();
-      }
-
-   int isStatic = kind == TR::MethodSymbol::Kinds::Static;
-
-   int numberOfImplicitParameters = isStatic ? 0 : 1;
-
-   if (numberOfImplicitParameters == 1)
-      absValue = invokeAbsState->pop();
-
-   //pushes?
-   if (j9Method->returnTypeWidth() == 0) return;
-
-   //how many pushes?
-   TR::DataType datatype = j9Method->returnType();
-   switch(datatype) 
-      {
-      case TR::Int32:
-      case TR::Int16:
-      case TR::Int8:
-         {
-         AbsValue *result = getTOPAbsValue(TR::Int32, region);
-         invokeAbsState->push(result);
-         break;
-         }
-      case TR::Float:
-      case TR::Address:
-         {
-         AbsValue *result = getTOPAbsValue(datatype, region);
-         invokeAbsState->push(result);
-         break;
-         }  
-      case TR::Double:
-      case TR::Int64:
-         {
-         AbsValue *result = getTOPAbsValue(datatype, region);
-         invokeAbsState->push(result);
-         AbsValue *result2 = getTOPAbsValue(TR::NoType, region);
-         invokeAbsState->push(result2);
-         break;
-         }
-      default:
-         break;
-      }
-   }
-
-void AbsInterpreter::updateStaticBenefitWithMethodSummary(IDTNode* node, AbsState* invokeAbsState)
-   {
-   //printf("update IDT with method summary\n");
-   TR_ASSERT_FATAL(invokeAbsState, "invoke state is NULL");
-
-   traceMsg(comp(), "#### Invoke State ####\n");
-   invokeAbsState->trace(_valuePropagation);
-
-   TR_ResolvedMethod* method = node->getResolvedMethodSymbol()->getResolvedMethod();
-   //printf("=== %s\n",method->signature(comp()->trMemory()));
-
-   uint32_t numExplicitParams = method->numberOfExplicitParameters();
-
-   bool isStatic = node->getResolvedMethodSymbol()->getMethodKind() == TR::MethodSymbol::Kinds::Static;
-   uint32_t numImplicitParams = isStatic ? 0 : 1;
-
-   uint32_t totalNumParams = numImplicitParams + numExplicitParams; 
-
-   AbsValue *paramsArray[totalNumParams];
-
-   for (uint32_t i = 0 ; i < numExplicitParams; i ++)
-      {
-      AbsValue* absValue = invokeAbsState->pop();
-      AbsValue* absValue2 = NULL;
-
-      TR::DataType dataType = method->parmType(numExplicitParams -i - 1);
-      //printf("Param %d, Type: %s\n",numExplicitParams -i - 1, TR::DataType::getName(dataType));
-      if (dataType == TR::Double || dataType == TR::Int64)
-         absValue2 = invokeAbsState->pop();
-
-      paramsArray[totalNumParams -i - 1] = absValue2 ? absValue2 : absValue;
-      }
-
-   if (numImplicitParams == 1)
-      paramsArray[0] = invokeAbsState->pop();
-
-   int benefit = 0;
-
-   TR_ASSERT_FATAL(node->getMethodSummary(), "Method Summary is NULL");
-   for (uint32_t i = 0; i < totalNumParams; i ++)
-      {
-      AbsValue* value = paramsArray[i];
-      benefit += node->getMethodSummary()->predicates(value->getConstraint(), i);
-      }
-
-   // Update the Node's benefit
-   node->setStaticBenefit(benefit);
-   // if (benefit >= 3)
-   //    //printf("%d: === %s\n",benefit, node->getName());
-   //pushes?
-   if (method->returnTypeWidth() == 0)
+   //For the return values
+   if (calleeMethod->returnTypeWidth() == 0)
       return;
 
    //how many pushes?
-   TR::DataType datatype = method->returnType();
+   TR::DataType datatype = calleeMethod->returnType();
    switch(datatype) 
          {
          case TR::Int32:
@@ -3352,23 +3367,23 @@ void AbsInterpreter::updateStaticBenefitWithMethodSummary(IDTNode* node, AbsStat
          case TR::Int8:
             {
             AbsValue *result = getTOPAbsValue(TR::Int32);
-            invokeAbsState->push(result);
+            absState->push(result);
             break;
             }
          case TR::Float:
          case TR::Address:
             {
             AbsValue *result = getTOPAbsValue(datatype);
-            invokeAbsState->push(result);
+            absState->push(result);
             break;
             }  
          case TR::Double:
          case TR::Int64:
             {
             AbsValue *result = getTOPAbsValue(datatype);
-            invokeAbsState->push(result);
+            absState->push(result);
             AbsValue *result2 = getTOPAbsValue(TR::NoType);
-            invokeAbsState->push(result2);
+            absState->push(result2);
             break;
             }
          default:
@@ -3376,4 +3391,186 @@ void AbsInterpreter::updateStaticBenefitWithMethodSummary(IDTNode* node, AbsStat
          }  
    }
 
+
+
    
+TR_CallSite* AbsInterpreter::findCallSiteTargets(
+      TR_ResolvedMethod *caller, 
+      int bcIndex,
+      int cpIndex,
+      TR::MethodSymbol::Kinds kind, 
+      int callerIndex, 
+      TR_CallStack* callStack,
+      TR::Block* block
+      )
+   {
+
+   TR::ResolvedMethodSymbol* callerSymbol = TR::ResolvedMethodSymbol::create(comp()->trHeapMemory(), caller, comp());
+   
+   TR_ByteCodeInfo *infoMem = new (region()) TR_ByteCodeInfo();
+   TR_ByteCodeInfo &info = *infoMem;
+
+   TR::SymbolReference *symRef = getSymbolReference(callerSymbol, cpIndex, kind);
+   TR::Symbol *sym = symRef->getSymbol();
+   bool isInterface = kind == TR::MethodSymbol::Kinds::Interface;
+
+   if (symRef->isUnresolved() && !isInterface) 
+      {
+      if (comp()->getOption(TR_TraceBIIDTGen))
+         {
+         traceMsg(comp(), "not considering: method is unresolved and is not interface\n");
+         }
+      return NULL;
+      }
+
+   TR::ResolvedMethodSymbol *calleeSymbol = !isInterface ? sym->castToResolvedMethodSymbol() : NULL;
+   TR_ResolvedMethod *callee = !isInterface ? calleeSymbol->getResolvedMethod() : NULL;
+
+   TR::Method *calleeMethod = !isInterface ? calleeSymbol->getMethod() : comp()->fej9()->createMethod(comp()->trMemory(), caller->containingClass(), cpIndex);
+   info.setByteCodeIndex(bcIndex);
+   info.setDoNotProfile(false);
+   
+   info.setCallerIndex(callerIndex);
+   TR_OpaqueClassBlock *callerClass = caller->classOfMethod();
+   TR_OpaqueClassBlock *calleeClass = callee ? callee->classOfMethod() : NULL;
+   info.setIsSameReceiver(callerClass == calleeClass);
+   
+   bool isIndirect = kind == TR::MethodSymbol::Kinds::Static || TR::MethodSymbol::Kinds::Special;
+   int32_t offset = kind == TR::MethodSymbol::Virtual ? symRef->getOffset() : -1;
+
+   TR_CallSite *callsite = getCallSite
+      (
+         kind,
+         caller,
+         NULL,
+         NULL,
+         NULL,
+         calleeMethod,
+         calleeClass,
+         offset,
+         cpIndex,
+         callee,
+         calleeSymbol,
+         isIndirect,
+         isInterface,
+         info,
+         -1,
+         false,
+         symRef
+      );
+   
+   //TODO: Sometimes these were not set, why?
+   callsite->_byteCodeIndex = bcIndex;
+   callsite->_bcInfo = info; //info has to be a reference, so it is being deleted after node exits.
+   callsite->_cpIndex= cpIndex;
+   callsite->findCallSiteTarget(callStack, _idtBuilder->getInliner());
+
+   //TODO: Sometimes these were not set, why?
+   callStack->_methodSymbol = callStack->_methodSymbol ? callStack->_methodSymbol : callerSymbol;
+   
+   // //This elimiates all the call targets that do not satisfy the inlining policy
+   // getInliner()->applyPolicyToTargets(callStack, callsite, block, cfg);
+   return callsite;   
+   }
+
+TR_CallSite* AbsInterpreter::getCallSite(TR::MethodSymbol::Kinds kind,
+                                       TR_ResolvedMethod *callerResolvedMethod,
+                                       TR::TreeTop *callNodeTreeTop,
+                                       TR::Node *parent,
+                                       TR::Node *callNode,
+                                       TR::Method * interfaceMethod,
+                                       TR_OpaqueClassBlock *receiverClass,
+                                       int32_t vftSlot,
+                                       int32_t cpIndex,
+                                       TR_ResolvedMethod *initialCalleeMethod,
+                                       TR::ResolvedMethodSymbol * initialCalleeSymbol,
+                                       bool isIndirectCall,
+                                       bool isInterface,
+                                       TR_ByteCodeInfo & bcInfo,
+                                       int32_t depth,
+                                       bool allConsts,
+                                       TR::SymbolReference *symRef)
+   {
+   TR::ResolvedMethodSymbol *rms = TR::ResolvedMethodSymbol::create(comp()->trHeapMemory(), callerResolvedMethod, comp());
+   auto owningMethod = (TR_ResolvedJ9Method*) callerResolvedMethod;
+   bool unresolvedInCP;
+   if (kind == TR::MethodSymbol::Kinds::Virtual)
+      {
+      TR_ResolvedMethod *method = owningMethod->getResolvedPossiblyPrivateVirtualMethod(
+         comp(),
+         cpIndex,
+         /* ignoreRtResolve = */ false,
+         &unresolvedInCP);
+
+      bool opposite = !(method != NULL && method->isPrivate());
+      TR::SymbolReference * somesymref = NULL;
+      if (!opposite) 
+         {
+         somesymref = comp()->getSymRefTab()->findOrCreateMethodSymbol(
+         rms->getResolvedMethodIndex(),
+         cpIndex,
+         method,
+         TR::MethodSymbol::Special,
+         /* isUnresolvedInCP = */ false);
+         }
+      else 
+         {
+         somesymref = comp()->getSymRefTab()->findOrCreateVirtualMethodSymbol(rms, cpIndex);
+         if (!somesymref->isUnresolved())
+            {
+            method = somesymref->getSymbol()->castToResolvedMethodSymbol()->getResolvedMethod();
+            }
+         }
+      if (method) 
+         {
+         kind = somesymref->getSymbol()->isFinal() ||
+         method->isPrivate() ||
+         (debug("omitVirtualGuard") && !method->virtualMethodIsOverridden()) ? TR::MethodSymbol::Kinds::Static : kind;
+         }
+      }
+
+   
+   if (initialCalleeMethod)
+      {
+      kind = symRef->getSymbol()->isFinal() ||
+      initialCalleeMethod->isPrivate() ||
+      (debug("omitVirtualGuard") && !initialCalleeMethod->virtualMethodIsOverridden()) ? TR::MethodSymbol::Kinds::Static : kind;
+      }
+
+   TR_CallSite *callsite = NULL;
+   switch (kind) 
+      {
+      case TR::MethodSymbol::Kinds::Virtual:
+         callsite = new (region()) TR_J9VirtualCallSite(callerResolvedMethod, callNodeTreeTop, parent, callNode, interfaceMethod, receiverClass, vftSlot, cpIndex, initialCalleeMethod, initialCalleeSymbol, isIndirectCall, isInterface, bcInfo, comp(), depth, allConsts);
+         break;
+      case TR::MethodSymbol::Kinds::Static:
+      case TR::MethodSymbol::Kinds::Special:
+         callsite = new (region()) TR_DirectCallSite(callerResolvedMethod, callNodeTreeTop, parent, callNode, interfaceMethod, receiverClass, vftSlot, cpIndex, initialCalleeMethod, initialCalleeSymbol, isIndirectCall, isInterface, bcInfo, comp(), depth, allConsts);
+         break;
+      case TR::MethodSymbol::Kinds::Interface:
+         callsite = new (region()) TR_J9InterfaceCallSite(callerResolvedMethod, callNodeTreeTop, parent, callNode, interfaceMethod, receiverClass, vftSlot, cpIndex, initialCalleeMethod, initialCalleeSymbol, isIndirectCall, isInterface, bcInfo, comp(), depth, allConsts);
+         break;
+      }
+   return callsite;
+   }
+
+TR::SymbolReference* AbsInterpreter::getSymbolReference(TR::ResolvedMethodSymbol *callerSymbol, int cpIndex, TR::MethodSymbol::Kinds kind)
+   {
+   TR::SymbolReference *symRef = NULL;
+   switch(kind)
+      {
+      case (TR::MethodSymbol::Kinds::Virtual):
+         symRef = comp()->getSymRefTab()->findOrCreateVirtualMethodSymbol(callerSymbol, cpIndex);
+         break;
+      case (TR::MethodSymbol::Kinds::Static):
+         symRef = comp()->getSymRefTab()->findOrCreateStaticMethodSymbol(callerSymbol, cpIndex);
+         break;
+      case (TR::MethodSymbol::Kinds::Interface):
+         symRef = comp()->getSymRefTab()->findOrCreateInterfaceMethodSymbol(callerSymbol, cpIndex);
+         break;
+      case (TR::MethodSymbol::Kinds::Special):
+         symRef = comp()->getSymRefTab()->findOrCreateSpecialMethodSymbol(callerSymbol, cpIndex);
+         break;
+      }
+   return symRef;
+   }

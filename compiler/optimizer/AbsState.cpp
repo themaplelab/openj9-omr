@@ -36,7 +36,7 @@ AbsValue* AbsState::pop()
   
    AbsValue* absValue = _stack.top();
    _stack.pop();
-   // printf("size %d\n", getStackSize());
+   //printf("size %d\n", getStackSize());
    return absValue;
    }
 
@@ -47,7 +47,7 @@ AbsValue* AbsState::top()
 
 void AbsState::push(AbsValue *absValue)
    {    
-  // printf("push\n");
+  //printf("push\n");
 
    _stack.push(absValue);
      //printf("size %d\n", getStackSize());
