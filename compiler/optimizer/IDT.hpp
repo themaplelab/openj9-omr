@@ -14,12 +14,16 @@ class IDT
    IDT(TR::Region& region, TR::ResolvedMethodSymbol*, TR_CallTarget*, int budget, TR::Compilation* comp);
 
    IDTNode* getRoot() { return _root; };
+
    uint32_t getCost() { return _totalCost; }
-   void addCost(uint32_t cost) { _totalCost + cost; }
+   void addCost(uint32_t cost) { _totalCost = _totalCost + cost; }
+
    TR::Compilation* comp() { return _comp; };
+   TR::Region& getMemoryRegion() { return _region; };
+   
    unsigned int getNumNodes() { return _maxIdx + 1; };
    void copyDescendants(IDTNode* fromNode, IDTNode*toNode);
-   TR::Region& getMemoryRegion() { return _region; };
+   
    int getNextGlobalIDTNodeIndex() { return _maxIdx; };
    void increaseGlobalIDTNodeIndex()  { _maxIdx ++; };
 
