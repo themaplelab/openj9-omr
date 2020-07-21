@@ -14,8 +14,10 @@ class IDT
    IDT(TR::Region& region, TR::ResolvedMethodSymbol*, TR_CallTarget*, int budget, TR::Compilation* comp);
 
    IDTNode* getRoot() { return _root; };
+   uint32_t getCost() { return _totalCost; }
+   void addCost(uint32_t cost) { _totalCost + cost; }
    TR::Compilation* comp() { return _comp; };
-   unsigned int getNumNodes() { return getRoot()->getNumDescendantsIncludingMe(); };
+   unsigned int getNumNodes() { return _maxIdx + 1; };
    void copyDescendants(IDTNode* fromNode, IDTNode*toNode);
    TR::Region& getMemoryRegion() { return _region; };
    int getNextGlobalIDTNodeIndex() { return _maxIdx; };
@@ -26,6 +28,7 @@ class IDT
    void printTrace();
 
    private:
+   uint32_t _totalCost;
    TR::Compilation *_comp;
    TR::Region&  _region;
    int _maxIdx;

@@ -41,36 +41,10 @@ int32_t OMR::BenefitInlinerWrapper::perform()
       }
       
    
-//    if (budget < 0) return 1;
-//    OMR::BenefitInliner inliner(optimizer(), this, budget);
-//    inliner._rootRms = prevCFG;
-//    inliner.initIDT(sym, budget);
-//    if (comp()->trace(OMR::benefitInliner))
-//      {
-//      traceMsg(TR::comp(), "starting benefit inliner for %s, budget = %d, hotness = %s\n", sym->signature(this->comp()->trMemory()), budget, comp()->getHotnessName(comp()->getMethodHotness()));
-//      }
-   
-//    inliner.obtainIDT(inliner._idt->getRoot(), budget);
-//    inliner.traceIDT();
-//    if (inliner._idt->getNumNodes() == 1) 
-//       {
-//       inliner._idt->getRoot()->getResolvedMethodSymbol()->setFlowGraph(inliner._rootRms);
-//       return 1;
-//       }
-//    inliner._idt->getRoot()->getResolvedMethodSymbol()->setFlowGraph(inliner._rootRms);
-    int recursiveCost = inliner._idt->getRoot()->getRecursiveCost();
+    int recursiveCost = inliner._idt->getCost();
     bool canSkipAbstractInterpretation = recursiveCost < budget;
     if (!canSkipAbstractInterpretation) {
-      //  if (TR::comp()->getOption(TR_TraceAbstractInterpretation))
-      //  {
-      //  traceMsg(TR::comp(), "STARTXXX: about to start abstract interpretation\n");
-      //  }
-      // inliner.abstractInterpreter();
-      //  if (TR::comp()->getOption(TR_TraceAbstractInterpretation))
-      //  {
-      //  traceMsg(TR::comp(), "ENDXXX: about to end abstract interpretation\n");
-      //  }
-      //inliner.updateIDT();
+     
       inliner.analyzeIDT();
    } else {
       inliner.addEverything();
@@ -116,7 +90,7 @@ OMR::BenefitInliner::addEverythingRecursively(IDTNode *node)
 
 void OMR::BenefitInliner::buildIDT()
    {
-   IDTBuilder idtBuilder(comp()->getMethodSymbol(), _budget, comp()->trMemory()->currentStackRegion(), comp(), this);
+   IDTBuilder idtBuilder(comp()->getMethodSymbol(), _budget, _cfgRegion, comp(), this);
    _idt = idtBuilder.buildIDT();
    }
 
@@ -444,6 +418,18 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
    for (int32_t i=0; i<callsite->numTargets(); i++)
       {
       TR_CallTarget *calltarget = callsite->getTarget(i);
+
+      if (!calltarget->_calleeSymbol)
+            {
+            if (comp()->getOption(TR_TraceBIIDTGen))
+               {
+               traceMsg(comp(), "unresolved callee\n");
+               }
+            callsite->removecalltarget(i,tracer(),Unresolved_Callee);
+            i--;
+            continue;
+            }
+
       if (!supportsMultipleTargetInlining () && i > 0)
          {
          if (comp()->getOption(TR_TraceBIIDTGen))
@@ -612,11 +598,12 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
             }
          }
 
+         //if we have the block and callerCFG
+         if (!callerCFG || !callblock)
+            continue;
+
          bool allowInliningColdCallSites = false;
          bool allowInliningColdTargets = false;
-         
-         TR_ASSERT_FATAL(callerCFG, "cfg is null");
-         TR_ASSERT_FATAL(callblock, "block is null");
         
          int frequency = comp()->convertNonDeterministicInput(callblock->getFrequency(), MAX_BLOCK_COUNT + MAX_COLD_BLOCK_COUNT, randomGenerator(), 0);
          bool isColdCall = callerCFG->isColdCall(callsite->_bcInfo, this);
@@ -634,17 +621,7 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
             continue;
             }
 
-         if (!calltarget->_calleeSymbol)
-            {
-            if (comp()->getOption(TR_TraceBIIDTGen))
-               {
-               traceMsg(comp(), "unresolved callee\n");
-               }
-            callsite->removeAllTargets(tracer(),Unresolved_Callee);
-            callsite->_failureReason=No_Inlineable_Targets;
-            return;
-            }
-
+         
          if (!allowInliningColdTargets && callblock->getFrequency() <= 6)
             {
             if (comp()->getOption(TR_TraceBIIDTGen))
@@ -667,16 +644,13 @@ OMR::BenefitInlinerUtil::computeMethodBranchProfileInfo2(TR::Block *cfgBlock, TR
    if (cfgBlock) //isn't this equal to genILSucceeded?? Nope. cfgBlock comes from ecs
       {
 
-      TR::ResolvedMethodSymbol * calleeSymbol = calltarget->_calleeSymbol;
-      calleeSymbol->setFlowGraph(calltarget->_cfg);
-
       TR_MethodBranchProfileInfo *mbpInfo = TR_MethodBranchProfileInfo::getMethodBranchProfileInfo(callerIndex, comp());
       if (!mbpInfo)
          {
 
          mbpInfo = TR_MethodBranchProfileInfo::addMethodBranchProfileInfo (callerIndex, comp());
-         calleeSymbol->getFlowGraph()->computeInitialBlockFrequencyBasedOnExternalProfiler(comp());
-         uint32_t firstBlockFreq = calleeSymbol->getFlowGraph()->getInitialBlockFrequency();
+         calltarget->_cfg->computeInitialBlockFrequencyBasedOnExternalProfiler(comp());
+         uint32_t firstBlockFreq = calltarget->_cfg->getInitialBlockFrequency();
          //TODO: What is the difference between initialBlockFrequency and callerSymbol->getFirstTreeTop()->getNode()->getBlock()->getFrequency()
 
          int32_t blockFreq = callblock->getFrequency();
@@ -693,7 +667,7 @@ OMR::BenefitInlinerUtil::computeMethodBranchProfileInfo2(TR::Block *cfgBlock, TR
          mbpInfo->setInitialBlockFrequency(firstBlockFreq);
          mbpInfo->setCallFactor(freqScaleFactor);
 
-         calleeSymbol->getFlowGraph()->setFrequencies();
+         calltarget->_cfg->setFrequencies();
 
          if (comp()->getOption(TR_TraceBFGeneration))
             {

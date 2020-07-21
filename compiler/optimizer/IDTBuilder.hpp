@@ -23,30 +23,28 @@ class IDTBuilder
    void buildIDTHelper(IDTNode* node, AbsState* invokeState, int callerIndex, int32_t budget, TR_CallStack* callStack);
    void performAbstractInterpretation(IDTNode* node,  int callerIndex, TR_CallStack* callStack);
 
+   //Only call this after we have a CFG of the call target
    float computeCallRatio(TR_CallTarget* callTarget, TR_CallStack* callStack, TR::Block* block, TR::CFG* callerCfg );
+
+   //Only call this after we have the method summary of the method
    int computeStaticBenefitWithMethodSummary(TR::Method* calleeMethod, bool isStaticMethod, MethodSummary* methodSummary, AbsState* invokeState);
 
-   //Any method that is not going to be asbtract interpreted should call this method to pop the parameters from AbsState
-   //In order to ensure the Abs Op Stack is valid.
+   //Any method that is not going to be asbtract interpreted should call this method to pop the parameters from AbsState's Abs Op Stack
+   //This is to ensure that the Abs Op Stack is valid.
    void cleanInvokeState(TR::Method* calleeMethod, bool isStaticMethod, AbsState* invokeState);
 
    TR::Compilation* comp() { return _comp; };
    TR::Region& region() { return _region; };
 
-
+   //Check if the method has already been interpeted thus no need to perform abstract interpretation again.
    IDTNode* getInterpretedMethod(TR::ResolvedMethodSymbol* symbol);
    void addInterpretedMethod(TR::ResolvedMethodSymbol *symbol, IDTNode* node);
 
-   //Why do we need an Inliner here? Because we need its applyPolicyToTargets()
+   //Why do we need an Inliner here? Because we need to use its applyPolicyToTargets()
    OMR::BenefitInliner* getInliner()  { return _inliner; };
    
    //Used for calculating method branch profile
    OMR::BenefitInlinerUtil* getUtil();
-
-   //TODO: move to absinterpter
-   TR::CFG* generateCFG(TR_CallTarget* callTarget, TR_CallStack* callStack=NULL);
-   TR::ValuePropagation *getValuePropagation();
-
 
    //This will be called from AbsInterpreter
    void addChild(IDTNode*node,
@@ -59,7 +57,6 @@ class IDTBuilder
       TR::Block* block);
 
    IDT* _idt;
-   TR_J9EstimateCodeSize * _cfgGen;
    TR::ResolvedMethodSymbol* _rootSymbol;
 
    typedef TR::typed_allocator<std::pair<TR_OpaqueMethodBlock*, IDTNode*>, TR::Region&> InterpretedMethodMapAllocator;
@@ -71,7 +68,6 @@ class IDTBuilder
    int32_t _rootBudget;
    TR::Region& _region;
    TR::Compilation* _comp;
-   TR::ValuePropagation *_valuePropagation;
    OMR::BenefitInliner* _inliner;
    OMR::BenefitInlinerUtil* _util;
    };

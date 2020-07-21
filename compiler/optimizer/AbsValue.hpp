@@ -46,6 +46,7 @@ class AbsValue
 
    TR::DataType getDataType() { return _dataType; };
    TR::VPConstraint* getConstraint() { return _constraint; };
+   void setConstraint(TR::VPConstraint *constraint) { _constraint = constraint; };
 
    private:
    int _paramPos;

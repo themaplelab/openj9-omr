@@ -5,7 +5,6 @@ AbsInterpreter::AbsInterpreter(
    IDTNode* node, 
    int callerIndex,
    IDTBuilder* idtBuilder, 
-   TR::ValuePropagation* valuePropagation,
    TR_CallStack* callStack,
    TR::Region& region,
    TR::Compilation* comp
@@ -15,30 +14,65 @@ AbsInterpreter::AbsInterpreter(
       _callerIndex(callerIndex),
       _region(region),
       _comp(comp),
-      _valuePropagation(valuePropagation),
       _callStack(callStack),
+      _vp(NULL),
       _bcIterator(node->getResolvedMethodSymbol(),static_cast<TR_ResolvedJ9Method*>(node->getCallTarget()->_calleeMethod),static_cast<TR_J9VMBase*>(this->comp()->fe()), this->comp())
    {
-   TR_ASSERT_FATAL(idtBuilder, "IDTBuilder cannot be NULL");
-   _methodSummary = new (_region) MethodSummary(_region, valuePropagation);
+   _methodSummary = new (_region) MethodSummary(_region, vp());
    }
 
+
+TR::ValuePropagation* AbsInterpreter::vp()
+   {
+   if (!_vp)
+      {
+      TR::OptimizationManager* manager = comp()->getOptimizer()->getOptimization(OMR::globalValuePropagation);
+      _vp = (TR::ValuePropagation*) manager->factory()(manager);
+      _vp->initialize();
+      }
+   return _vp;
+   }
+
+TR::CFG* AbsInterpreter::generateCFG(TR_CallTarget* callTarget,  TR_InlinerBase* inliner, TR::Region& region, TR_CallStack* callStack)
+   {
+   TR_J9EstimateCodeSize* cfgGen = (TR_J9EstimateCodeSize *)TR_EstimateCodeSize::get(inliner, inliner->tracer(), 0);   
+   TR::CFG* cfg = cfgGen->generateCFG(callTarget, callStack, region);
+   callTarget->_calleeSymbol->setFlowGraph(cfg);
+   return cfg;
+   }
+
+void AbsInterpreter::setCFGBlockFrequency(TR::CFG* cfg, bool isRoot, TR::Compilation* comp)
+   {
+   if (isRoot) //This is the root method
+      {
+      cfg->computeInitialBlockFrequencyBasedOnExternalProfiler(comp);
+      cfg->setFrequencies();
+      }
+
+   cfg->getStartForReverseSnapshot()->setFrequency(cfg->getStartBlockFrequency());
+   }
+
+
+//Steps of interpret()
+//1. generate CFG for this call Target
+//2. Walk basic blocks of this cfg
+//3. For each basic block, walk its byte code
+//4. interptet each byte code.
 void AbsInterpreter::interpret()
    {
    TR_CallTarget* callTarget = _idtNode->getCallTarget();
    TR_ASSERT_FATAL(callTarget,"Call Target is NULL!");
 
-   TR::CFG* cfg = callTarget->_cfg;
-   TR_ASSERT_FATAL(cfg, "CFG is NULL!");
+   TR_ASSERT_FATAL(callTarget->_cfg, "CFG is NULL!");
 
-   callTarget->_calleeSymbol->setFlowGraph(cfg);
-   walkBasicBlocks(cfg);
+   //callTarget->_calleeSymbol->setFlowGraph(cfg);
+   walkBasicBlocks(callTarget->_cfg);
 
    _idtNode->setMethodSummary(_methodSummary);
    _methodSummary->trace(); 
-   //At this point, we have the method summary
    }
 
+//Get the AbsValue of a class object
 //Note: Do not use this for primitive type array
 AbsValue* AbsInterpreter::getClassAbsValue(TR_OpaqueClassBlock* opaqueClass, TR::VPClassPresence *presence, TR::VPArrayInfo *info)
    {
@@ -50,31 +84,27 @@ AbsValue* AbsInterpreter::getClassAbsValue(TR_OpaqueClassBlock* opaqueClass, TR:
 
       TR::VPClassType *classType;
       if (resolvedClass) //If this class is resolved
-         classType = TR::VPResolvedClass::create(_valuePropagation, opaqueClass); 
+         classType = TR::VPResolvedClass::create(vp(), opaqueClass); 
       else // Not resolved
-         classType = TR::VPFixedClass::create(_valuePropagation, opaqueClass);
+         classType = TR::VPFixedClass::create(vp(), opaqueClass);
       
-      classConstraint = TR::VPClass::create(_valuePropagation, classType, presence, NULL, info, NULL);
+      classConstraint = TR::VPClass::create(vp(), classType, presence, NULL, info, NULL);
       }
    else //This case we don't even know which class it is
       {
-      classConstraint = TR::VPClass::create(_valuePropagation, NULL, presence, NULL, info, NULL); 
+      classConstraint = TR::VPClass::create(vp(), NULL, presence, NULL, info, NULL); 
       }
    
    return new (region()) AbsValue (classConstraint, TR::Address);
    }
 
+//Get the AbsValue for those we are not able to set a constraint to it (unknown)
 AbsValue* AbsInterpreter::getTOPAbsValue(TR::DataType dataType)
    {
    return new (region()) AbsValue(NULL, dataType);
    }
 
-AbsValue* AbsInterpreter::getTOPAbsValue(TR::DataType dataType, TR::Region& region)
-   {
-   return new (region) AbsValue(NULL, dataType);
-   }
-
-//get the abstract state of the start block of CFG
+//Get the abstract state of the ENTER block of CFG
 AbsState* AbsInterpreter::initializeAbsState(TR::ResolvedMethodSymbol* symbol)
    {
     
@@ -83,8 +113,6 @@ AbsState* AbsInterpreter::initializeAbsState(TR::ResolvedMethodSymbol* symbol)
    //printf("- 1. Abstract Interpreter: Enter method: %s\n", symbol->signature(comp()->trMemory()));
    AbsState* absState = new (region()) AbsState(region());
 
-   // TR_ResolvedMethod *callerResolvedMethod = _bcIterator.method();
-   // TR::ResolvedMethodSymbol* callerResolvedMethodSymbol = TR::ResolvedMethodSymbol::create(comp()->trHeapMemory(), callerResolvedMethod, comp());
    TR_ResolvedMethod *resolvedMethod = symbol->getResolvedMethod();
 
    int32_t numberOfParameters = resolvedMethod->numberOfParameters();
@@ -111,7 +139,6 @@ AbsState* AbsInterpreter::initializeAbsState(TR::ResolvedMethodSymbol* symbol)
       TR::DataType dataType = parameterIterator->getDataType();
       AbsValue* temp;
 
-      //primitive types
       switch (dataType)
          {
          case TR::Int8:
@@ -215,7 +242,7 @@ AbsState* AbsInterpreter::mergeAllPredecessors(TR::Block* block)
       if (comp()->trace(OMR::benefitInliner))
          {
          traceMsg(comp(), "Merge Abstract State Predecessor: #%d\n", aBlock->getNumber());
-         //absState->trace(_valuePropagation);
+         //absState->trace(vp());
          }
       //printf("Merge Abstract State Predecessor: #%d\n", aBlock->getNumber());
 
@@ -228,11 +255,11 @@ AbsState* AbsInterpreter::mergeAllPredecessors(TR::Block* block)
          }
 
       // merge with the rest;
-      absState->merge(aBlock->getAbsState(), _valuePropagation);
+      absState->merge(aBlock->getAbsState(), vp());
       }
 
       traceMsg(comp(), "Merged Abstract State:\n");
-      absState->trace(_valuePropagation);
+      absState->trace(vp());
       return absState;
    }
 
@@ -241,12 +268,12 @@ void AbsInterpreter::transferAbsStates(TR::Block* block)
    bool traceAbstractInterpretion = comp()->getOption(TR_TraceAbstractInterpretation);
    //printf("-    4. Abstract Interpreter: Transfer abstract states\n");
    if (traceAbstractInterpretion) 
-      traceMsg(comp(), "-    4. Abstract Interpreter: Transfer abstract states\n");
+      traceMsg(comp(), "-4. Abstract Interpreter: Transfer abstract states\n");
 
-   if (block->getNumber() == 4 || block->getPredecessors().size() == 0) //Is first block or has no predecessors
+   if (block->getNumber() == 4 || block->getPredecessors().size() == 0) //first block or has no predecessors
       {
       if (traceAbstractInterpretion)
-         traceMsg(comp(), "      No predecessors. Stop.\n");
+         traceMsg(comp(), "No predecessors. Stop.\n");
       //printf("No predecessors. Stop.\n");
       return;
       }
@@ -258,7 +285,7 @@ void AbsInterpreter::transferAbsStates(TR::Block* block)
       {
          //printf("      There is a loop. Stop.\n");
       if (traceAbstractInterpretion) 
-         traceMsg(comp(), "      There is a loop. Stop.\n");
+         traceMsg(comp(), "There is a loop. Stop.\n");
       return;
       }
       
@@ -271,8 +298,8 @@ void AbsInterpreter::transferAbsStates(TR::Block* block)
       block->setAbsState(absState);
       if (traceAbstractInterpretion) 
          {
-         traceMsg(comp(), "      There is only one predecessor: #%d and interpreted. Pass this abstract state.\n",block->getPredecessors().front()->getFrom()->asBlock()->getNumber() );
-         //absState->trace(_valuePropagation);
+         traceMsg(comp(), "There is only one predecessor: #%d and interpreted. Pass this abstract state.\n",block->getPredecessors().front()->getFrom()->asBlock()->getNumber() );
+         //absState->trace(vp());
          }
       //printf("      There is only one predecessor: #%d and interpreted. Pass this abstract state.\n",block->getPredecessors().front()->getFrom()->asBlock()->getNumber());
         
@@ -285,7 +312,7 @@ void AbsInterpreter::transferAbsStates(TR::Block* block)
       {
       //printf("      There are multiple predecessors and all interpreted. Merge their abstract states.\n");
       if (traceAbstractInterpretion) 
-         traceMsg(comp(), "      There are multiple predecessors and all interpreted. Merge their abstract states.\n");
+         traceMsg(comp(), "There are multiple predecessors and all interpreted. Merge their abstract states.\n");
 
       block->setAbsState( mergeAllPredecessors(block) );
       return;
@@ -296,7 +323,7 @@ void AbsInterpreter::transferAbsStates(TR::Block* block)
    // look for a predecessor that has been interpreted
    //printf("      Not all predecessors are interpreted. Finding one interpretd...\n");
    if (traceAbstractInterpretion) 
-      traceMsg(comp(), "      Not all predecessors are interpreted. Finding one interpretd...\n");
+      traceMsg(comp(), "Not all predecessors are interpreted. Finding one interpretd...\n");
   
    TR::CFGEdgeList &predecessors = block->getPredecessors();
    for (auto i = predecessors.begin(), e = predecessors.end(); i != e; ++i)
@@ -307,7 +334,7 @@ void AbsInterpreter::transferAbsStates(TR::Block* block)
       if (check != block)
          {
          if (traceAbstractInterpretion)
-            traceMsg(comp(), "      fail check\n");
+            traceMsg(comp(), "fail check\n");
          continue;
          }
 
@@ -316,45 +343,51 @@ void AbsInterpreter::transferAbsStates(TR::Block* block)
          
 
       if (traceAbstractInterpretion)
-         traceMsg(comp(), "      Find a predecessor: #%d interpreted. Use its type info and setting all abstract values to be TOP\n", parentBlock->getNumber());
+         traceMsg(comp(), "Find a predecessor: #%d interpreted. Use its type info and setting all abstract values to be TOP\n", parentBlock->getNumber());
    
       //printf("      Find a predecessor: #%d interpreted. Use its type info and setting all abstract values to be TOP\n", parentBlock->getNumber());
 
       // We find a predecessor interpreted. Use its type info with all AbsValues being TOP (unkown)
       AbsState *parentState = parentBlock->getAbsState();
- 
-      parentState->trace(_valuePropagation);
+
       AbsState *newState = new (region()) AbsState(parentState);
 
-      size_t stackSize = parentState->getStackSize();
-      AbsValue *array[stackSize]; //temp storage array
+      TR::deque<AbsValue*, TR::Region&> deque(comp()->trMemory()->currentStackRegion());
 
-      for (size_t i = 0; i < stackSize; i++)
-         array[stackSize - i - 1] = parentState->pop();
-      
+      size_t stackSize = parentState->getStackSize();
       for (size_t i = 0; i < stackSize; i++)
          {
-         AbsValue *a = array[i];
-         newState->push(getTOPAbsValue(a ? array[i]->getDataType() : TR::Address));
-         parentState->push(array[i]);
+         AbsValue *value = newState->pop();
+         value->setConstraint(NULL);
+         deque.push_back(value);
          }
-
+         
+      for (size_t i = 0; i < stackSize; i++)
+         {
+         newState->push(deque.back());
+         deque.pop_back();
+         }
+        
       size_t arraySize = parentState->getArraySize();
+
       for (size_t i = 0; i < arraySize; i++)
          {
-         AbsValue *a = parentState->at(i);
-         AbsValue *value1 = getTOPAbsValue(a ? parentState->at(i)->getDataType() : TR::Address);
-         newState->set(i, value1);
-         }
+         if (newState->at(i) != NULL)
+            newState->at(i)->setConstraint(NULL);
+         }      
 
       block->setAbsState(newState);
       return;
       }
       
    if (traceAbstractInterpretion)
-      traceMsg(comp(), "      No predecessor is interpreted. Stop.");
+      traceMsg(comp(), "No predecessor is interpreted. Stop.");
    }
 
+
+// Steps of WalkBasicBlocks()
+//1. init the AbsState of ENTER block
+//2. Walk the block in reverse post order
 void AbsInterpreter::walkBasicBlocks(TR::CFG* cfg)
    {
    bool traceAbstractInterpretation = comp()->getOption(TR_TraceAbstractInterpretation);
@@ -387,7 +420,7 @@ void AbsInterpreter::walkByteCode(TR::Block* block)
       //printf("==== Walk basic block #%d ==== \n", block->getNumber());
    bool traceAbstractInterpretation = comp()->getOption(TR_TraceAbstractInterpretation);
    if (traceAbstractInterpretation) 
-      traceMsg(comp(), "-   3. Abstract Interpreter: Walk bytecode in basic block #:%d\n",block->getNumber());
+      traceMsg(comp(), "-3. Abstract Interpreter: Walk bytecode in basic block #:%d\n",block->getNumber());
 
    int32_t start = block->getBlockBCIndex();
    int32_t end = start + block->getBlockSize();
@@ -416,16 +449,16 @@ void AbsInterpreter::walkByteCode(TR::Block* block)
       else
          {
          if (comp()->getOption(TR_TraceAbstractInterpretation)) 
-            traceMsg(comp(), "    Basic block: #%d does not have Abstract state. Does not interpret byte code.\n",block->getNumber());
+            traceMsg(comp(), "Basic block: #%d does not have Abstract state. Do not interpret byte code.\n",block->getNumber());
          break;
          }
       
       }
 
-   if (traceAbstractInterpretation)
+   if (traceAbstractInterpretation && block->getAbsState() != NULL )
       {
       traceMsg(comp(), "#### Basic Block: %d in %s Finishes Abstract Interpretation ####\n", block->getNumber(), _idtNode->getName(comp()->trMemory()));
-      block->getAbsState()->trace(_valuePropagation);
+      block->getAbsState()->trace(vp());
       }
 
    }
@@ -784,18 +817,18 @@ AbsState* AbsInterpreter::multianewarray(AbsState* absState, int cpIndex, int di
 
    AbsValue* length = absState->pop(); 
 
-   TR::VPNonNullObject *presence = TR::VPNonNullObject::create(_valuePropagation);
+   TR::VPNonNullObject *presence = TR::VPNonNullObject::create(vp());
 
    if (length->isTOP() || !length->getConstraint()->asIntConstraint() && !length->getConstraint()->asMergedIntConstraints() )
       {
-      TR::VPArrayInfo *info = TR::VPArrayInfo::create(_valuePropagation, 0, INT_MAX , 4);
-      TR::VPConstraint* array = TR::VPClass::create(_valuePropagation, NULL, presence, NULL, info, NULL);
+      TR::VPArrayInfo *info = TR::VPArrayInfo::create(vp(), 0, INT_MAX , 4);
+      TR::VPConstraint* array = TR::VPClass::create(vp(), NULL, presence, NULL, info, NULL);
       absState->push(new (region()) AbsValue(array, TR::Address));
       return absState;
       }
 
-   TR::VPArrayInfo *info = TR::VPArrayInfo::create(_valuePropagation, length->getConstraint()->getLowInt(), length->getConstraint()->getHighInt(), 4);
-   TR::VPConstraint* array = TR::VPClass::create(_valuePropagation, NULL, presence, NULL, info, NULL);
+   TR::VPArrayInfo *info = TR::VPArrayInfo::create(vp(), length->getConstraint()->getLowInt(), length->getConstraint()->getHighInt(), 4);
+   TR::VPConstraint* array = TR::VPClass::create(vp(), NULL, presence, NULL, info, NULL);
    absState->push(new (region()) AbsValue(array, TR::Address));
    return absState;
    }
@@ -944,7 +977,7 @@ AbsState* AbsInterpreter::aastore(AbsState* absState)
 //-- Checked
 AbsState* AbsInterpreter::aconstnull(AbsState* absState) 
    {
-   TR::VPConstraint *null = TR::VPNullObject::create(_valuePropagation);
+   TR::VPConstraint *null = TR::VPNullObject::create(vp());
    AbsValue *absValue = new (region()) AbsValue(null, TR::Address);
    absState->push(absValue);
    return absState;
@@ -1032,7 +1065,7 @@ AbsState* AbsInterpreter::astore3(AbsState* absState)
 //-- Checked
 AbsState* AbsInterpreter::bipush(AbsState* absState, int byte) 
    {
-   TR::VPIntConst *constraint = TR::VPIntConst::create(_valuePropagation, byte);
+   TR::VPIntConst *constraint = TR::VPIntConst::create(vp(), byte);
    AbsValue *value = new (region()) AbsValue(constraint, TR::Int32);
    absState->push(value);
    return absState;
@@ -1309,7 +1342,7 @@ AbsState* AbsInterpreter::iand(AbsState* absState)
       }
 
    int result = value1->getConstraint()->asIntConst()->getInt() & value2->getConstraint()->asIntConst()->getInt();
-   absState->push(new (region()) AbsValue(TR::VPIntConst::create(_valuePropagation, result), TR::Int32));
+   absState->push(new (region()) AbsValue(TR::VPIntConst::create(vp(), result), TR::Int32));
    return absState;
    }
 
@@ -1332,21 +1365,21 @@ AbsState* AbsInterpreter::instanceof(AbsState* absState, int cpIndex, int byteCo
    //Instance Constraint is Top
    if (!objectRef->getConstraint())
       {
-      absState->push(new (region()) AbsValue(TR::VPIntRange::create(_valuePropagation, 0, 1), TR::Int32));
+      absState->push(new (region()) AbsValue(TR::VPIntRange::create(vp(), 0, 1), TR::Int32));
       return absState;
       }
 
    //isntance is null object, push false to stack
    if (objectRef->getConstraint()->asNullObject())
       {
-      absState->push(new (region()) AbsValue(TR::VPIntConst::create(_valuePropagation, 0), TR::Int32));
+      absState->push(new (region()) AbsValue(TR::VPIntConst::create(vp(), 0), TR::Int32));
       return absState;
       }
   
    // Class Info is not available
    if (!block || !objectRef->getConstraint()->getClass())
       {
-      absState->push(new (region()) AbsValue(TR::VPIntRange::create(_valuePropagation, 0, 1), TR::Int32));
+      absState->push(new (region()) AbsValue(TR::VPIntRange::create(vp(), 0, 1), TR::Int32));
       return absState;
       }
 
@@ -1357,21 +1390,21 @@ AbsState* AbsInterpreter::instanceof(AbsState* absState, int cpIndex, int byteCo
       TR_YesNoMaybe yesNoMaybe = comp()->fe()->isInstanceOf(objectRef->getConstraint()->getClass(), block, true, true);
       if( yesNoMaybe == TR_yes) //Instanceof must be true;
          {
-         absState->push(new (region()) AbsValue(TR::VPIntConst::create(_valuePropagation, 1), TR::Int32));
+         absState->push(new (region()) AbsValue(TR::VPIntConst::create(vp(), 1), TR::Int32));
          } 
       else if (yesNoMaybe = TR_no) //Instanceof must be false;
          {
-         absState->push(new (region()) AbsValue(TR::VPIntConst::create(_valuePropagation, 0), TR::Int32));
+         absState->push(new (region()) AbsValue(TR::VPIntConst::create(vp(), 0), TR::Int32));
          }
       else // we don't know
          {
-         absState->push(new (region()) AbsValue(TR::VPIntRange::create(_valuePropagation, 0, 1), TR::Int32));
+         absState->push(new (region()) AbsValue(TR::VPIntRange::create(vp(), 0, 1), TR::Int32));
          } 
          
       return absState;
       }
 
-   absState->push(new (region()) AbsValue(TR::VPIntRange::create(_valuePropagation, 0, 1), TR::Int32));
+   absState->push(new (region()) AbsValue(TR::VPIntRange::create(vp(), 0, 1), TR::Int32));
    return absState;
    }
 
@@ -1398,7 +1431,7 @@ AbsState* AbsInterpreter::ior(AbsState* absState)
       }
 
    int result = value1->getConstraint()->asIntConst()->getInt() | value2->getConstraint()->asIntConst()->getInt();
-   absState->push(new (region()) AbsValue(TR::VPIntConst::create(_valuePropagation, result), TR::Int32));
+   absState->push(new (region()) AbsValue(TR::VPIntConst::create(vp(), result), TR::Int32));
    return absState;
    }
 
@@ -1425,7 +1458,7 @@ AbsState* AbsInterpreter::ixor(AbsState* absState)
       }
 
    int result = value1->getConstraint()->asIntConst()->getInt() ^ value2->getConstraint()->asIntConst()->getInt();
-   absState->push(new (region()) AbsValue(TR::VPIntConst::create(_valuePropagation, result), TR::Int32));
+   absState->push(new (region()) AbsValue(TR::VPIntConst::create(vp(), result), TR::Int32));
    return absState;
    }
 
@@ -1453,7 +1486,7 @@ AbsState* AbsInterpreter::irem(AbsState* absState)
    int int1 = value1->getConstraint()->asIntConst()->getInt();
    int int2 = value2->getConstraint()->asIntConst()->getInt();
    int result = int1 % int2;
-   absState->push(new (region()) AbsValue(TR::VPIntConst::create(_valuePropagation, result), TR::Int32));
+   absState->push(new (region()) AbsValue(TR::VPIntConst::create(vp(), result), TR::Int32));
    return absState;
    }
 
@@ -1482,7 +1515,7 @@ AbsState* AbsInterpreter::ishl(AbsState* absState)
    int int1 = value1->getConstraint()->asIntConst()->getLow();
    int int2 = value2->getConstraint()->asIntConst()->getLow() & 0x1f;
    int result = int1 << int2;
-   absState->push(new (region()) AbsValue(TR::VPIntConst::create(_valuePropagation, result), TR::Int32));
+   absState->push(new (region()) AbsValue(TR::VPIntConst::create(vp(), result), TR::Int32));
    return absState;
    }
 
@@ -1514,7 +1547,7 @@ AbsState* AbsInterpreter::ishr(AbsState* absState)
    //arithmetic shift.
    int result = int1 >> int2;
 
-   absState->push(new (region()) AbsValue(TR::VPIntConst::create(_valuePropagation, result), TR::Int32));
+   absState->push(new (region()) AbsValue(TR::VPIntConst::create(vp(), result), TR::Int32));
    return absState;
    }
 
@@ -1545,7 +1578,7 @@ AbsState* AbsInterpreter::iushr(AbsState* absState)
    int result = int1 >> int2;
    //logical shift, gets rid of the sign.
    result &= 0x7FFFFFFF;
-   absState->push(new (region()) AbsValue(TR::VPIntConst::create(_valuePropagation, result), TR::Int32));
+   absState->push(new (region()) AbsValue(TR::VPIntConst::create(vp(), result), TR::Int32));
    return absState;
    }
 
@@ -1580,7 +1613,7 @@ AbsState* AbsInterpreter::idiv(AbsState* absState)
       return absState;
       }
    int result = int1 / int2;
-   absState->push(new (region()) AbsValue(TR::VPIntConst::create(_valuePropagation, result), TR::Int32));
+   absState->push(new (region()) AbsValue(TR::VPIntConst::create(vp(), result), TR::Int32));
    return absState;
    }
 
@@ -1609,7 +1642,7 @@ AbsState* AbsInterpreter::imul(AbsState* absState)
    int int1 = value1->getConstraint()->asIntConst()->getLow();
    int int2 = value2->getConstraint()->asIntConst()->getLow();
    int result = int1 * int2;
-   absState->push(new (region()) AbsValue(TR::VPIntConst::create(_valuePropagation, result), TR::Int32));
+   absState->push(new (region()) AbsValue(TR::VPIntConst::create(vp(), result), TR::Int32));
    return absState;
    }
 
@@ -1627,14 +1660,14 @@ AbsState* AbsInterpreter::ineg(AbsState* absState)
 
    if (value->getConstraint()->asMergedIntConstraints() || value->getConstraint()->asIntRange()) //range
       {
-      AbsValue* result = new (region()) AbsValue(TR::VPIntRange::create(_valuePropagation, -value->getConstraint()->getHighInt(), -value->getConstraint()->getLowInt()), TR::Int32);
+      AbsValue* result = new (region()) AbsValue(TR::VPIntRange::create(vp(), -value->getConstraint()->getHighInt(), -value->getConstraint()->getLowInt()), TR::Int32);
       absState->push(result);
       return absState;
       }
 
    if (value->getConstraint()->asIntConst()) //const
       {
-      AbsValue* result = new (region()) AbsValue(TR::VPIntConst::create(_valuePropagation, -value->getConstraint()->asIntConst()->getInt()), TR::Int32);
+      AbsValue* result = new (region()) AbsValue(TR::VPIntConst::create(vp(), -value->getConstraint()->asIntConst()->getInt()), TR::Int32);
       absState->push(result);
       return absState;
       }
@@ -1696,7 +1729,7 @@ AbsState* AbsInterpreter::iconst5(AbsState* absState)
 //-- Checked
 void AbsInterpreter::iconst(AbsState* absState, int n)
    {
-   TR::VPIntConst *intConst = TR::VPIntConst::create(_valuePropagation, n);
+   TR::VPIntConst *intConst = TR::VPIntConst::create(vp(), n);
    absState->push(new (region()) AbsValue(intConst, TR::Int32));
    }
 
@@ -1926,7 +1959,7 @@ AbsState* AbsInterpreter::istore3(AbsState* absState)
    return absState;
    }
 
-//Here 
+//TODO: range sub
 AbsState* AbsInterpreter::isub(AbsState* absState)
    {
    AbsValue *value2 = absState->pop();
@@ -1939,12 +1972,13 @@ AbsState* AbsInterpreter::isub(AbsState* absState)
       return absState;
       }
 
-   TR::VPConstraint *result_vp = value1->getConstraint()->subtract(value2->getConstraint(), value2->getDataType(), _valuePropagation);
+   TR::VPConstraint *result_vp = value1->getConstraint()->subtract(value2->getConstraint(), value2->getDataType(), vp());
    AbsValue *result = new (region()) AbsValue(result_vp, value2->getDataType());
    absState->push(result);
    return absState;
    }
 
+//TODO: range add
 AbsState* AbsInterpreter::iadd(AbsState* absState)
    {
    AbsValue *value1 = absState->pop();
@@ -1957,7 +1991,7 @@ AbsState* AbsInterpreter::iadd(AbsState* absState)
       return absState;
       }
 
-   TR::VPConstraint *result_vp = value1->getConstraint()->add(value2->getConstraint(), value2->getDataType(), _valuePropagation);
+   TR::VPConstraint *result_vp = value1->getConstraint()->add(value2->getConstraint(), value2->getDataType(), vp());
    AbsValue *result = new (region()) AbsValue(result_vp, value2->getDataType());
    absState->push(result);
    return absState;
@@ -2069,7 +2103,7 @@ AbsState* AbsInterpreter::ladd(AbsState* absState)
       return absState;
       }
 
-   TR::VPConstraint *result_vp = value2->getConstraint()->add(value4->getConstraint(), value4->getDataType(), _valuePropagation);
+   TR::VPConstraint *result_vp = value2->getConstraint()->add(value4->getConstraint(), value4->getDataType(), vp());
    AbsValue *result = new (region()) AbsValue(result_vp, TR::Int64);
    absState->push(result);
    getTOPAbsValue(TR::NoType);
@@ -2092,7 +2126,7 @@ AbsState* AbsInterpreter::lsub(AbsState* absState)
       return absState;
       }
 
-   TR::VPConstraint *result_vp = value2->getConstraint()->subtract(value4->getConstraint(), value4->getDataType(), _valuePropagation);
+   TR::VPConstraint *result_vp = value2->getConstraint()->subtract(value4->getConstraint(), value4->getDataType(), vp());
    AbsValue *result = new (region()) AbsValue(result_vp, TR::Int64);
    absState->push(result);
    getTOPAbsValue(TR::NoType);
@@ -2119,7 +2153,7 @@ AbsState* AbsInterpreter::l2i(AbsState* absState)
       return absState;
       }
 
-   TR::VPConstraint *intConst = TR::VPIntRange::create(_valuePropagation, value2->getConstraint()->asLongConstraint()->getLow(), value2->getConstraint()->asLongConstraint()->getHigh());
+   TR::VPConstraint *intConst = TR::VPIntRange::create(vp(), value2->getConstraint()->asLongConstraint()->getLow(), value2->getConstraint()->asLongConstraint()->getHigh());
    AbsValue *result = new (region()) AbsValue(intConst, TR::Int32);
    absState->push(result);
    return absState;
@@ -2151,7 +2185,7 @@ AbsState* AbsInterpreter::land(AbsState* absState)
       }
 
    int result = value2->getConstraint()->asLongConst()->getLow() & value4->getConstraint()->asLongConst()->getLow();
-   absState->push(new (region()) AbsValue(TR::VPLongConst::create(_valuePropagation, result), TR::Int64));
+   absState->push(new (region()) AbsValue(TR::VPLongConst::create(vp(), result), TR::Int64));
    AbsValue *result2 = getTOPAbsValue(TR::NoType);
    absState->push(result2);
    return absState;
@@ -2194,7 +2228,7 @@ AbsState* AbsInterpreter::land(AbsState* absState)
       return absState;
       }
    long result = int1 / int2;
-   absState->push(new (region()) AbsValue(TR::VPLongConst::create(_valuePropagation, result), TR::Int64));
+   absState->push(new (region()) AbsValue(TR::VPLongConst::create(vp(), result), TR::Int64));
    AbsValue *result2 = getTOPAbsValue(TR::NoType);
    absState->push(result2);
    return absState;
@@ -2228,7 +2262,7 @@ AbsState* AbsInterpreter::lmul(AbsState* absState)
    long int1 = value1->getConstraint()->asLongConst()->getLow();
    long int2 = value2->getConstraint()->asLongConst()->getLow();
    long result = int1 * int2;
-   absState->push(new (region()) AbsValue(TR::VPLongConst::create(_valuePropagation, result), TR::Int64));
+   absState->push(new (region()) AbsValue(TR::VPLongConst::create(vp(), result), TR::Int64));
    AbsValue *result2 = getTOPAbsValue(TR::NoType);
    absState->push(result2);
    return absState;
@@ -2269,7 +2303,7 @@ AbsState* AbsInterpreter::lneg(AbsState* absState)
 
    long int1 = value1->getConstraint()->asLongConst()->getLow();
    long result = -int1;
-   absState->push(new (region()) AbsValue(TR::VPLongConst::create(_valuePropagation, result), TR::Int64));
+   absState->push(new (region()) AbsValue(TR::VPLongConst::create(vp(), result), TR::Int64));
    AbsValue *result2 = getTOPAbsValue(TR::NoType);
    absState->push(result2);
    return absState;
@@ -2301,7 +2335,7 @@ AbsState* AbsInterpreter::lor(AbsState* absState)
       }
 
    long result = value1->getConstraint()->asLongConst()->getLow() | value2->getConstraint()->asLongConst()->getLow();
-   absState->push(new (region()) AbsValue(TR::VPLongConst::create(_valuePropagation, result), TR::Int64));
+   absState->push(new (region()) AbsValue(TR::VPLongConst::create(vp(), result), TR::Int64));
    AbsValue *result2 = getTOPAbsValue(TR::NoType);
    absState->push(result2);
    return absState;
@@ -2335,7 +2369,7 @@ AbsState* AbsInterpreter::lrem(AbsState* absState)
    long int1 = value2->getConstraint()->asLongConst()->getLow();
    long int2 = value4->getConstraint()->asLongConst()->getLow();
    long result = int1 - (int1/ int2) * int2;
-   absState->push(new (region()) AbsValue(TR::VPLongConst::create(_valuePropagation, result), TR::Int64));
+   absState->push(new (region()) AbsValue(TR::VPLongConst::create(vp(), result), TR::Int64));
    AbsValue *result2 = getTOPAbsValue(TR::NoType);
    absState->push(result2);
    return absState;
@@ -2368,7 +2402,7 @@ AbsState* AbsInterpreter::lshl(AbsState* absState)
    long int1 = value1->getConstraint()->asLongConst()->getLow();
    long int2 = value2->getConstraint()->asIntConst()->getLow() & 0x1f;
    long result = int1 << int2;
-   absState->push(new (region()) AbsValue(TR::VPLongConst::create(_valuePropagation, result), TR::Int64));
+   absState->push(new (region()) AbsValue(TR::VPLongConst::create(vp(), result), TR::Int64));
    AbsValue *result2 = getTOPAbsValue(TR::NoType);
    absState->push(result2);
    return absState;
@@ -2401,7 +2435,7 @@ AbsState* AbsInterpreter::lshr(AbsState* absState)
    long int1 = value1->getConstraint()->asLongConst()->getLow();
    long int2 = value2->getConstraint()->asIntConst()->getLow() & 0x1f;
    long result = int1 >> int2;
-   absState->push(new (region()) AbsValue(TR::VPLongConst::create(_valuePropagation, result), TR::Int64));
+   absState->push(new (region()) AbsValue(TR::VPLongConst::create(vp(), result), TR::Int64));
    AbsValue *result2 = getTOPAbsValue(TR::NoType);
    absState->push(result2);
    return absState;
@@ -2436,7 +2470,7 @@ AbsState* AbsInterpreter::lushr(AbsState* absState)
    long int2 = value2->getConstraint()->asIntConst()->getLow() & 0x1f;
    long result = int1 >> int2;
    result &= 0x7FFFFFFFFFFFFFFF;
-   absState->push(new (region()) AbsValue(TR::VPLongConst::create(_valuePropagation, result), TR::Int64));
+   absState->push(new (region()) AbsValue(TR::VPLongConst::create(vp(), result), TR::Int64));
    AbsValue *result2 = getTOPAbsValue(TR::NoType);
    absState->push(result2);
    return absState;
@@ -2468,7 +2502,7 @@ AbsState* AbsInterpreter::lxor(AbsState* absState)
       }
 
    long result = value1->getConstraint()->asLongConst()->getLow() ^ value2->getConstraint()->asLongConst()->getLow();
-   absState->push(new (region()) AbsValue(TR::VPLongConst::create(_valuePropagation, result), TR::Int64));
+   absState->push(new (region()) AbsValue(TR::VPLongConst::create(vp(), result), TR::Int64));
    return absState;
    }
 
@@ -2729,7 +2763,7 @@ AbsState* AbsInterpreter::dstore3(AbsState* absState)
 
 AbsState* AbsInterpreter::lconst0(AbsState* absState)
    {
-   AbsValue* value1 = new (region()) AbsValue(TR::VPLongConst::create(_valuePropagation, 0), TR::Int64);
+   AbsValue* value1 = new (region()) AbsValue(TR::VPLongConst::create(vp(), 0), TR::Int64);
    absState->push(value1);
    AbsValue *value2 = getTOPAbsValue(TR::NoType);
    absState->push(value2);
@@ -2738,7 +2772,7 @@ AbsState* AbsInterpreter::lconst0(AbsState* absState)
 
 AbsState* AbsInterpreter::lconst1(AbsState* absState)
    {
-   AbsValue* value1 = new (region()) AbsValue(TR::VPLongConst::create(_valuePropagation, 1), TR::Int64);
+   AbsValue* value1 = new (region()) AbsValue(TR::VPLongConst::create(vp(), 1), TR::Int64);
    absState->push(value1);
    AbsValue *value2 = getTOPAbsValue(TR::NoType);
    absState->push(value2);
@@ -2754,7 +2788,7 @@ AbsState* AbsInterpreter::lcmp(AbsState* absState)
 
    if (value1->isTOP() || value2->isTOP())
       {
-      AbsValue *result = new (region()) AbsValue(TR::VPIntRange::create(_valuePropagation, -1, 1), TR::Int32);
+      AbsValue *result = new (region()) AbsValue(TR::VPIntRange::create(vp(), -1, 1), TR::Int32);
       absState->push(result); 
       return absState;
       }
@@ -2777,19 +2811,19 @@ AbsState* AbsInterpreter::lcmp(AbsState* absState)
 
          if (value1Long == value2Long)
             {
-            AbsValue* result = new (region()) AbsValue(TR::VPIntConst::create(_valuePropagation, 0), TR::Int32);
+            AbsValue* result = new (region()) AbsValue(TR::VPIntConst::create(vp(), 0), TR::Int32);
             absState->push(result);
             return absState;
             }
          else if (value1Long > value2Long)
             {
-            AbsValue* result = new (region()) AbsValue(TR::VPIntConst::create(_valuePropagation, 1), TR::Int32);
+            AbsValue* result = new (region()) AbsValue(TR::VPIntConst::create(vp(), 1), TR::Int32);
             absState->push(result);
             return absState;
             }
          else 
             {
-            AbsValue* result = new (region()) AbsValue(TR::VPIntConst::create(_valuePropagation, -1), TR::Int32);
+            AbsValue* result = new (region()) AbsValue(TR::VPIntConst::create(vp(), -1), TR::Int32);
             absState->push(result);
             return absState;
             }
@@ -2802,19 +2836,19 @@ AbsState* AbsInterpreter::lcmp(AbsState* absState)
             long value1Long = value1Const->getLong();
             if (value1Long > range->getHighLong()) //strictly greater than
                {
-               AbsValue* result = new (region()) AbsValue(TR::VPIntConst::create(_valuePropagation, 1), TR::Int32);
+               AbsValue* result = new (region()) AbsValue(TR::VPIntConst::create(vp(), 1), TR::Int32);
                absState->push(result);
                return absState;
                }
             else if (value1Long < range->getLowLong()) //strictly smaller than
                {
-               AbsValue* result = new (region()) AbsValue(TR::VPIntConst::create(_valuePropagation, -1), TR::Int32);
+               AbsValue* result = new (region()) AbsValue(TR::VPIntConst::create(vp(), -1), TR::Int32);
                absState->push(result);
                return absState;
                }
             else //we dont't know
                {
-               AbsValue* result = new (region()) AbsValue(TR::VPIntRange::create(_valuePropagation, -1, 1), TR::Int32);
+               AbsValue* result = new (region()) AbsValue(TR::VPIntRange::create(vp(), -1, 1), TR::Int32);
                absState->push(result);
                return absState;
                }
@@ -2828,19 +2862,19 @@ AbsState* AbsInterpreter::lcmp(AbsState* absState)
 
             if (range->getLowLong() > value2Long) //strictly greater than
                {
-               AbsValue* result = new (region()) AbsValue(TR::VPIntConst::create(_valuePropagation, 1), TR::Int32);
+               AbsValue* result = new (region()) AbsValue(TR::VPIntConst::create(vp(), 1), TR::Int32);
                absState->push(result);
                return absState;
                }
             else if (range->getHighLong() < value2Long) //strictly smaller than
                {
-               AbsValue* result = new (region()) AbsValue(TR::VPIntConst::create(_valuePropagation, -1), TR::Int32);
+               AbsValue* result = new (region()) AbsValue(TR::VPIntConst::create(vp(), -1), TR::Int32);
                absState->push(result);
                return absState;
                }
             else //we dont't know
                {
-               AbsValue* result = new (region()) AbsValue(TR::VPIntRange::create(_valuePropagation, -1, 1), TR::Int32);
+               AbsValue* result = new (region()) AbsValue(TR::VPIntRange::create(vp(), -1, 1), TR::Int32);
                absState->push(result);
                return absState;
                }
@@ -2853,26 +2887,26 @@ AbsState* AbsInterpreter::lcmp(AbsState* absState)
 
             if (range1->getLowLong() > range2->getHighLong() ) //strictly greater than
                {
-               AbsValue* result = new (region()) AbsValue(TR::VPIntConst::create(_valuePropagation, 1), TR::Int32);
+               AbsValue* result = new (region()) AbsValue(TR::VPIntConst::create(vp(), 1), TR::Int32);
                absState->push(result);
                return absState;
                }
             else if (range1->getHighLong() < range2->getLowLong()) //strictly smaller than
                {
-               AbsValue* result = new (region()) AbsValue(TR::VPIntConst::create(_valuePropagation, -1), TR::Int32);
+               AbsValue* result = new (region()) AbsValue(TR::VPIntConst::create(vp(), -1), TR::Int32);
                absState->push(result);
                return absState;
                }
             else //we don't know
                {
-               AbsValue* result = new (region()) AbsValue(TR::VPIntRange::create(_valuePropagation, -1, 1), TR::Int32);
+               AbsValue* result = new (region()) AbsValue(TR::VPIntRange::create(vp(), -1, 1), TR::Int32);
                absState->push(result);
                return absState;
                }
             }
       }
    
-   AbsValue *result =  new (region()) AbsValue(TR::VPIntRange::create(_valuePropagation, -1, 1), TR::Int32);
+   AbsValue *result =  new (region()) AbsValue(TR::VPIntRange::create(vp(), -1, 1), TR::Int32);
    absState->push(result);
    return absState;
    }
@@ -3051,7 +3085,7 @@ AbsState* AbsInterpreter::frem(AbsState*absState)
 
 AbsState* AbsInterpreter::sipush(AbsState* absState, int16_t _short)
    {
-   TR::VPIntConst *data = TR::VPIntConst::create(_valuePropagation, _short);
+   TR::VPIntConst *data = TR::VPIntConst::create(vp(), _short);
    AbsValue *result = new (region()) AbsValue(data, TR::Int32);
    absState->push(result);
    return absState;
@@ -3066,8 +3100,8 @@ AbsState* AbsInterpreter::iinc(AbsState* absState, int index, int incval)
       return absState;
       }
 
-   TR::VPIntConst *inc = TR::VPIntConst::create(_valuePropagation, incval);
-   TR::VPConstraint *result = value->add(inc, TR::Int32, _valuePropagation);
+   TR::VPIntConst *inc = TR::VPIntConst::create(vp(), incval);
+   TR::VPConstraint *result = value->add(inc, TR::Int32, vp());
    AbsValue *result2 = new (region()) AbsValue(result, TR::Int32);
    absState->set(index, result2);
    return absState;
@@ -3098,7 +3132,7 @@ AbsState* AbsInterpreter::putstatic(AbsState* absState)
 void AbsInterpreter::ldcInt32(int cpIndex, TR_ResolvedMethod* method, AbsState* absState)
    {
    auto value = method->intConstant(cpIndex);
-   TR::VPIntConst *constraint = TR::VPIntConst::create(_valuePropagation, value);
+   TR::VPIntConst *constraint = TR::VPIntConst::create(vp(), value);
    AbsValue *result = new (region()) AbsValue(constraint, TR::Int32);
    absState->push(result);
    }
@@ -3106,7 +3140,7 @@ void AbsInterpreter::ldcInt32(int cpIndex, TR_ResolvedMethod* method, AbsState* 
 void AbsInterpreter::ldcInt64(int cpIndex, TR_ResolvedMethod* method, AbsState* absState)
    {
    auto value = method->longConstant(cpIndex);
-   TR::VPLongConst *constraint = TR::VPLongConst::create(_valuePropagation, value);
+   TR::VPLongConst *constraint = TR::VPLongConst::create(vp(), value);
    AbsValue *result = new (region()) AbsValue(constraint, TR::Int64);
    absState->push(result);
    AbsValue *result2 = getTOPAbsValue(TR::NoType);
@@ -3154,7 +3188,7 @@ void AbsInterpreter::ldcString(int cpIndex, TR_ResolvedMethod* method, AbsState*
       absState->push(value);
       return;
       }
-   TR::VPConstraint *constraint = TR::VPConstString::create(_valuePropagation, symRef);
+   TR::VPConstraint *constraint = TR::VPConstString::create(vp(), symRef);
    AbsValue *result = new (region()) AbsValue(constraint, TR::Address);
    absState->push(result);
    }
@@ -3217,18 +3251,18 @@ AbsState* AbsInterpreter::athrow(AbsState* absState)
 AbsState* AbsInterpreter::anewarray(AbsState* absState, int cpIndex, TR_ResolvedMethod* method)
    {
    TR_OpaqueClassBlock* type = method->getClassFromConstantPool(comp(), cpIndex);
-   TR::VPNonNullObject *nonnull = TR::VPNonNullObject::create(_valuePropagation);
+   TR::VPNonNullObject *nonnull = TR::VPNonNullObject::create(vp());
    AbsValue *count = absState->pop();
 
    if (count->getConstraint() && count->getConstraint()->asIntConstraint())
       {
-      TR::VPArrayInfo *info = TR::VPArrayInfo::create(_valuePropagation,  ((TR::VPIntConstraint*)count->getConstraint())->getLow(), ((TR::VPIntConstraint*)count->getConstraint())->getHigh(), 4);
+      TR::VPArrayInfo *info = TR::VPArrayInfo::create(vp(),  ((TR::VPIntConstraint*)count->getConstraint())->getLow(), ((TR::VPIntConstraint*)count->getConstraint())->getHigh(), 4);
       AbsValue* value = getClassAbsValue(type, nonnull, info);
       absState->push(value);
       return absState;
       }
 
-   TR::VPArrayInfo *info = TR::VPArrayInfo::create(_valuePropagation,  0, INT_MAX, 4);
+   TR::VPArrayInfo *info = TR::VPArrayInfo::create(vp(),  0, INT_MAX, 4);
    AbsValue* value = getClassAbsValue(type, nonnull, info);
    absState->push(value);
    return absState;
@@ -3251,11 +3285,11 @@ AbsState* AbsInterpreter::arraylength(AbsState* absState)
       TR::VPConstraint* constraint = NULL;
       if (info->lowBound() == info->highBound())
          {
-         constraint = TR::VPIntConst::create(_valuePropagation, info->lowBound());
+         constraint = TR::VPIntConst::create(vp(), info->lowBound());
          }
       else
          {
-         constraint = TR::VPIntRange::create(_valuePropagation, info->lowBound(), info->highBound());
+         constraint = TR::VPIntRange::create(vp(), info->lowBound(), info->highBound());
          }
       
       AbsValue* result = new (region()) AbsValue(constraint, TR::Int32);
@@ -3272,7 +3306,7 @@ AbsState* AbsInterpreter::_new(AbsState* absState, int cpIndex, TR_ResolvedMetho
    {
    //TODO: actually look at the semantics
    TR_OpaqueClassBlock* type = method->getClassFromConstantPool(comp(), cpIndex);
-   TR::VPNonNullObject *nonnull = TR::VPNonNullObject::create(_valuePropagation);
+   TR::VPNonNullObject *nonnull = TR::VPNonNullObject::create(vp());
    AbsValue* value = getClassAbsValue(type,  nonnull, NULL);
 
    absState->push(value);
@@ -3286,24 +3320,18 @@ AbsState* AbsInterpreter::newarray(AbsState* absState, int cpIndex, TR_ResolvedM
 
    AbsValue* length = absState->pop();
 
-   TR::VPNonNullObject *presence = TR::VPNonNullObject::create(_valuePropagation);
-   // TR::VPClassType* classType = NULL;
-   // if (type)
-   //    //printf("%d\n", TR::Compiler->cls.isPrimitiveArray(comp(), type));
-
-   // if (type)
-   //    classType = TR::VPFixedClass::create(_valuePropagation, type);
+   TR::VPNonNullObject *presence = TR::VPNonNullObject::create(vp());
 
    if (length->isTOP() || !length->getConstraint()->asIntConstraint() && !length->getConstraint()->asMergedIntConstraints() )
       {
-      TR::VPArrayInfo *info = TR::VPArrayInfo::create(_valuePropagation, 0, INT_MAX , 4);
-      TR::VPConstraint* array = TR::VPClass::create(_valuePropagation, NULL, presence, NULL, info, NULL);
+      TR::VPArrayInfo *info = TR::VPArrayInfo::create(vp(), 0, INT_MAX , 4);
+      TR::VPConstraint* array = TR::VPClass::create(vp(), NULL, presence, NULL, info, NULL);
       absState->push(new (region()) AbsValue(array, TR::Address));
       return absState;
       }
 
-   TR::VPArrayInfo *info = TR::VPArrayInfo::create(_valuePropagation, length->getConstraint()->getLowInt(), length->getConstraint()->getHighInt(), 4);
-   TR::VPConstraint* array = TR::VPClass::create(_valuePropagation, NULL, presence, NULL, info, NULL);
+   TR::VPArrayInfo *info = TR::VPArrayInfo::create(vp(), length->getConstraint()->getLowInt(), length->getConstraint()->getHighInt(), 4);
+   TR::VPConstraint* array = TR::VPClass::create(vp(), NULL, presence, NULL, info, NULL);
    absState->push(new (region()) AbsValue(array, TR::Address));
    return absState;
    }
@@ -3411,6 +3439,10 @@ TR_CallSite* AbsInterpreter::findCallSiteTargets(
    TR_ByteCodeInfo &info = *infoMem;
 
    TR::SymbolReference *symRef = getSymbolReference(callerSymbol, cpIndex, kind);
+
+   if (symRef == NULL)
+      return NULL;
+
    TR::Symbol *sym = symRef->getSymbol();
    bool isInterface = kind == TR::MethodSymbol::Kinds::Interface;
 
@@ -3458,18 +3490,17 @@ TR_CallSite* AbsInterpreter::findCallSiteTargets(
          false,
          symRef
       );
-   
-   //TODO: Sometimes these were not set, why?
+
+   if (!callsite)
+      return NULL;
+
    callsite->_byteCodeIndex = bcIndex;
    callsite->_bcInfo = info; //info has to be a reference, so it is being deleted after node exits.
    callsite->_cpIndex= cpIndex;
    callsite->findCallSiteTarget(callStack, _idtBuilder->getInliner());
 
-   //TODO: Sometimes these were not set, why?
    callStack->_methodSymbol = callStack->_methodSymbol ? callStack->_methodSymbol : callerSymbol;
    
-   // //This elimiates all the call targets that do not satisfy the inlining policy
-   // getInliner()->applyPolicyToTargets(callStack, callsite, block, cfg);
    return callsite;   
    }
 

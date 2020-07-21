@@ -13,8 +13,7 @@ class AbsInterpreter
    AbsInterpreter(
       IDTNode* node,
       int callerIndex,
-      IDTBuilder* idtBuilder, 
-      TR::ValuePropagation* valuePropagation, 
+      IDTBuilder* idtBuilder,  
       TR_CallStack* callStack,
       TR::Region& region, 
       TR::Compilation* comp);
@@ -22,23 +21,18 @@ class AbsInterpreter
    // invokeState is parent method's AbsState at the time the current method is invoked.
    void interpret();
 
-   //For those methods failed to add to the IDT, we need to clean its abs state (pop and push) 
-   //Pretending it has been actually invoked to ensure the abstract state is valid since they won't be abstract interpreted.
-   static void cleanInvokeState(TR_ResolvedMethod* containingMethod, int cpIndex, AbsState* invokeState, TR::MethodSymbol::Kinds kind, TR::Region& region, TR::Compilation* comp);
+   static TR::CFG* generateCFG(TR_CallTarget* callTarget, TR_InlinerBase* inliner, TR::Region& region, TR_CallStack* callStack=NULL);
+   static void setCFGBlockFrequency(TR::CFG* cfg, bool isRoot, TR::Compilation* comp);
 
    private:
    TR::Compilation* comp() {  return _comp; };
    TR::Region& region() {  return _region;  };
+   TR::ValuePropagation *vp();
 
    AbsValue* getClassAbsValue(TR_OpaqueClassBlock* opaqueClass, TR::VPClassPresence *presence = NULL, TR::VPArrayInfo *info = NULL);
    AbsValue* getTOPAbsValue(TR::DataType dataType);
 
-   //Helper method for cleanInvokeState()
-   static AbsValue* getTOPAbsValue(TR::DataType dataType, TR::Region& region);
-
    AbsState* initializeAbsState(TR::ResolvedMethodSymbol* symbol);
-
-   void updateStaticBenefitWithMethodSummary(IDTNode* child, AbsState* invokeAbsState);
 
    void transferAbsStates(TR::Block* block);
    AbsState* mergeAllPredecessors(TR::Block* block);
@@ -294,6 +288,7 @@ class AbsInterpreter
    void ldcFloat(AbsState*);
    void ldcDouble(AbsState*);
 
+
    MethodSummary* _methodSummary;
    IDTBuilder* _idtBuilder;
    IDTNode* _idtNode;
@@ -302,7 +297,7 @@ class AbsInterpreter
    TR::Region& _region;
    TR::Compilation* _comp;
    TR_J9ByteCodeIterator _bcIterator;
-   TR::ValuePropagation* _valuePropagation;
+   TR::ValuePropagation* _vp;
    };
 
 

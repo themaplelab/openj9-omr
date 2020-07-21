@@ -7,9 +7,7 @@ IDTBuilder::IDTBuilder(TR::ResolvedMethodSymbol* symbol, int32_t budget, TR::Reg
       _region(region),
       _comp(comp),
       _inliner(inliner),
-      _cfgGen(NULL),
       _idt(NULL),
-      _valuePropagation(NULL),
       _util(NULL),
       _callSiteIndex(0),
       _interpretedMethodMap(InterpretedMethodMapComparator(), InterpretedMethodMapAllocator(region))
@@ -23,28 +21,8 @@ OMR::BenefitInlinerUtil* IDTBuilder::getUtil()
    return _util;
    }
 
-TR::CFG* IDTBuilder::generateCFG(TR_CallTarget* callTarget, TR_CallStack* callStack)
-   {
-   if (!_cfgGen)
-      {
-      _cfgGen = (TR_J9EstimateCodeSize *)TR_EstimateCodeSize::get(getInliner(), getInliner()->tracer(), 0);   
-      }
 
-   TR::CFG* cfg = _cfgGen->generateCFG(callTarget, callStack, region());
-   return cfg;
-   }
 
-TR::ValuePropagation* IDTBuilder::getValuePropagation()
-   {
-   if (!_valuePropagation)
-      {
-      TR::OptimizationManager* manager = comp()->getOptimizer()->getOptimization(OMR::globalValuePropagation);
-      _valuePropagation = (TR::ValuePropagation*) manager->factory()(manager);
-      _valuePropagation->initialize();
-      }
-   return _valuePropagation;
-   }
-   
 IDT* IDTBuilder::buildIDT()
    {
    bool traceBIIDTGen = comp()->getOption(TR_TraceBIIDTGen);
@@ -64,7 +42,17 @@ IDT* IDTBuilder::buildIDT()
    
    //Initialize IDT
    _idt = new (region()) IDT(region(), _rootSymbol, rootCallTarget, _rootBudget, comp());
+   _idt->addCost(1);
+   
    IDTNode* root = _idt->getRoot();
+
+   //generate the CFG for root call taret
+   TR::CFG* cfg = AbsInterpreter::generateCFG(rootCallTarget, getInliner(), region());
+
+   if (!cfg) //Fail to generate a CFG
+      return _idt;
+
+   AbsInterpreter::setCFGBlockFrequency(cfg, true, comp());
 
    //add the decendants
    buildIDTHelper(root, NULL, -1, _rootBudget, NULL);
@@ -85,20 +73,6 @@ void IDTBuilder::buildIDTHelper(IDTNode* node, AbsState* invokeState, int caller
    bool traceBIIDTGen = comp()->getOption(TR_TraceBIIDTGen);
    if (traceBIIDTGen)
       traceMsg(comp(), "+ IDTBuilder: Adding children for IDTNode: %s\n",node->getName(comp()->trMemory()));
-   
-   if (callStack == NULL) //This is the root method
-      {
-      TR::CFG* cfg = generateCFG(node->getCallTarget());
-      cfg->computeInitialBlockFrequencyBasedOnExternalProfiler(comp());
-      cfg->setFrequencies();
-      symbol->setFlowGraph(cfg);
-      cfg->getStartForReverseSnapshot()->setFrequency(cfg->getStartBlockFrequency());
-      }
-   else //cfg has already been set in computeCallRatio()
-      {
-      TR::CFG* cfg = node->getCallTarget()->_cfg;
-      cfg->getStartForReverseSnapshot()->setFrequency(cfg->getStartBlockFrequency());
-      }
 
    TR_CallStack* nextCallStack = new (region()) TR_CallStack(comp(), symbol, method, callStack, budget, true);
 
@@ -106,9 +80,10 @@ void IDTBuilder::buildIDTHelper(IDTNode* node, AbsState* invokeState, int caller
    
    if (interpretedMethodIDTNode)
       {
+      node->setMethodSummary(interpretedMethodIDTNode->getMethodSummary());
       int staticBenefit = computeStaticBenefitWithMethodSummary(symbol->getMethod(), 
                                                                symbol->getMethodKind() == TR::MethodSymbol::Kinds::Static,
-                                                               interpretedMethodIDTNode->getMethodSummary(),  //use the method summary of the same method IDTNode
+                                                               node->getMethodSummary(),  //use the method summary of the IDTNode with same method
                                                                invokeState);
       node->setStaticBenefit(staticBenefit);
       _idt->copyDescendants(interpretedMethodIDTNode, node); //IDT is built in DFS order, at this time, we have all the descendants so it is safe to copy the descendants
@@ -134,10 +109,10 @@ void IDTBuilder::buildIDTHelper(IDTNode* node, AbsState* invokeState, int caller
    return;
    }
 
-//Abstract interpetation = identifying call targets in the method body + generating method summary for the method being interpreted
+//Abstract interpetation = Walk the bytecode + identifying invoke bytecode + update AbsState + generate method summary
 void IDTBuilder::performAbstractInterpretation(IDTNode* node, int callerIndex, TR_CallStack* callStack)
    {
-   AbsInterpreter interpreter(node, callerIndex, this, getValuePropagation(), callStack, region(), comp());
+   AbsInterpreter interpreter(node, callerIndex, this, callStack, region(), comp());
    interpreter.interpret();
    }
 
@@ -167,11 +142,11 @@ void IDTBuilder::addChild(IDTNode*node, int callerIndex, TR::Method* calleeMetho
 
    if (callSite == NULL)
       {
-      cleanInvokeState(calleeMethod, isStaticMethod, invokeState); //setting method summary as NULL will clean the AbsState. (Pop the paramters from the Op Stack)
+      cleanInvokeState(calleeMethod, isStaticMethod, invokeState); // pop parameters from Abs Op Stack to ensure the validness of Abs Op Stack
       return;
       }
 
-   getInliner()->applyPolicyToTargets(callStack, callSite, block, node->getCallTarget()->_cfg); // eliminate call targets that are not inlinable. 
+   getInliner()->applyPolicyToTargets(callStack, callSite, block, node->getCallTarget()->_cfg); // eliminate call targets that are not inlinable thus they won't be added to IDT 
 
    if (callSite->numTargets() == 0) 
       {
@@ -180,6 +155,7 @@ void IDTBuilder::addChild(IDTNode*node, int callerIndex, TR::Method* calleeMetho
       }
       
    //There should be only one call Target in callsite (disable multiTargetInlining)
+   //This must be changed if we want to enable multiTargetInlining later. 
    TR_CallTarget* callTarget = callSite->getTarget(0);
 
    int remainingBudget = node->getBudget() - callTarget->_calleeMethod->maxBytecodeIndex();
@@ -198,6 +174,17 @@ void IDTBuilder::addChild(IDTNode*node, int callerIndex, TR::Method* calleeMetho
    
    TR::ResolvedMethodSymbol * calleeMethodSymbol = TR::ResolvedMethodSymbol::create(comp()->trHeapMemory(), callTarget->_calleeMethod, comp());
 
+   //generate the CFG of this call target and set the block frequencies. 
+   TR::CFG* cfg = AbsInterpreter::generateCFG(callTarget, getInliner(), region(), callStack);
+
+   if (!cfg)
+      {
+      cleanInvokeState(calleeMethod, isStaticMethod, invokeState);
+      return;
+      }
+      
+   AbsInterpreter::setCFGBlockFrequency(cfg, false, comp());
+   
    //At this point we have the callsite, next thing is to compute the call ratio of the call target.
    float callRatio = computeCallRatio(callTarget, callStack, block, node->getCallTarget()->_cfg);
 
@@ -212,17 +199,17 @@ void IDTBuilder::addChild(IDTNode*node, int callerIndex, TR::Method* calleeMetho
 
    if (child == NULL) // Fail to add the Node to IDT
       {
-      computeStaticBenefitWithMethodSummary(calleeMethod, isStaticMethod, NULL, invokeState);
+      cleanInvokeState(calleeMethod, isStaticMethod, invokeState);
       return;
       }
    
    //If successfully add this child to the IDT
-
    _idt->increaseGlobalIDTNodeIndex();
+   _idt->addCost(child->getCost());
 
    if (!comp()->incInlineDepth(calleeMethodSymbol, callSite->_bcInfo, callSite->_cpIndex, NULL, !callSite->isIndirectCall(), 0))
       {
-      computeStaticBenefitWithMethodSummary(calleeMethod, isStaticMethod, NULL, invokeState);
+      cleanInvokeState(calleeMethod, isStaticMethod, invokeState);
       return;
       }
 
@@ -240,7 +227,7 @@ float IDTBuilder::computeCallRatio(TR_CallTarget* callTarget, TR_CallStack* call
    {
    TR_ASSERT_FATAL(callTarget, "Call Target is NULL!");
 
-   TR::CFG* cfg = generateCFG(callTarget, callStack); //Now the callTarget has its own CFG
+   TR::CFG* cfg = callTarget->_cfg;
    TR::ResolvedMethodSymbol *caller = callStack->_methodSymbol;
 
    cfg->computeMethodBranchProfileInfo(getUtil(), callTarget, caller, _callSiteIndex++, block, callerCfg);
@@ -257,16 +244,8 @@ int IDTBuilder::computeStaticBenefitWithMethodSummary(TR::Method* calleeMethod, 
    {
    TR_ASSERT_FATAL(invokeState, "invoke state is NULL");
 
-   traceMsg(comp(), "#### Invoke State ####\n");
-   //printf("=== compute benefit===\n ");
-   invokeState->trace(_valuePropagation);
-
-   ////printf("=== %s\n",calleeMethod->signature(comp()->trMemory()));
-
    uint32_t numExplicitParams = calleeMethod->numberOfExplicitParameters();
-
    uint32_t numImplicitParams = isStaticMethod ? 0 : 1;
-
    uint32_t totalNumParams = numImplicitParams + numExplicitParams; 
 
    AbsValue *paramsArray[totalNumParams];
@@ -290,6 +269,8 @@ int IDTBuilder::computeStaticBenefitWithMethodSummary(TR::Method* calleeMethod, 
    if (methodSummary == NULL) //if we do not have method summary
       return 0;
 
+   traceMsg(comp(), "## Compute static benefit of method: %s with method summary ##\n", calleeMethod->signature(comp()->trMemory()));
+
    int benefit = 0;
 
    for (uint32_t i = 0; i < totalNumParams; i ++)
@@ -297,7 +278,8 @@ int IDTBuilder::computeStaticBenefitWithMethodSummary(TR::Method* calleeMethod, 
       AbsValue* value = paramsArray[i];
       benefit += methodSummary->predicates(value->getConstraint(), i);
       }
-   
+   // if (benefit > 2)
+   //    printf("CAlleeMethid %s, benefit %d\n", calleeMethod->signature(comp()->trMemory()), benefit);
    return benefit;
    }
 
