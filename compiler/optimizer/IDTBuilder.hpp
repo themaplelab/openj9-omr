@@ -23,10 +23,10 @@ class IDTBuilder
    void buildIDTHelper(IDTNode* node, AbsState* invokeState, int callerIndex, int32_t budget, TR_CallStack* callStack);
    void performAbstractInterpretation(IDTNode* node,  int callerIndex, TR_CallStack* callStack);
 
-   //Only call this after we have a CFG of the call target
+   //call this after we have a CFG of the call target
    float computeCallRatio(TR_CallTarget* callTarget, TR_CallStack* callStack, TR::Block* block, TR::CFG* callerCfg );
 
-   //Only call this after we have the method summary of the method
+   //call this after we have the method summary of the method / or pass method summary as NULL to clean the invoke state
    int computeStaticBenefitWithMethodSummary(TR::Method* calleeMethod, bool isStaticMethod, MethodSummary* methodSummary, AbsState* invokeState);
 
    //Any method that is not going to be asbtract interpreted should call this method to pop the parameters from AbsState's Abs Op Stack
@@ -40,7 +40,6 @@ class IDTBuilder
    IDTNode* getInterpretedMethod(TR::ResolvedMethodSymbol* symbol);
    void addInterpretedMethod(TR::ResolvedMethodSymbol *symbol, IDTNode* node);
 
-   //Why do we need an Inliner here? Because we need to use its applyPolicyToTargets()
    OMR::BenefitInliner* getInliner()  { return _inliner; };
    
    //Used for calculating method branch profile

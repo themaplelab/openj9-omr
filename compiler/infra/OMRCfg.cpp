@@ -3274,7 +3274,7 @@ int
 OMR::CFG::getStartBlockFrequency()
    {
        //TODO: no linear search.
-      TR::Block *block = nullptr;
+      TR::Block *block = NULL;
        for (auto cfgNode = this->getFirstNode(); cfgNode; cfgNode = cfgNode->getNext())
        {
          block = cfgNode->asBlock();

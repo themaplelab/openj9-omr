@@ -274,7 +274,7 @@ OMR::BenefitInlinerBase::getSymbolAndFindInlineTargets(TR_CallStack *callStack, 
    if (findNewTargets)
       {
       callsite->findCallSiteTarget(callStack, this);
-      TR_InlinerBase::applyPolicyToTargets(callStack, callsite);
+      applyPolicyToTargets(callStack, callsite);
       }
 
    if(tracer()->debugLevel())

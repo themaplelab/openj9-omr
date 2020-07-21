@@ -48,16 +48,14 @@ void AbsInterpreter::setCFGBlockFrequency(TR::CFG* cfg, bool isRoot, TR::Compila
       cfg->computeInitialBlockFrequencyBasedOnExternalProfiler(comp);
       cfg->setFrequencies();
       }
-
    cfg->getStartForReverseSnapshot()->setFrequency(cfg->getStartBlockFrequency());
    }
 
 
 //Steps of interpret()
-//1. generate CFG for this call Target
-//2. Walk basic blocks of this cfg
-//3. For each basic block, walk its byte code
-//4. interptet each byte code.
+//1. Walk basic blocks of the cfg
+//2. For each basic block, walk its byte code
+//3. interptet each byte code.
 void AbsInterpreter::interpret()
    {
    TR_CallTarget* callTarget = _idtNode->getCallTarget();
@@ -3380,6 +3378,7 @@ void AbsInterpreter::invoke(int bcIndex, int cpIndex, TR::MethodSymbol::Kinds ki
    
    //Pass the AbsState to its child. So the Child can use this AbsState to perform method summary stuff.
    //Note: Child MUST ensure the validness of this AbsState ( pop and push )
+
    _idtBuilder->addChild(_idtNode, _callerIndex, calleeMethod, kind == TR::MethodSymbol::Kinds::Static, callsite, absState, _callStack ,block);
    
    //For the return values
@@ -3440,9 +3439,6 @@ TR_CallSite* AbsInterpreter::findCallSiteTargets(
 
    TR::SymbolReference *symRef = getSymbolReference(callerSymbol, cpIndex, kind);
 
-   if (symRef == NULL)
-      return NULL;
-
    TR::Symbol *sym = symRef->getSymbol();
    bool isInterface = kind == TR::MethodSymbol::Kinds::Interface;
 
@@ -3491,6 +3487,8 @@ TR_CallSite* AbsInterpreter::findCallSiteTargets(
          symRef
       );
 
+   callStack->_methodSymbol = callStack->_methodSymbol ? callStack->_methodSymbol : callerSymbol;
+   
    if (!callsite)
       return NULL;
 
@@ -3498,9 +3496,6 @@ TR_CallSite* AbsInterpreter::findCallSiteTargets(
    callsite->_bcInfo = info; //info has to be a reference, so it is being deleted after node exits.
    callsite->_cpIndex= cpIndex;
    callsite->findCallSiteTarget(callStack, _idtBuilder->getInliner());
-
-   callStack->_methodSymbol = callStack->_methodSymbol ? callStack->_methodSymbol : callerSymbol;
-   
    return callsite;   
    }
 

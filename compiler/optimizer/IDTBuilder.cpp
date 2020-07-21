@@ -183,10 +183,11 @@ void IDTBuilder::addChild(IDTNode*node, int callerIndex, TR::Method* calleeMetho
       return;
       }
       
-   AbsInterpreter::setCFGBlockFrequency(cfg, false, comp());
+   
    
    //At this point we have the callsite, next thing is to compute the call ratio of the call target.
    float callRatio = computeCallRatio(callTarget, callStack, block, node->getCallTarget()->_cfg);
+   AbsInterpreter::setCFGBlockFrequency(cfg, false, comp());
 
    IDTNode* child = node->addChild(
                            _idt->getNextGlobalIDTNodeIndex(),
@@ -226,12 +227,12 @@ void IDTBuilder::addChild(IDTNode*node, int callerIndex, TR::Method* calleeMetho
 float IDTBuilder::computeCallRatio(TR_CallTarget* callTarget, TR_CallStack* callStack, TR::Block* block, TR::CFG* callerCfg)
    {
    TR_ASSERT_FATAL(callTarget, "Call Target is NULL!");
-
+   
    TR::CFG* cfg = callTarget->_cfg;
    TR::ResolvedMethodSymbol *caller = callStack->_methodSymbol;
 
    cfg->computeMethodBranchProfileInfo(getUtil(), callTarget, caller, _callSiteIndex++, block, callerCfg);
-
+  
    return ((float)block->getFrequency() / (float) callerCfg->getStartBlockFrequency());  
    }
 
