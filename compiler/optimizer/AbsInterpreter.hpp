@@ -21,7 +21,7 @@ class AbsInterpreter
    // invokeState is parent method's AbsState at the time the current method is invoked.
    void interpret();
 
-   static TR::CFG* generateCFG(TR_CallTarget* callTarget, TR_InlinerBase* inliner, TR::Region& region, TR_CallStack* callStack=NULL);
+  
    static void setCFGBlockFrequency(TR::CFG* cfg, bool isRoot, TR::Compilation* comp);
 
    private:
@@ -39,6 +39,7 @@ class AbsInterpreter
    
    //Three methods used to walk and interpret the bytecode
    void walkBasicBlocks(TR::CFG* cfg);
+   TR::Block* getStartBlock(TR::CFG* cfg);
    void walkByteCode(TR::Block *block);
    void interpretByteCode(AbsState* absState, TR_J9ByteCode bc, TR_J9ByteCodeIterator&, TR::Block* block);
 

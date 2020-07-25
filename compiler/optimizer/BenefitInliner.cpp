@@ -639,28 +639,28 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
 OMR::BenefitInlinerUtil::BenefitInlinerUtil(TR::Compilation *c) : TR_J9InlinerUtil(c) {}
 
 void
-OMR::BenefitInlinerUtil::computeMethodBranchProfileInfo2(TR::Block *cfgBlock, TR_CallTarget * calltarget, TR::ResolvedMethodSymbol* callerSymbol, int callerIndex, TR::Block *callblock, TR::CFG * callerCFG)
+OMR::BenefitInlinerUtil::computeMethodBranchProfileInfo2(TR::Block *cfgBlock, TR_CallTarget * calltarget, TR::ResolvedMethodSymbol* callerSymbol, int callsiteIndex, TR::Block *callblock, TR::CFG * callerCFG)
    {
    if (cfgBlock) //isn't this equal to genILSucceeded?? Nope. cfgBlock comes from ecs
       {
 
-      TR_MethodBranchProfileInfo *mbpInfo = TR_MethodBranchProfileInfo::getMethodBranchProfileInfo(callerIndex, comp());
+      TR_MethodBranchProfileInfo *mbpInfo = TR_MethodBranchProfileInfo::getMethodBranchProfileInfo(callsiteIndex, comp());
       if (!mbpInfo)
          {
 
-         mbpInfo = TR_MethodBranchProfileInfo::addMethodBranchProfileInfo (callerIndex, comp());
+         mbpInfo = TR_MethodBranchProfileInfo::addMethodBranchProfileInfo (callsiteIndex, comp());
          calltarget->_cfg->computeInitialBlockFrequencyBasedOnExternalProfiler(comp());
          uint32_t firstBlockFreq = calltarget->_cfg->getInitialBlockFrequency();
-         //TODO: What is the difference between initialBlockFrequency and callerSymbol->getFirstTreeTop()->getNode()->getBlock()->getFrequency()
 
+         
          int32_t blockFreq = callblock->getFrequency();
          if (blockFreq < 0)
             blockFreq = 6;
 
          float freqScaleFactor = 0.0;
-         if (callerCFG->getStartBlockFrequency() > 0)
+         if (callerCFG->getAndSetStartBlockFrequency() > 0)
             {
-            freqScaleFactor = (float)(blockFreq)/callerCFG->getStartBlockFrequency();
+            freqScaleFactor = (float)(blockFreq)/callerCFG->getAndSetStartBlockFrequency();
             if (callerCFG->getInitialBlockFrequency() > 0)
                freqScaleFactor *= (float)(callerCFG->getInitialBlockFrequency())/(float)firstBlockFreq;
             }
@@ -668,7 +668,7 @@ OMR::BenefitInlinerUtil::computeMethodBranchProfileInfo2(TR::Block *cfgBlock, TR
          mbpInfo->setCallFactor(freqScaleFactor);
 
          calltarget->_cfg->setFrequencies();
-
+        // printf("xx %d vs %d\n",calltarget->_cfg->getInitialBlockFrequency(), calltarget->_cfg->getStartBlockFrequency());
          if (comp()->getOption(TR_TraceBFGeneration))
             {
             traceMsg(comp(), "Setting initial block count for a call with index %d to be %d, call factor %f where block %d (%p) and blockFreq = %d\n", cfgBlock->getEntry()->getNode()->getInlinedSiteIndex(), firstBlockFreq, freqScaleFactor, callblock->getNumber(), callblock, blockFreq);

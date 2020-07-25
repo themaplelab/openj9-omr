@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2020 IBM Corp. and others
+ * Copyright (c) 2020, 2020 IBM Corp. and others
  *
  * This program and the accompanying materials are made available under
  * the terms of the Eclipse Public License 2.0 which accompanies this
@@ -31,17 +31,47 @@
 #include "optimizer/ValuePropagation.hpp"
 #include "optimizer/AbsValue.hpp"
 
+/**
+.* Operand Stack simulation.
+ */
 class AbsOpStack
    {
    public:
    AbsOpStack(TR::Region& region);
-   AbsOpStack(AbsOpStack&, TR::Region&);
+   AbsOpStack(AbsOpStack&);
 
-   void merge(AbsOpStack&, TR::Region&, TR::ValuePropagation *);
+   /**
+    * @brief Merge with another AbsOpStack. This is in-place merge.
+    *
+    * @param other AbsOpStack&
+    * @param vp TR::ValuePropagation* 
+    * @return void
+    */
+   void merge(AbsOpStack&, TR::ValuePropagation *);
 
-   void pop();
+   /**
+    * @brief Push an AbsValue to the AbsOpStack.
+    * Note: AbsValue must be non-NULL.
+    *
+    * @param value AbsValue*
+    * @return void
+    */
    void push(AbsValue* value);
+
+   /**
+    * @brief Get the value on the top of the AbsOpStack.
+    *
+    * @return AbsValue*
+    */
    AbsValue* top();
+
+   /**
+    * @brief Get and pop the value on the top of the AbsOpStack.
+    *
+    * @return AbsValue*
+    */
+   AbsValue* pop();
+
    bool empty()  {  return _stack.empty();  };
    size_t size()  {  return _stack.size();  };
   

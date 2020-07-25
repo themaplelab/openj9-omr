@@ -39,7 +39,7 @@ IDTNode* IDTNode::addChild(
       TR::Region& region)
    {
    
-   if (_rootCallRatio * callRatio * 100 < 25) // don't add things that we do are 1/25th as good as the root
+   if (_rootCallRatio * callRatio * 100 < 25) // do not add to the IDT if this node's root call ratio is less than 0.25
       return NULL;
 
    int budget =  getBudget() - callTarget->_calleeMethod->maxBytecodeIndex();

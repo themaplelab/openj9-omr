@@ -153,8 +153,8 @@ class CFG
    void setStartAndEnd(TR::CFGNode * s, TR::CFGNode * e) { addNode(s); addNode(e); setStart(s); setEnd(e); }
 
    TR::CFGNode *getStart() {return _pStart;}
-   virtual TR::CFGNode *getStartForReverseSnapshot();
-   virtual TR::CFGNode *getEndForReverseSnapshot();
+   // virtual TR::CFGNode *getStartForReverseSnapshot();
+   // virtual TR::CFGNode *getEndForReverseSnapshot();
    TR::CFGNode *setStart(TR::CFGNode *p) {return (_pStart = p);}
 
    TR::CFGNode *getEnd() {return _pEnd;}
@@ -167,7 +167,7 @@ class CFG
    TR::CFGNode *getFirstNode() {return _nodes.getFirst();}
    TR_LinkHead1<TR::CFGNode> & getNodes() {return _nodes;}
 
-   virtual int getStartBlockFrequency();
+   virtual int getAndSetStartBlockFrequency();
    virtual TR::Block *getCfgNodeWithByteCodeIndex(int bcIndex);
    virtual int getBCInfoFrequency(TR_ByteCodeInfo &, TR_HasRandomGenerator *r);
    virtual bool isColdCall(TR_ByteCodeInfo &, TR_HasRandomGenerator *r);

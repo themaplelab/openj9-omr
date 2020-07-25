@@ -34,16 +34,53 @@ class AbsState
     AbsState(TR::Region &region);
     AbsState(AbsState* other);
 
-    //For getting and setting AbsValues in AbsArray
-    void set(unsigned int, AbsValue*);
-    AbsValue *at(unsigned int);
+    /**
+     * @brief Set an AbsValue at index i of the local variable array in this AbsState.
+     *
+     * @param i unsigned int
+     * @param value AbsValue*
+     * @return void
+     */
+    void set(unsigned int i, AbsValue* value) { _array.set(i, value); };
 
-    //For getting and setting AbsValues in AbsOpStack
-    void push(AbsValue *);
-    AbsValue* pop();
-    AbsValue* top();
+    /**
+     * @brief Get the AbsValue at index i of the local variable array in this AbsState.
+     *
+     * @param i unsigned int
+     * @return AbsValue*
+     */
+    AbsValue *at(unsigned int i) { return _array.at(i); };
 
-    void merge(AbsState*, TR::ValuePropagation*);
+    /**
+     * @brief Push an AbsValue to the operand stack in this AbsState.
+     *
+     * @param value AbsValue*
+     * @return void
+     */
+    void push(AbsValue* value) { _stack.push(value); };
+
+    /**
+     * @brief Get and pop the AbsValue at the top of the operand stack in this AbsState.
+     * 
+     * @return AbsValue*
+     */
+    AbsValue* pop() { return _stack.pop(); };
+
+    /**
+     * @brief Get the AbsValue at the top of the operand stack in this AbsState.
+     *
+     * @return AbsValue*
+     */
+    AbsValue* top() { return _stack.top();  };
+
+    /**
+     * @brief Merge with another AbsState. This is in-place merge.
+     *
+     * @param value AbsValue*
+     * @param vp TR::ValuePropagation*
+     * @return void
+     */
+    void merge(AbsState* value, TR::ValuePropagation* vp);
 
     size_t getStackSize() {   return _stack.size();  };
     size_t getArraySize() {  return _array.size();  };
@@ -51,7 +88,6 @@ class AbsState
     void trace(TR::ValuePropagation*);
 
     private:
-    TR::Region& _region;
     AbsLocalVarArray _array;
     AbsOpStack _stack;
     };

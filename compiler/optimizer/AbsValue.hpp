@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2020 IBM Corp. and others
+ * Copyright (c) 2020, 2020 IBM Corp. and others
  *
  * This program and the accompanying materials are made available under
  * the terms of the Eclipse Public License 2.0 which accompanies this
@@ -26,31 +26,62 @@
 #include "il/OMRDataTypes.hpp"
 #include "optimizer/ValuePropagation.hpp"
 
-
+/**
+ * AbsValue is the basic unit used to perform abstract interpretation.
+ */
 class AbsValue
    {
    public:
    AbsValue(TR::VPConstraint *constraint, TR::DataType dataType);
    AbsValue(AbsValue* other);
    
-   AbsValue *merge(AbsValue *other, TR::Region &region, OMR::ValuePropagation *vp);
-   
-   void print(TR::ValuePropagation *vp);
+   /**
+    * @brief Merge with another AbsValue. This is in-place merge.
+    *
+    * @param other AbsValue*
+    * @param vp TR::ValuePropagation* 
+    * @return void
+    */
+   void merge(AbsValue *other, TR::ValuePropagation *vp);
 
-   bool isTOP() { return _constraint == NULL; }; //'TOP' is a notion in lattice theory, denoting the 'maximum' in the lattice. 
+   /**
+    * @brief Check if the AbsValue is TOP. 
+    * 'TOP' is a notion in lattice theory, denoting the 'maximum' in the lattice. 
+    *
+    * @return bool
+    */
+   bool isTOP() { return _constraint == NULL; }; 
+
+   /**
+    * @brief Check if the AbsValue is 64-bit sized data. (Two 32-bit words)
+    *
+    * @return bool
+    */
    bool isType2() { return _dataType == TR::Double || _dataType == TR::Int64; };
+
+   /**
+    * @brief Check if the AbsValue is a parameter.
+    *
+    * @return bool
+    */
    bool isParameter() { return _paramPos >= 0; };
+
+   /* Getter and setter methods */
 
    int getParamPosition() { return _paramPos; };
    void setParamPosition(int paramPos) { _paramPos = paramPos; };
 
    TR::DataType getDataType() { return _dataType; };
+   void setDataType(TR::DataType dataType) { _dataType = dataType; };
+
    TR::VPConstraint* getConstraint() { return _constraint; };
    void setConstraint(TR::VPConstraint *constraint) { _constraint = constraint; };
 
+   void print(TR::ValuePropagation *vp);
+
    private:
-   int _paramPos;
-   TR::VPConstraint* _constraint;
+   int _paramPos; //_paramPos is set to -1 at default.
+   TR::VPConstraint* _constraint; //_constraint can be set to NULL to denote this AbsValue is TOP. 
    TR::DataType _dataType;
    };
 

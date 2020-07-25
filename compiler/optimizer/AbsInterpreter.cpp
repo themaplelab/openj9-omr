@@ -33,22 +33,13 @@ TR::ValuePropagation* AbsInterpreter::vp()
    return _vp;
    }
 
-TR::CFG* AbsInterpreter::generateCFG(TR_CallTarget* callTarget,  TR_InlinerBase* inliner, TR::Region& region, TR_CallStack* callStack)
-   {
-   TR_J9EstimateCodeSize* cfgGen = (TR_J9EstimateCodeSize *)TR_EstimateCodeSize::get(inliner, inliner->tracer(), 0);   
-   TR::CFG* cfg = cfgGen->generateCFG(callTarget, callStack, region);
-   callTarget->_calleeSymbol->setFlowGraph(cfg);
-   return cfg;
-   }
-
 void AbsInterpreter::setCFGBlockFrequency(TR::CFG* cfg, bool isRoot, TR::Compilation* comp)
    {
    if (isRoot) //This is the root method
       {
-      cfg->computeInitialBlockFrequencyBasedOnExternalProfiler(comp);
-      cfg->setFrequencies();
+     
+      //printf("%d vs %d\n",cfg->getInitialBlockFrequency(), cfg->getStartBlockFrequency());
       }
-   cfg->getStartForReverseSnapshot()->setFrequency(cfg->getStartBlockFrequency());
    }
 
 
@@ -59,8 +50,8 @@ void AbsInterpreter::setCFGBlockFrequency(TR::CFG* cfg, bool isRoot, TR::Compila
 void AbsInterpreter::interpret()
    {
    TR_CallTarget* callTarget = _idtNode->getCallTarget();
-   TR_ASSERT_FATAL(callTarget,"Call Target is NULL!");
 
+   TR_ASSERT_FATAL(callTarget,"Call Target is NULL!");
    TR_ASSERT_FATAL(callTarget->_cfg, "CFG is NULL!");
 
    //callTarget->_calleeSymbol->setFlowGraph(cfg);
@@ -74,7 +65,7 @@ void AbsInterpreter::interpret()
 //Note: Do not use this for primitive type array
 AbsValue* AbsInterpreter::getClassAbsValue(TR_OpaqueClassBlock* opaqueClass, TR::VPClassPresence *presence, TR::VPArrayInfo *info)
    {
-   TR::VPConstraint *classConstraint;  
+   TR::VPConstraint *classConstraint = NULL;  
 
    if (opaqueClass)
       {
@@ -102,7 +93,7 @@ AbsValue* AbsInterpreter::getTOPAbsValue(TR::DataType dataType)
    return new (region()) AbsValue(NULL, dataType);
    }
 
-//Get the abstract state of the ENTER block of CFG
+//Get the abstract state of the START block of CFG
 AbsState* AbsInterpreter::initializeAbsState(TR::ResolvedMethodSymbol* symbol)
    {
     
@@ -268,7 +259,7 @@ void AbsInterpreter::transferAbsStates(TR::Block* block)
    if (traceAbstractInterpretion) 
       traceMsg(comp(), "-4. Abstract Interpreter: Transfer abstract states\n");
 
-   if (block->getNumber() == 4 || block->getPredecessors().size() == 0) //first block or has no predecessors
+   if (block->getPredecessors().size() == 0) //has no predecessors
       {
       if (traceAbstractInterpretion)
          traceMsg(comp(), "No predecessors. Stop.\n");
@@ -281,7 +272,7 @@ void AbsInterpreter::transferAbsStates(TR::Block* block)
    // as we should only visit if we actually have abs state to propagate
    if (block->hasOnlyOnePredecessor() && !block->getPredecessors().front()->getFrom()->asBlock()->getAbsState())
       {
-         //printf("      There is a loop. Stop.\n");
+      //printf("      There is a loop. Stop.\n");
       if (traceAbstractInterpretion) 
          traceMsg(comp(), "There is a loop. Stop.\n");
       return;
@@ -394,21 +385,24 @@ void AbsInterpreter::walkBasicBlocks(TR::CFG* cfg)
    AbsState *startBlockState = initializeAbsState(_idtNode->getResolvedMethodSymbol());
 
    if (traceAbstractInterpretation) 
-      traceMsg(comp(), "-  2. Abstract Interpreter: Walk basic blocks\n");
-  
-   TR::CFGNode *startNode = cfg->getStartForReverseSnapshot();
-   TR_ASSERT_FATAL(startNode, "Start Node is NULL");
+      traceMsg(comp(), "-2. Abstract Interpreter: Walk basic blocks\n");
 
-   TR::Block* startBlock = startNode->asBlock();
+   TR::Block* startBlock = cfg->getStart()->asBlock();
 
    for (TR::ReversePostorderSnapshotBlockIterator blockIt (startBlock, comp()); blockIt.currentBlock(); ++blockIt)
       {
       TR::Block *block = blockIt.currentBlock();
-      //set start block's absState
-      if (block == startBlock)
-         block->setAbsState(startBlockState);
-         
-      block->setVisitCount(0);
+
+      if (block == startBlock) //entry block
+         {
+         block->setAbsState(startBlockState);   
+         continue;
+         }
+
+      if (block == cfg->getEnd()->asBlock()) //exit block
+         continue;
+
+      transferAbsStates(block);
       walkByteCode(block);
       }
    }
@@ -424,11 +418,6 @@ void AbsInterpreter::walkByteCode(TR::Block* block)
    int32_t end = start + block->getBlockSize();
    if (start <0 || end < 1)
       return;
-
-   if (block->getNumber() == 3) //Exit block
-      return;
-
-   transferAbsStates(block);
 
    _bcIterator.setIndex(start);
 
@@ -3110,9 +3099,9 @@ AbsState* AbsInterpreter::putfield(AbsState* absState)
    // WONTFIX we do not model the heap
    AbsValue *value1 = absState->pop();
    AbsValue *value2 = absState->pop();
-   if(value2->isType2()) {
+   if(value2->isType2()) 
       AbsValue *value3 = absState->pop();
-   }
+   
    return absState;
    }  
 

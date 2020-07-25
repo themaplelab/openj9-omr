@@ -21,6 +21,39 @@ OMR::BenefitInlinerUtil* IDTBuilder::getUtil()
    return _util;
    }
 
+//The CFG is generated from EstimateCodeSize. 
+//The entry block has Node Number 2
+//The exit block has Node Number 3
+//The start block has Node Number 4
+TR::CFG* IDTBuilder::generateFlowGraph(TR_CallTarget* callTarget, TR_InlinerBase* inliner, TR::Region& region, TR_CallStack* callStack)
+   {
+   TR_J9EstimateCodeSize* cfgGen = (TR_J9EstimateCodeSize *)TR_EstimateCodeSize::get(inliner, inliner->tracer(), 0);   
+   TR::CFG* cfg = cfgGen->generateCFG(callTarget, callStack, region);
+   callTarget->_calleeSymbol->setFlowGraph(cfg);
+   //set the start block and exit block of the CFG
+   // if (cfg)
+   //    {
+   //    TR::CFGNode* startNode = NULL;
+   //    TR::CFGNode* exitNode = NULL;
+
+   //    for (TR::CFGNode* node = cfg->getStart(); node; node = node->getNext())
+   //       {
+   //       if (node->getNumber() == 3)
+   //          exitNode = node;
+         
+   //       if (node->getNumber() == 4)
+   //          startNode = node;
+
+   //       if (startNode && exitNode) //both are found
+   //          break;
+   //       }
+      
+   //    cfg->setStart(startNode);
+   //    cfg->setEnd(exitNode);
+
+   //    }
+   return cfg;
+   }
 
 
 IDT* IDTBuilder::buildIDT()
@@ -46,14 +79,21 @@ IDT* IDTBuilder::buildIDT()
    
    IDTNode* root = _idt->getRoot();
 
-   //generate the CFG for root call taret
-   TR::CFG* cfg = AbsInterpreter::generateCFG(rootCallTarget, getInliner(), region());
+   //generate the CFG for root call target and 
+   TR::CFG* cfg = generateFlowGraph(rootCallTarget, getInliner(), region());
 
    if (!cfg) //Fail to generate a CFG
       return _idt;
 
-   AbsInterpreter::setCFGBlockFrequency(cfg, true, comp());
+   //cfg->computeInitialBlockFrequencyBasedOnExternalProfiler(comp());
+   cfg->setFrequencies();
 
+   cfg->getAndSetStartBlockFrequency();
+   // AbsInterpreter::setCFGBlockFrequency(cfg, true, comp());
+
+   // traceMsg(comp(), "our cfg\n");
+   // comp()->getDebug()->print(comp()->getOutFile(), cfg);
+   
    //add the decendants
    buildIDTHelper(root, NULL, -1, _rootBudget, NULL);
 
@@ -71,8 +111,6 @@ void IDTBuilder::buildIDTHelper(IDTNode* node, AbsState* invokeState, int caller
    
 
    bool traceBIIDTGen = comp()->getOption(TR_TraceBIIDTGen);
-   if (traceBIIDTGen)
-      traceMsg(comp(), "+ IDTBuilder: Adding children for IDTNode: %s\n",node->getName(comp()->trMemory()));
 
    TR_CallStack* nextCallStack = new (region()) TR_CallStack(comp(), symbol, method, callStack, budget, true);
 
@@ -175,19 +213,26 @@ void IDTBuilder::addChild(IDTNode*node, int callerIndex, TR::Method* calleeMetho
    TR::ResolvedMethodSymbol * calleeMethodSymbol = TR::ResolvedMethodSymbol::create(comp()->trHeapMemory(), callTarget->_calleeMethod, comp());
 
    //generate the CFG of this call target and set the block frequencies. 
-   TR::CFG* cfg = AbsInterpreter::generateCFG(callTarget, getInliner(), region(), callStack);
+   TR::CFG* cfg = generateFlowGraph(callTarget, getInliner(), region(), callStack);
 
    if (!cfg)
       {
       cleanInvokeState(calleeMethod, isStaticMethod, invokeState);
       return;
       }
-      
-   
-   
+   cfg->setFrequencies();
+
    //At this point we have the callsite, next thing is to compute the call ratio of the call target.
-   float callRatio = computeCallRatio(callTarget, callStack, block, node->getCallTarget()->_cfg);
-   AbsInterpreter::setCFGBlockFrequency(cfg, false, comp());
+   float callRatio = computeCallRatio(callTarget, _callSiteIndex++, callStack, block, node->getCallTarget()->_cfg);
+
+   
+   //AbsInterpreter::setCFGBlockFrequency(cfg, false, comp());
+
+   // traceMsg(comp(),"our cfg : %s\n", callTarget->signature(comp()->trMemory()));
+   // comp()->getDebug()->print(comp()->getOutFile(), cfg);
+
+   if (traceBIIDTGen)
+      traceMsg(comp(), "+ IDTBuilder: Adding Child %s for IDTNode: %s\n",calleeMethod->signature(comp()->trMemory()), node->getName(comp()->trMemory()));
 
    IDTNode* child = node->addChild(
                            _idt->getNextGlobalIDTNodeIndex(),
@@ -197,9 +242,12 @@ void IDTBuilder::addChild(IDTNode*node, int callerIndex, TR::Method* calleeMetho
                            callRatio,
                            _idt->getMemoryRegion()
                            );
-
+   if (traceBIIDTGen)
+      traceMsg(comp(), child != NULL ? "success\n" : "fail\n");
+   
    if (child == NULL) // Fail to add the Node to IDT
       {
+     
       cleanInvokeState(calleeMethod, isStaticMethod, invokeState);
       return;
       }
@@ -224,16 +272,18 @@ void IDTBuilder::addChild(IDTNode*node, int callerIndex, TR::Method* calleeMetho
       
    }
 
-float IDTBuilder::computeCallRatio(TR_CallTarget* callTarget, TR_CallStack* callStack, TR::Block* block, TR::CFG* callerCfg)
+float IDTBuilder::computeCallRatio(TR_CallTarget* callTarget, int callSiteIndex, TR_CallStack* callStack, TR::Block* block, TR::CFG* callerCfg)
    {
    TR_ASSERT_FATAL(callTarget, "Call Target is NULL!");
    
    TR::CFG* cfg = callTarget->_cfg;
    TR::ResolvedMethodSymbol *caller = callStack->_methodSymbol;
-
-   cfg->computeMethodBranchProfileInfo(getUtil(), callTarget, caller, _callSiteIndex++, block, callerCfg);
-  
-   return ((float)block->getFrequency() / (float) callerCfg->getStartBlockFrequency());  
+   
+   //cfg->computeMethodBranchProfileInfo(getUtil(), callTarget, caller, callSiteIndex, block, callerCfg);
+   // printf("++++ %s ++++ \n",callTarget->signature(comp()->trMemory()));
+   // printf("%d: block %d, caller start block %d\n\n",block->getNumber(), block->getFrequency(),callerCfg->getStartBlockFrequency());
+   int startBlockFrequency = callerCfg->getAndSetStartBlockFrequency();
+   return ((float)block->getFrequency() / (float) startBlockFrequency);  
    }
 
 void IDTBuilder::cleanInvokeState(TR::Method* calleeMethod, bool isStaticMethod, AbsState* invokeState)

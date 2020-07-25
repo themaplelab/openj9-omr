@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2020 IBM Corp. and others
+ * Copyright (c) 2020, 2020 IBM Corp. and others
  *
  * This program and the accompanying materials are made available under
  * the terms of the Eclipse Public License 2.0 which accompanies this
@@ -31,19 +31,44 @@
 #include "optimizer/ValuePropagation.hpp"
 #include "optimizer/AbsValue.hpp"
 
+/**
+.* Local Variable Array Simulation.
+ */
 class AbsLocalVarArray
    {
    public:
    AbsLocalVarArray(TR::Region &region);
    AbsLocalVarArray(AbsLocalVarArray&);
-   void merge(AbsLocalVarArray&, TR::Region&, TR::ValuePropagation* );
-   void trace(TR::ValuePropagation *vp);
+
+   /**
+    * @brief Merge with another AbsLocalVarArray. This is in-place merge.
+    *
+    * @param other AbsLocalVarArray&
+    * @param vp TR::ValuePropagation* 
+    * @return void
+    */
+   void merge(AbsLocalVarArray& other, TR::ValuePropagation* vp);
    
+   /**
+    * @brief Get the AbsValue at index i
+    *
+    * @param i unsigned int
+    * @return AbsValue*
+    */
+   AbsValue *at(unsigned int i);
+
+   /**
+    * @brief Set the AbsValue at index i
+    *
+    * @param i unsigned int
+    * @param value AbsValue*
+    * @return void
+    */
+   void set(unsigned int i, AbsValue* value);
 
    size_t size() { return _array.size(); };
-   AbsValue *at(unsigned int index);
-   void set(unsigned int, AbsValue*);
-   
+   void trace(TR::ValuePropagation *vp);
+
    private:
    typedef TR::deque<AbsValue*, TR::Region&> AbsValueArray;
    AbsValueArray _array;

@@ -3270,27 +3270,19 @@ OMR::CFG::getInternalRegion()
    return self()->_internalRegion;
    }
 
-int
-OMR::CFG::getStartBlockFrequency()
+int OMR::CFG::getAndSetStartBlockFrequency()
    {
-       //TODO: no linear search.
-      TR::Block *block = NULL;
-       for (auto cfgNode = this->getFirstNode(); cfgNode; cfgNode = cfgNode->getNext())
-       {
-         block = cfgNode->asBlock();
-         if (!block) continue;
-         if (cfgNode->getNumber() == 3)
-         break;
-       }
-      if (!block) return 6;
- 
-       int addFrequenciesOfExits = 0;
-       for (auto e = block->getPredecessors().begin(); e != block->getPredecessors().end(); ++e)
-        {
-             addFrequenciesOfExits += (*e)->getFrom()->asBlock()->getFrequency();
-        }
- 
-      return addFrequenciesOfExits;
+   TR::Block *block = getEnd()->asBlock();
+
+   int sum = 0;
+   for (auto e = block->getPredecessors().begin(); e != block->getPredecessors().end(); ++e)
+      {
+      sum += (*e)->getFrom()->asBlock()->getFrequency();
+      }
+
+   TR::Block *startBlock = getStart()->asBlock();
+   (*startBlock->getSuccessors().begin())->getTo()->setFrequency(sum);
+   return sum;
    }
 
 TR::Block*
@@ -3354,29 +3346,29 @@ OMR::CFG::computeMethodBranchProfileInfo(BenefitInlinerUtil *util, TR_CallTarget
       util->computeMethodBranchProfileInfo2(cfgBlock, calltarget, callerSymbol, callerIndex, callBlock, callerCfg);
    }
 
-TR::CFGNode *
-OMR::CFG::getStartForReverseSnapshot()
-   {
-   for (auto cfgNode = this->getFirstNode(); cfgNode; cfgNode = cfgNode->getNext())
-      {
-         auto asBlock = cfgNode->asBlock();
-         if (!asBlock) continue;
-         if (cfgNode->getNumber() == 4)
-         return cfgNode;
-      }
-      return NULL;
-   }
+// TR::CFGNode *
+// OMR::CFG::getStartForReverseSnapshot()
+//    {
+//    for (auto cfgNode = this->getFirstNode(); cfgNode; cfgNode = cfgNode->getNext())
+//       {
+//          auto asBlock = cfgNode->asBlock();
+//          if (!asBlock) continue;
+//          if (cfgNode->getNumber() == 4)
+//          return cfgNode;
+//       }
+//       return NULL;
+//    }
 
-TR::CFGNode *
-OMR::CFG::getEndForReverseSnapshot()
-  {
-   for (auto cfgNode = this->getFirstNode(); cfgNode; cfgNode = cfgNode->getNext())
-      {
-         auto asBlock = cfgNode->asBlock();
-         if (!asBlock) continue;
-         if (cfgNode->getNumber() == 3)
-         return cfgNode;
-      }
-      return NULL;
+// TR::CFGNode *
+// OMR::CFG::getEndForReverseSnapshot()
+//   {
+//    for (auto cfgNode = this->getFirstNode(); cfgNode; cfgNode = cfgNode->getNext())
+//       {
+//          auto asBlock = cfgNode->asBlock();
+//          if (!asBlock) continue;
+//          if (cfgNode->getNumber() == 3)
+//          return cfgNode;
+//       }
+//       return NULL;
 
-  }
+//   }

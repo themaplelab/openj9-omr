@@ -35,7 +35,7 @@ AbsValue::AbsValue(AbsValue* other):
    {
    }
 
-AbsValue* AbsValue::merge(AbsValue *other, TR::Region &region, OMR::ValuePropagation *vp)
+void AbsValue::merge(AbsValue *other, TR::ValuePropagation *vp)
    {
    TR_ASSERT_FATAL(other, "Cannot merge with a NULL AbsValue");
    
@@ -43,20 +43,22 @@ AbsValue* AbsValue::merge(AbsValue *other, TR::Region &region, OMR::ValuePropaga
    //This can happen when merging two basic blocks in two different scopes.
    if (other->getDataType() != getDataType())
       {
-      AbsValue *mergedValue = new (region) AbsValue(NULL, TR::NoType);
-      return mergedValue;
+      setConstraint(NULL);
+      setDataType(TR::NoType);
+      return;
       }
 
    if (isTOP())
-      return this;
+      return;
 
    if (other->isTOP())
-      return other;
-
+      {
+      setConstraint(NULL);
+      return;
+      }
+     
    TR::VPConstraint *mergedConstraint = getConstraint()->merge(other->getConstraint(), vp);
-   
-   AbsValue *mergedValue = new (region) AbsValue(mergedConstraint, getDataType());
-   return mergedValue;
+   setConstraint(mergedConstraint);
    }
 
 void AbsValue::print(TR::ValuePropagation *vp)    

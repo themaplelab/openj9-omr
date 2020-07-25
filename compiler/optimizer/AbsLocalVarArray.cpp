@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2020 IBM Corp. and others
+ * Copyright (c) 2020, 2020 IBM Corp. and others
  *
  * This program and the accompanying materials are made available under
  * the terms of the Eclipse Public License 2.0 which accompanies this
@@ -22,7 +22,7 @@
 #include "optimizer/AbsLocalVarArray.hpp"
 
 AbsLocalVarArray::AbsLocalVarArray(TR::Region &region) :
-      _array(0, NULL, region)
+      _array(region)
    {
    }
 
@@ -31,14 +31,14 @@ AbsLocalVarArray::AbsLocalVarArray(AbsLocalVarArray &other) :
    {
    }
 
-void AbsLocalVarArray::merge(AbsLocalVarArray &other, TR::Region &region, TR::ValuePropagation *vp)
+void AbsLocalVarArray::merge(AbsLocalVarArray &other, TR::ValuePropagation *vp)
    {
    int otherSize = other.size();
    int selfSize = size();
    int mergedSize = std::max(selfSize, otherSize);
+
    for (int i = 0; i < mergedSize; i++)
       {
-      //printf("Merge %d\n",i);
       AbsValue *selfValue = i < size() ? at(i) : NULL;
       AbsValue *otherValue = i < other.size() ? other.at(i) : NULL;
 
@@ -48,8 +48,7 @@ void AbsLocalVarArray::merge(AbsLocalVarArray &other, TR::Region &region, TR::Va
          }
       else if (selfValue && otherValue) 
          {
-         AbsValue *mergedValue = selfValue->merge(otherValue, region, vp);
-         set(i, mergedValue);
+         selfValue->merge(otherValue, vp);
          } 
       else if (selfValue) 
          {

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2020 IBM Corp. and others
+ * Copyright (c) 2020, 2020 IBM Corp. and others
  *
  * This program and the accompanying materials are made available under
  * the terms of the Eclipse Public License 2.0 which accompanies this
@@ -23,14 +23,13 @@
 #include "env/Region.hpp"
 #include "infra/deque.hpp"
 
-//TODO: can we use maxSize somehow to make memory allocation more efficient?
 AbsOpStack::AbsOpStack(TR::Region &region) :
-      _stack(StackContainer(0, nullptr, region))
+      _stack(StackContainer(region))
    {
    }
 
 
-AbsOpStack::AbsOpStack(AbsOpStack &other, TR::Region &region) :
+AbsOpStack::AbsOpStack(AbsOpStack &other) :
       _stack(other._stack)
    {
    }
@@ -41,9 +40,12 @@ void AbsOpStack::push(AbsValue* value)
    _stack.push(value);
    }
 
-void AbsOpStack::pop()
+AbsValue* AbsOpStack::pop()
    {
+   TR_ASSERT_FATAL(size() > 0, "Pop an empty stack!");
+   AbsValue *value = _stack.top();
    _stack.pop();
+   return value;
    }
 
 AbsValue* AbsOpStack::top()
@@ -52,36 +54,30 @@ AbsValue* AbsOpStack::top()
    return _stack.top(); 
    }
 
-void AbsOpStack::merge(AbsOpStack &other, TR::Region &region, TR::ValuePropagation *valuePropagation)
+void AbsOpStack::merge(AbsOpStack &other, TR::ValuePropagation *vp)
    {
+   TR_ASSERT_FATAL(other._stack.size() == _stack.size(), "Stacks have different sizes!");
 
-   TR_ASSERT_FATAL(other._stack.size() == _stack.size(), "stacks are different sizes!");
-
-   StackContainer dequeSelf(region);
-   StackContainer dequeOther(region);
-  
-   //TODO: is there an easier way to merge to stacks?
    int size = _stack.size();
+
+   AbsValue* selfArray[size];
+   AbsValue* otherArray[size];
+
    for (int i = 0; i < size; i++)
       {
-      dequeSelf.push_back(top());
-      dequeOther.push_back(other.top());
-      pop();
-      other.pop();
+      selfArray[i] = pop();
+      otherArray[i] = other.pop();
       }
-   // cool so now we have the contents of both of these stack in a deque.
-   // top is at front and bottom is at back.
-   // we want to start merging from the bottom.
+
    for (int i = 0; i < size; i++)
       {
-      AbsValue *valueSelf = dequeSelf.back();
-      AbsValue *valueOther = dequeOther.back();
+      AbsValue *valueSelf = selfArray[size-i-1];
+      AbsValue *valueOther = otherArray[size-i-1];
       
-      AbsValue *merge = valueSelf->merge(valueOther, region, valuePropagation);
+      valueSelf->merge(valueOther, vp);
+
+      push(valueSelf);
       other.push(valueOther);
-      push(merge);
-      dequeSelf.pop_back();
-      dequeOther.pop_back();
       }
    }
 
