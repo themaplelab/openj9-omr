@@ -3270,7 +3270,10 @@ OMR::CFG::getInternalRegion()
    return self()->_internalRegion;
    }
 
-int OMR::CFG::getAndSetStartBlockFrequency()
+
+
+//sum the frequencies of the predecessors of the exit block 
+int OMR::CFG::getStartBlockFrequency()
    {
    TR::Block *block = getEnd()->asBlock();
 
@@ -3279,10 +3282,15 @@ int OMR::CFG::getAndSetStartBlockFrequency()
       {
       sum += (*e)->getFrom()->asBlock()->getFrequency();
       }
-
-   TR::Block *startBlock = getStart()->asBlock();
-   (*startBlock->getSuccessors().begin())->getTo()->setFrequency(sum);
+   
    return sum;
+   }
+
+//set the frequency of the start block (one block after the entry block) to the sum of the frequencies of the predecessors of the exit block
+void OMR::CFG::setStartBlockFrequency()
+   {
+   TR::Block *startBlock = getStart()->asBlock();
+   (*startBlock->getSuccessors().begin())->getTo()->setFrequency(getStartBlockFrequency());
    }
 
 TR::Block*
@@ -3330,21 +3338,21 @@ OMR::CFG::isColdTarget(TR_ByteCodeInfo &info, float frequencyAdjustment, TR_HasR
       return frequency < this->getLowFrequency();
    }
 
-void
-OMR::CFG::computeMethodBranchProfileInfo(BenefitInlinerUtil *util, TR_CallTarget* calltarget, TR::ResolvedMethodSymbol* callerSymbol, int callerIndex, TR::Block *callBlock, TR::CFG* callerCfg)
-   {
-      TR::Block *cfgBlock = NULL;
+// void
+// OMR::CFG::computeMethodBranchProfileInfo(BenefitInlinerUtil *util, TR_CallTarget* calltarget, TR::ResolvedMethodSymbol* callerSymbol, int callerIndex, TR::Block *callBlock, TR::CFG* callerCfg)
+//    {
+//       TR::Block *cfgBlock = NULL;
 
-      for (auto cfgNode = this->getFirstNode(); cfgNode; cfgNode = cfgNode->getNext())
-      {
-         auto asBlock = cfgNode->asBlock();
-         if (!asBlock) continue;
-         if (cfgNode->getNumber() == 4)
-            cfgBlock = asBlock;
-      }
+//       for (auto cfgNode = this->getFirstNode(); cfgNode; cfgNode = cfgNode->getNext())
+//       {
+//          auto asBlock = cfgNode->asBlock();
+//          if (!asBlock) continue;
+//          if (cfgNode->getNumber() == 4)
+//             cfgBlock = asBlock;
+//       }
 
-      util->computeMethodBranchProfileInfo2(cfgBlock, calltarget, callerSymbol, callerIndex, callBlock, callerCfg);
-   }
+//       util->computeMethodBranchProfileInfo2(cfgBlock, calltarget, callerSymbol, callerIndex, callBlock, callerCfg);
+//    }
 
 // TR::CFGNode *
 // OMR::CFG::getStartForReverseSnapshot()

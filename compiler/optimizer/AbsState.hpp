@@ -28,6 +28,12 @@
 #include "AbsOpStack.hpp"
 #include "AbsValue.hpp"
 
+/**
+ * For holding parameters passed from caller method to callee method during IDT construction.
+ * This is used to calculate static benefit with method summary.
+ */
+typedef TR::deque<AbsValue*, TR::Region&> AbsParameterArray;
+
 class AbsState
     {
     public:

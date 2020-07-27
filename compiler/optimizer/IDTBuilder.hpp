@@ -20,22 +20,17 @@ class IDTBuilder
    IDT* buildIDT();
 
    private:
-   void buildIDTHelper(IDTNode* node, AbsState* invokeState, int callerIndex, int32_t budget, TR_CallStack* callStack);
+   void buildIDTHelper(IDTNode* node, AbsParameterArray* parameterArray, int callerIndex, int32_t budget, TR_CallStack* callStack);
 
-   TR::CFG* generateFlowGraph(TR_CallTarget* callTarget, TR_InlinerBase* inliner, TR::Region& region, TR_CallStack* callStack=NULL);
-   void setFlowGraphBlockFrequency(TR::CFG* cfg, bool isRoot);
+   TR::CFG* generateFlowGraph(TR_CallTarget* callTarget, TR::Region& region, TR_CallStack* callStack=NULL);
+   void setCFGBlockFrequency(TR_CallTarget* callTarget, bool isRoot, TR_CallStack* callStack=NULL, TR::Block* callBlock=NULL, TR::CFG* callerCfg=NULL);
    
    void performAbstractInterpretation(IDTNode* node,  int callerIndex, TR_CallStack* callStack);
 
-   //call this after we have a CFG of the call target
-   float computeCallRatio(TR_CallTarget* callTarget, int callSiteIndex, TR_CallStack* callStack, TR::Block* block, TR::CFG* callerCfg );
+   float computeCallRatio(TR::Block* block, TR::CFG* callerCfg );
 
    //call this after we have the method summary of the method / or pass method summary as NULL to clean the invoke state
-   int computeStaticBenefitWithMethodSummary(TR::Method* calleeMethod, bool isStaticMethod, MethodSummary* methodSummary, AbsState* invokeState);
-
-   //Any method that is not going to be asbtract interpreted should call this method to pop the parameters from AbsState's Abs Op Stack
-   //This is to ensure that the Abs Op Stack is valid.
-   void cleanInvokeState(TR::Method* calleeMethod, bool isStaticMethod, AbsState* invokeState);
+   int computeStaticBenefitWithMethodSummary(MethodSummary* methodSummary, AbsParameterArray* parameterArray);
 
    TR::Compilation* comp() { return _comp; };
    TR::Region& region() { return _region; };
@@ -52,10 +47,8 @@ class IDTBuilder
    //This will be called from AbsInterpreter
    void addChild(IDTNode*node,
       int callerIndex,
-      TR::Method* calleeMethod, 
-      bool isStaticMethod,
       TR_CallSite* callSite,
-      AbsState* invokeState,
+      AbsParameterArray* parameterArray,
       TR_CallStack* callStack,
       TR::Block* block);
 

@@ -93,12 +93,17 @@ AbsValue* AbsInterpreter::getTOPAbsValue(TR::DataType dataType)
    return new (region()) AbsValue(NULL, dataType);
    }
 
+AbsValue* AbsInterpreter::getDummyAbsValue()
+   {
+   return new (region()) AbsValue(NULL, TR::NoType, true);
+   }
+
 //Get the abstract state of the START block of CFG
 AbsState* AbsInterpreter::initializeAbsState(TR::ResolvedMethodSymbol* symbol)
    {
     
    if (comp()->getOption(TR_TraceAbstractInterpretation)) 
-      traceMsg(comp(), "- 1. Abstract Interpreter: Init method : %s AbsState\n", symbol->signature(comp()->trMemory()));
+      traceMsg(comp(), "-1. Abstract Interpreter: Init method : %s AbsState\n", symbol->signature(comp()->trMemory()));
    //printf("- 1. Abstract Interpreter: Enter method: %s\n", symbol->signature(comp()->trMemory()));
    AbsState* absState = new (region()) AbsState(region());
 
@@ -156,7 +161,7 @@ AbsState* AbsInterpreter::initializeAbsState(TR::ResolvedMethodSymbol* symbol)
             temp->setParamPosition(paramPos);
             absState->set(slot, temp);
             slot++;
-            absState->set(slot, getTOPAbsValue(TR::NoType));
+            absState->set(slot, getDummyAbsValue());
             continue;
             break;
 
@@ -172,7 +177,7 @@ AbsState* AbsInterpreter::initializeAbsState(TR::ResolvedMethodSymbol* symbol)
             temp->setParamPosition(paramPos);
             absState->set(slot, temp);
             slot++;
-            absState->set(slot, getTOPAbsValue(TR::NoType));
+            absState->set(slot, getDummyAbsValue());
             continue;
             break;
 
@@ -545,7 +550,7 @@ void AbsInterpreter::interpretByteCode(AbsState* state, TR_J9ByteCode bc, TR_J9B
 };
    bool traceAbstractInterpretation = comp()->getOption(TR_TraceAbstractInterpretation);
    if (traceAbstractInterpretation) 
-      traceMsg(comp(), "-     5. Abstract Interpreter: interpret Byte Code\n");
+      traceMsg(comp(), "-5. Abstract Interpreter: interpret Byte Code\n");
    //printf("+Bytecode: %s | %d\n",J9_ByteCode_Strings[bc], bci.nextByte());
    switch(bc)
       {
@@ -759,7 +764,7 @@ void AbsInterpreter::interpretByteCode(AbsState* state, TR_J9ByteCode bc, TR_J9B
       // return
       case J9BCsaload: saload(state); break;
       case J9BCsastore: sastore(state); break;
-      case J9BCsipush: sipush(state, bci.next2Bytes()); break;
+      case J9BCsipush: sipush(state, bci.next2BytesSigned()); break;
       case J9BCswap: swap(state); break;
       case J9BCReturnC: state->pop(); break;
       case J9BCReturnS: state->pop(); break;
@@ -780,7 +785,7 @@ void AbsInterpreter::interpretByteCode(AbsState* state, TR_J9ByteCode bc, TR_J9B
             case J9BCdload: dload(state, bci.next2Bytes()); break;
             case J9BCaload: aload(state, bci.next2Bytes()); break;
             case J9BCistore: istore(state, bci.next2Bytes()); break; 
-            case J9BClstore: lstore(state, bci.next2Bytes()); break;  // TODO: own function?
+            case J9BClstore: lstore(state, bci.next2Bytes()); break; 
             case J9BCfstore: fstore(state, bci.next2Bytes()); break; 
             case J9BCdstore: dstore(state, bci.next2Bytes()); break; 
             case J9BCastore: astore(state, bci.next2Bytes()); break; 
@@ -876,7 +881,7 @@ AbsState* AbsInterpreter::laload(AbsState* absState)
    AbsValue *index = absState->pop();
    AbsValue *ref = absState->pop();
    AbsValue *value1 = getTOPAbsValue(TR::Int64);
-   AbsValue *value2 = getTOPAbsValue(TR::NoType);
+   AbsValue *value2 = getDummyAbsValue();
    absState->push(value1);
    absState->push(value2);
    return absState;
@@ -888,7 +893,7 @@ AbsState* AbsInterpreter::daload(AbsState* absState)
    AbsValue *index = absState->pop();
    AbsValue *ref = absState->pop();
    AbsValue *value1 = getTOPAbsValue(TR::Double);
-   AbsValue *value2 = getTOPAbsValue(TR::NoType);
+   AbsValue *value2 = getDummyAbsValue();
    absState->push(value1);
    absState->push(value2);
    return absState;
@@ -1261,7 +1266,7 @@ AbsState* AbsInterpreter::getstatic(AbsState* absState, int cpIndex, TR_Resolved
    if (!value1->isType2())
       return absState;
 
-   AbsValue *value2= getTOPAbsValue(TR::NoType);
+   AbsValue *value2= getDummyAbsValue();
    absState->push(value2);
    return absState;
    }
@@ -1300,7 +1305,7 @@ AbsState* AbsInterpreter::getfield(AbsState* absState, int cpIndex, TR_ResolvedM
    if (!value1->isType2())
       return absState; 
 
-   AbsValue *value2= getTOPAbsValue(TR::NoType);
+   AbsValue *value2= getDummyAbsValue();
    absState->push(value2);
    return absState;
    }
@@ -1989,7 +1994,7 @@ AbsState* AbsInterpreter::i2d(AbsState* absState)
    AbsValue *value = absState->pop();
    AbsValue *result = getTOPAbsValue(TR::Double);
    absState->push(result);
-   AbsValue *result2 = getTOPAbsValue(TR::NoType);
+   AbsValue *result2 = getDummyAbsValue();
    absState->push(result2);
    return absState;
    }
@@ -2007,7 +2012,7 @@ AbsState* AbsInterpreter::i2l(AbsState* absState)
    AbsValue *value = absState->pop();
    AbsValue *result = getTOPAbsValue(TR::Int64);
    absState->push(result);
-   AbsValue *result2 = getTOPAbsValue(TR::NoType);
+   AbsValue *result2 = getDummyAbsValue();
    absState->push(result2);
    return absState;
    }
@@ -2037,7 +2042,7 @@ AbsState* AbsInterpreter::dadd(AbsState* absState)
    AbsValue *value3 = absState->pop();
    AbsValue *value4 = absState->pop();
    AbsValue *result1 = getTOPAbsValue(TR::Double);
-   AbsValue *result2 = getTOPAbsValue(TR::NoType);
+   AbsValue *result2 = getDummyAbsValue();
    absState->push(result1);
    absState->push(result2);
    return absState;
@@ -2050,7 +2055,7 @@ AbsState* AbsInterpreter::dsub(AbsState* absState)
    AbsValue *value3 = absState->pop();
    AbsValue *value4 = absState->pop();
    AbsValue *result1 = getTOPAbsValue(TR::Double);
-   AbsValue *result2 = getTOPAbsValue(TR::NoType);
+   AbsValue *result2 = getDummyAbsValue();
    absState->push(result1);
    absState->push(result2);
    return absState;
@@ -2084,16 +2089,17 @@ AbsState* AbsInterpreter::ladd(AbsState* absState)
    if (!nonnull)
       {
       AbsValue *result1 = getTOPAbsValue(TR::Int64);
-      AbsValue *result2 = getTOPAbsValue(TR::NoType);
+      AbsValue *result2 = getDummyAbsValue();
       absState->push(result1);
       absState->push(result2);
       return absState;
       }
 
    TR::VPConstraint *result_vp = value2->getConstraint()->add(value4->getConstraint(), value4->getDataType(), vp());
-   AbsValue *result = new (region()) AbsValue(result_vp, TR::Int64);
-   absState->push(result);
-   getTOPAbsValue(TR::NoType);
+   AbsValue *result1 = new (region()) AbsValue(result_vp, TR::Int64);
+   AbsValue *result2 = getDummyAbsValue();
+   absState->push(result1);
+   absState->push(result2);
    return absState;
    }
 
@@ -2107,7 +2113,7 @@ AbsState* AbsInterpreter::lsub(AbsState* absState)
    if (!nonnull)
       {
       AbsValue *result1 = getTOPAbsValue(TR::Int64);
-      AbsValue *result2 = getTOPAbsValue(TR::NoType);
+      AbsValue *result2 = getDummyAbsValue();
       absState->push(result1);
       absState->push(result2);
       return absState;
@@ -2115,8 +2121,7 @@ AbsState* AbsInterpreter::lsub(AbsState* absState)
 
    TR::VPConstraint *result_vp = value2->getConstraint()->subtract(value4->getConstraint(), value4->getDataType(), vp());
    AbsValue *result = new (region()) AbsValue(result_vp, TR::Int64);
-   absState->push(result);
-   getTOPAbsValue(TR::NoType);
+   absState->push(result);;
    return absState;
    }
 
@@ -2156,7 +2161,7 @@ AbsState* AbsInterpreter::land(AbsState* absState)
    if (!nonnull)
       {
       AbsValue *result1 = getTOPAbsValue(TR::Int64);
-      AbsValue *result2 = getTOPAbsValue(TR::NoType);
+      AbsValue *result2 = getDummyAbsValue();
       absState->push(result1);
       absState->push(result2);
       return absState;
@@ -2165,7 +2170,7 @@ AbsState* AbsInterpreter::land(AbsState* absState)
    if (!allConstants)
       {
       AbsValue *result1 = getTOPAbsValue(TR::Int64);
-      AbsValue *result2 = getTOPAbsValue(TR::NoType);
+      AbsValue *result2 = getDummyAbsValue();
       absState->push(result1);
       absState->push(result2);
       return absState;
@@ -2173,7 +2178,7 @@ AbsState* AbsInterpreter::land(AbsState* absState)
 
    int result = value2->getConstraint()->asLongConst()->getLow() & value4->getConstraint()->asLongConst()->getLow();
    absState->push(new (region()) AbsValue(TR::VPLongConst::create(vp(), result), TR::Int64));
-   AbsValue *result2 = getTOPAbsValue(TR::NoType);
+   AbsValue *result2 = getDummyAbsValue();
    absState->push(result2);
    return absState;
    }
@@ -2188,7 +2193,7 @@ AbsState* AbsInterpreter::land(AbsState* absState)
    if (!nonnull)
       {
       AbsValue *result1 = getTOPAbsValue(TR::Int64);
-      AbsValue *result2 = getTOPAbsValue(TR::NoType);
+      AbsValue *result2 = getDummyAbsValue();
       absState->push(result1);
       absState->push(result2);
       return absState;
@@ -2197,7 +2202,7 @@ AbsState* AbsInterpreter::land(AbsState* absState)
    if (!allConstants)
       {
       AbsValue *result1 = getTOPAbsValue(TR::Int64);
-      AbsValue *result2 = getTOPAbsValue(TR::NoType);
+      AbsValue *result2 = getDummyAbsValue();
       absState->push(result1);
       absState->push(result2);
       return absState;
@@ -2209,14 +2214,14 @@ AbsState* AbsInterpreter::land(AbsState* absState)
       {
       // this should throw an exception.
       AbsValue *result1 = getTOPAbsValue(TR::Int64);
-      AbsValue *result2 = getTOPAbsValue(TR::NoType);
+      AbsValue *result2 = getDummyAbsValue();
       absState->push(result1);
       absState->push(result2);
       return absState;
       }
    long result = int1 / int2;
    absState->push(new (region()) AbsValue(TR::VPLongConst::create(vp(), result), TR::Int64));
-   AbsValue *result2 = getTOPAbsValue(TR::NoType);
+   AbsValue *result2 = getDummyAbsValue();
    absState->push(result2);
    return absState;
    }
@@ -2231,7 +2236,7 @@ AbsState* AbsInterpreter::lmul(AbsState* absState)
    if (!nonnull)
       {
       AbsValue *result1 = getTOPAbsValue(TR::Int64);
-      AbsValue *result2 = getTOPAbsValue(TR::NoType);
+      AbsValue *result2 = getDummyAbsValue();
       absState->push(result1);
       absState->push(result2);
       return absState;
@@ -2240,7 +2245,7 @@ AbsState* AbsInterpreter::lmul(AbsState* absState)
    if (!allConstants)
       {
       AbsValue *result1 = getTOPAbsValue(TR::Int64);
-      AbsValue *result2 = getTOPAbsValue(TR::NoType);
+      AbsValue *result2 = getDummyAbsValue();
       absState->push(result1);
       absState->push(result2);
       return absState;
@@ -2250,7 +2255,7 @@ AbsState* AbsInterpreter::lmul(AbsState* absState)
    long int2 = value2->getConstraint()->asLongConst()->getLow();
    long result = int1 * int2;
    absState->push(new (region()) AbsValue(TR::VPLongConst::create(vp(), result), TR::Int64));
-   AbsValue *result2 = getTOPAbsValue(TR::NoType);
+   AbsValue *result2 = getDummyAbsValue();
    absState->push(result2);
    return absState;
    }
@@ -2282,7 +2287,7 @@ AbsState* AbsInterpreter::lneg(AbsState* absState)
    if (!allConstants)
       {
       AbsValue *result1 = getTOPAbsValue(TR::Int64);
-      AbsValue *result2 = getTOPAbsValue(TR::NoType);
+      AbsValue *result2 = getDummyAbsValue();
       absState->push(result1);
       absState->push(result2);
       return absState;
@@ -2291,7 +2296,7 @@ AbsState* AbsInterpreter::lneg(AbsState* absState)
    long int1 = value1->getConstraint()->asLongConst()->getLow();
    long result = -int1;
    absState->push(new (region()) AbsValue(TR::VPLongConst::create(vp(), result), TR::Int64));
-   AbsValue *result2 = getTOPAbsValue(TR::NoType);
+   AbsValue *result2 = getDummyAbsValue();
    absState->push(result2);
    return absState;
    }
@@ -2306,7 +2311,7 @@ AbsState* AbsInterpreter::lor(AbsState* absState)
    if (!nonnull)
       {
       AbsValue *result1 = getTOPAbsValue(TR::Int64);
-      AbsValue *result2 = getTOPAbsValue(TR::NoType);
+      AbsValue *result2 = getDummyAbsValue();
       absState->push(result1);
       absState->push(result2);
       return absState;
@@ -2315,7 +2320,7 @@ AbsState* AbsInterpreter::lor(AbsState* absState)
    if (!allConstants)
       {
       AbsValue *result1 = getTOPAbsValue(TR::Int64);
-      AbsValue *result2 = getTOPAbsValue(TR::NoType);
+      AbsValue *result2 = getDummyAbsValue();
       absState->push(result1);
       absState->push(result2);
       return absState;
@@ -2323,7 +2328,7 @@ AbsState* AbsInterpreter::lor(AbsState* absState)
 
    long result = value1->getConstraint()->asLongConst()->getLow() | value2->getConstraint()->asLongConst()->getLow();
    absState->push(new (region()) AbsValue(TR::VPLongConst::create(vp(), result), TR::Int64));
-   AbsValue *result2 = getTOPAbsValue(TR::NoType);
+   AbsValue *result2 = getDummyAbsValue();
    absState->push(result2);
    return absState;
    }
@@ -2338,7 +2343,7 @@ AbsState* AbsInterpreter::lrem(AbsState* absState)
    if (!nonnull)
       {
       AbsValue *result1 = getTOPAbsValue(TR::Int64);
-      AbsValue *result2 = getTOPAbsValue(TR::NoType);
+      AbsValue *result2 = getDummyAbsValue();
       absState->push(result1);
       absState->push(result2);
       return absState;
@@ -2347,7 +2352,7 @@ AbsState* AbsInterpreter::lrem(AbsState* absState)
    if (!allConstants)
       {
       AbsValue *result1 = getTOPAbsValue(TR::Int64);
-      AbsValue *result2 = getTOPAbsValue(TR::NoType);
+      AbsValue *result2 = getDummyAbsValue();
       absState->push(result1);
       absState->push(result2);
       return absState;
@@ -2357,7 +2362,7 @@ AbsState* AbsInterpreter::lrem(AbsState* absState)
    long int2 = value4->getConstraint()->asLongConst()->getLow();
    long result = int1 - (int1/ int2) * int2;
    absState->push(new (region()) AbsValue(TR::VPLongConst::create(vp(), result), TR::Int64));
-   AbsValue *result2 = getTOPAbsValue(TR::NoType);
+   AbsValue *result2 = getDummyAbsValue();
    absState->push(result2);
    return absState;
    }
@@ -2371,7 +2376,7 @@ AbsState* AbsInterpreter::lshl(AbsState* absState)
    if (!nonnull)
       {
       AbsValue *result1 = getTOPAbsValue(TR::Int64);
-      AbsValue *result2 = getTOPAbsValue(TR::NoType);
+      AbsValue *result2 = getDummyAbsValue();
       absState->push(result1);
       absState->push(result2);
       return absState;
@@ -2380,7 +2385,7 @@ AbsState* AbsInterpreter::lshl(AbsState* absState)
    if (!allConstants)
       {
       AbsValue *result1 = getTOPAbsValue(TR::Int64);
-      AbsValue *result2 = getTOPAbsValue(TR::NoType);
+      AbsValue *result2 = getDummyAbsValue();
       absState->push(result1);
       absState->push(result2);
       return absState;
@@ -2390,7 +2395,7 @@ AbsState* AbsInterpreter::lshl(AbsState* absState)
    long int2 = value2->getConstraint()->asIntConst()->getLow() & 0x1f;
    long result = int1 << int2;
    absState->push(new (region()) AbsValue(TR::VPLongConst::create(vp(), result), TR::Int64));
-   AbsValue *result2 = getTOPAbsValue(TR::NoType);
+   AbsValue *result2 = getDummyAbsValue();
    absState->push(result2);
    return absState;
    }
@@ -2404,7 +2409,7 @@ AbsState* AbsInterpreter::lshr(AbsState* absState)
    if (!nonnull)
       {
       AbsValue *result1 = getTOPAbsValue(TR::Int64);
-      AbsValue *result2 = getTOPAbsValue(TR::NoType);
+      AbsValue *result2 = getDummyAbsValue();
       absState->push(result1);
       absState->push(result2);
       return absState;
@@ -2413,7 +2418,7 @@ AbsState* AbsInterpreter::lshr(AbsState* absState)
    if (!allConstants)
       {
       AbsValue *result1 = getTOPAbsValue(TR::Int64);
-      AbsValue *result2 = getTOPAbsValue(TR::NoType);
+      AbsValue *result2 = getDummyAbsValue();
       absState->push(result1);
       absState->push(result2);
       return absState;
@@ -2423,7 +2428,7 @@ AbsState* AbsInterpreter::lshr(AbsState* absState)
    long int2 = value2->getConstraint()->asIntConst()->getLow() & 0x1f;
    long result = int1 >> int2;
    absState->push(new (region()) AbsValue(TR::VPLongConst::create(vp(), result), TR::Int64));
-   AbsValue *result2 = getTOPAbsValue(TR::NoType);
+   AbsValue *result2 = getDummyAbsValue();
    absState->push(result2);
    return absState;
    }
@@ -2438,7 +2443,7 @@ AbsState* AbsInterpreter::lushr(AbsState* absState)
    if (!nonnull)
       {
       AbsValue *result1 = getTOPAbsValue(TR::Int64);
-      AbsValue *result2 = getTOPAbsValue(TR::NoType);
+      AbsValue *result2 = getDummyAbsValue();
       absState->push(result1);
       absState->push(result2);
       return absState;
@@ -2447,7 +2452,7 @@ AbsState* AbsInterpreter::lushr(AbsState* absState)
    if (!allConstants)
       {
       AbsValue *result1 = getTOPAbsValue(TR::Int64);
-      AbsValue *result2 = getTOPAbsValue(TR::NoType);
+      AbsValue *result2 = getDummyAbsValue();
       absState->push(result1);
       absState->push(result2);
       return absState;
@@ -2458,7 +2463,7 @@ AbsState* AbsInterpreter::lushr(AbsState* absState)
    long result = int1 >> int2;
    result &= 0x7FFFFFFFFFFFFFFF;
    absState->push(new (region()) AbsValue(TR::VPLongConst::create(vp(), result), TR::Int64));
-   AbsValue *result2 = getTOPAbsValue(TR::NoType);
+   AbsValue *result2 = getDummyAbsValue();
    absState->push(result2);
    return absState;
    }
@@ -2473,7 +2478,7 @@ AbsState* AbsInterpreter::lxor(AbsState* absState)
    if (!nonnull)
       {
       AbsValue *result1 = getTOPAbsValue(TR::Int64);
-      AbsValue *result2 = getTOPAbsValue(TR::NoType);
+      AbsValue *result2 = getDummyAbsValue();
       absState->push(result1);
       absState->push(result2);
       return absState;
@@ -2482,7 +2487,7 @@ AbsState* AbsInterpreter::lxor(AbsState* absState)
    if (!allConstants)
       {
       AbsValue *result1 = getTOPAbsValue(TR::Int64);
-      AbsValue *result2 = getTOPAbsValue(TR::NoType);
+      AbsValue *result2 = getDummyAbsValue();
       absState->push(result1);
       absState->push(result2);
       return absState;
@@ -2499,7 +2504,7 @@ AbsState* AbsInterpreter::l2d(AbsState* absState)
    absState->pop();
    AbsValue *result = getTOPAbsValue(TR::Double);
    absState->push(result);
-   AbsValue *result2 = getTOPAbsValue(TR::NoType);
+   AbsValue *result2 = getDummyAbsValue();
    absState->push(result2);
    return absState;
    }
@@ -2526,7 +2531,7 @@ AbsState* AbsInterpreter::f2d(AbsState* absState)
    {
    absState->pop();
    AbsValue *result1 = getTOPAbsValue(TR::Double);
-   AbsValue *result2 = getTOPAbsValue(TR::NoType);
+   AbsValue *result2 = getDummyAbsValue();
    absState->push(result1);
    absState->push(result2);
    return absState;
@@ -2544,7 +2549,7 @@ AbsState* AbsInterpreter::f2l(AbsState* absState)
    {
    absState->pop();
    AbsValue *result1 = getTOPAbsValue(TR::Int64);
-   AbsValue *result2 = getTOPAbsValue(TR::NoType);
+   AbsValue *result2 = getDummyAbsValue();
    absState->push(result1);
    absState->push(result2);
    return absState;
@@ -2564,7 +2569,7 @@ AbsState* AbsInterpreter::d2l(AbsState* absState)
    absState->pop();
    absState->pop();
    AbsValue *result1 = getTOPAbsValue(TR::Int64);
-   AbsValue *result2 = getTOPAbsValue(TR::NoType);
+   AbsValue *result2 = getDummyAbsValue();
    absState->push(result1);
    absState->push(result2);
    return absState;
@@ -2606,7 +2611,7 @@ AbsState* AbsInterpreter::lload3(AbsState* absState)
 AbsState* AbsInterpreter::dconst0(AbsState* absState)
    {
    AbsValue *result1 = getTOPAbsValue(TR::Double);
-   AbsValue *result2 = getTOPAbsValue(TR::NoType);
+   AbsValue *result2 = getDummyAbsValue();
    absState->push(result1);
    absState->push(result2);
    return absState;
@@ -2615,7 +2620,7 @@ AbsState* AbsInterpreter::dconst0(AbsState* absState)
 AbsState* AbsInterpreter::dconst1(AbsState* absState)
    {
    AbsValue *result1 = getTOPAbsValue(TR::Double);
-   AbsValue *result2 = getTOPAbsValue(TR::NoType);
+   AbsValue *result2 = getDummyAbsValue();
    absState->push(result1);
    absState->push(result2);
    return absState;
@@ -2752,7 +2757,7 @@ AbsState* AbsInterpreter::lconst0(AbsState* absState)
    {
    AbsValue* value1 = new (region()) AbsValue(TR::VPLongConst::create(vp(), 0), TR::Int64);
    absState->push(value1);
-   AbsValue *value2 = getTOPAbsValue(TR::NoType);
+   AbsValue *value2 = getDummyAbsValue();
    absState->push(value2);
    return absState;
    }
@@ -2761,7 +2766,7 @@ AbsState* AbsInterpreter::lconst1(AbsState* absState)
    {
    AbsValue* value1 = new (region()) AbsValue(TR::VPLongConst::create(vp(), 1), TR::Int64);
    absState->push(value1);
-   AbsValue *value2 = getTOPAbsValue(TR::NoType);
+   AbsValue *value2 = getDummyAbsValue();
    absState->push(value2);
    return absState;
    }
@@ -2907,8 +2912,8 @@ AbsState* AbsInterpreter::pop2(AbsState* absState)
 
 AbsState* AbsInterpreter::fload(AbsState* absState, int n)
    {
-   AbsValue *constraint = absState->at(n);
-   absState->push(constraint);
+   AbsValue *value = absState->at(n);
+   absState->push(value);
    return absState;
    }
 
@@ -3070,9 +3075,9 @@ AbsState* AbsInterpreter::frem(AbsState*absState)
    return absState;
    }
 
-AbsState* AbsInterpreter::sipush(AbsState* absState, int16_t _short)
+AbsState* AbsInterpreter::sipush(AbsState* absState, int16_t value)
    {
-   TR::VPIntConst *data = TR::VPIntConst::create(vp(), _short);
+   TR::VPIntConst *data = TR::VPIntConst::create(vp(), value);
    AbsValue *result = new (region()) AbsValue(data, TR::Int32);
    absState->push(result);
    return absState;
@@ -3109,7 +3114,7 @@ AbsState* AbsInterpreter::putstatic(AbsState* absState)
    {
    // WONTFIX we do not model the heap
    AbsValue *value1 = absState->pop();
-   if (value1->getDataType() == TR::NoType)
+   if (value1->isDummy())
       { // category type 2
       AbsValue *value2 = absState->pop();
       }
@@ -3130,7 +3135,7 @@ void AbsInterpreter::ldcInt64(int cpIndex, TR_ResolvedMethod* method, AbsState* 
    TR::VPLongConst *constraint = TR::VPLongConst::create(vp(), value);
    AbsValue *result = new (region()) AbsValue(constraint, TR::Int64);
    absState->push(result);
-   AbsValue *result2 = getTOPAbsValue(TR::NoType);
+   AbsValue *result2 = getDummyAbsValue();
    absState->push(result2);
    }
 
@@ -3143,7 +3148,7 @@ void AbsInterpreter::ldcFloat(AbsState* absState)
 void AbsInterpreter::ldcDouble(AbsState* absState)
    {
    AbsValue *result = getTOPAbsValue(TR::Double);
-   AbsValue *result2 = getTOPAbsValue(TR::NoType);
+   AbsValue *result2 = getDummyAbsValue();
    absState->push(result);
    absState->push(result2);
    }
@@ -3364,11 +3369,35 @@ void AbsInterpreter::invoke(int bcIndex, int cpIndex, TR::MethodSymbol::Kinds ki
    TR::Method *calleeMethod = comp()->fej9()->createMethod(comp()->trMemory(), callerMethod->containingClass(), cpIndex);
    
    TR_CallSite* callsite = findCallSiteTargets(callerMethod, bcIndex, cpIndex, kind, _callerIndex, _callStack, block); // callsite can be NULL, such case will be handled by addChild().
-   
-   //Pass the AbsState to its child. So the Child can use this AbsState to perform method summary stuff.
-   //Note: Child MUST ensure the validness of this AbsState ( pop and push )
 
-   _idtBuilder->addChild(_idtNode, _callerIndex, calleeMethod, kind == TR::MethodSymbol::Kinds::Static, callsite, absState, _callStack ,block);
+   uint32_t numExplicitParams = calleeMethod->numberOfExplicitParameters();
+   uint32_t numImplicitParams = kind == TR::MethodSymbol::Kinds::Static ? 0 : 1; 
+
+   AbsParameterArray* paramArray = new (region()) AbsParameterArray(region());
+
+   for (uint32_t i = 0 ; i < numExplicitParams; i ++)
+      {
+      AbsValue* absValue = NULL;
+
+      TR::DataType dataType = calleeMethod->parmType(numExplicitParams -i - 1);
+      if (dataType == TR::Double || dataType == TR::Int64)
+         {
+         absState->pop();
+         absValue = absState->pop();
+         }
+      else
+         {
+         absValue = absState->pop();
+         }
+      
+
+      paramArray->push_front(absValue);
+      }
+   
+   if (numImplicitParams == 1)
+      paramArray->push_front(absState->pop());
+
+   _idtBuilder->addChild(_idtNode, _callerIndex, callsite, paramArray, _callStack ,block);
    
    //For the return values
    if (calleeMethod->returnTypeWidth() == 0)
@@ -3398,7 +3427,7 @@ void AbsInterpreter::invoke(int bcIndex, int cpIndex, TR::MethodSymbol::Kinds ki
             {
             AbsValue *result = getTOPAbsValue(datatype);
             absState->push(result);
-            AbsValue *result2 = getTOPAbsValue(TR::NoType);
+            AbsValue *result2 = getDummyAbsValue();
             absState->push(result2);
             break;
             }

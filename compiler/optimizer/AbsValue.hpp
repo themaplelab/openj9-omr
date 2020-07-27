@@ -32,7 +32,7 @@
 class AbsValue
    {
    public:
-   AbsValue(TR::VPConstraint *constraint, TR::DataType dataType);
+   AbsValue(TR::VPConstraint *constraint, TR::DataType dataType, bool isDummy=false);
    AbsValue(AbsValue* other);
    
    /**
@@ -60,6 +60,13 @@ class AbsValue
    bool isType2() { return _dataType == TR::Double || _dataType == TR::Int64; };
 
    /**
+    * @brief Check if the AbsValue is only used to take a slot as the second 32-bit part of the 64-bit data types
+    *
+    * @return bool
+    */
+   bool isDummy() { return _isDummy; }
+
+   /**
     * @brief Check if the AbsValue is a parameter.
     *
     * @return bool
@@ -80,9 +87,11 @@ class AbsValue
    void print(TR::ValuePropagation *vp);
 
    private:
-   int _paramPos; //_paramPos is set to -1 at default.
-   TR::VPConstraint* _constraint; //_constraint can be set to NULL to denote this AbsValue is TOP. 
+   bool _isDummy;
+   int _paramPos; 
+   TR::VPConstraint* _constraint;
    TR::DataType _dataType;
    };
+
 
 #endif

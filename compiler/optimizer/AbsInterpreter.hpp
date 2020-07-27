@@ -31,6 +31,7 @@ class AbsInterpreter
 
    AbsValue* getClassAbsValue(TR_OpaqueClassBlock* opaqueClass, TR::VPClassPresence *presence = NULL, TR::VPArrayInfo *info = NULL);
    AbsValue* getTOPAbsValue(TR::DataType dataType);
+   AbsValue* getDummyAbsValue();
 
    AbsState* initializeAbsState(TR::ResolvedMethodSymbol* symbol);
 

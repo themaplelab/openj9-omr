@@ -15,9 +15,6 @@ class IDT
 
    IDTNode* getRoot() { return _root; };
 
-   uint32_t getCost() { return _totalCost; }
-   void addCost(uint32_t cost) { _totalCost = _totalCost + cost; }
-
    TR::Compilation* comp() { return _comp; };
    TR::Region& getMemoryRegion() { return _region; };
    
@@ -32,7 +29,6 @@ class IDT
    void printTrace();
 
    private:
-   uint32_t _totalCost;
    TR::Compilation *_comp;
    TR::Region&  _region;
    int _maxIdx;

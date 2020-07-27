@@ -21,17 +21,19 @@
 
 #include "optimizer/AbsValue.hpp"
 
-AbsValue::AbsValue(TR::VPConstraint* constraint, TR::DataType dataType) :
+AbsValue::AbsValue(TR::VPConstraint* constraint, TR::DataType dataType, bool isDummy) :
       _constraint(constraint),
       _dataType(dataType),
-      _paramPos(-1)
+      _paramPos(-1),
+      _isDummy(isDummy)
    {
    }
 
 AbsValue::AbsValue(AbsValue* other):
       _constraint(other->_constraint),
       _dataType(other->_dataType),
-      _paramPos(other->_paramPos)
+      _paramPos(other->_paramPos),
+      _isDummy(other->_isDummy)
    {
    }
 

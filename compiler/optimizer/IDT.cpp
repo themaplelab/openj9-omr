@@ -4,7 +4,6 @@ IDT::IDT(TR::Region& region, TR::ResolvedMethodSymbol* symbol, TR_CallTarget* ca
       _region(region),
       _maxIdx(-1),
       _comp(comp),
-      _totalCost(0),
       _root(new (_region) IDTNode(getNextGlobalIDTNodeIndex(), callTarget, -1, symbol, 1, NULL, budget)),
       _indices(NULL)
    {   
@@ -149,8 +148,8 @@ void IDT::copyDescendants(IDTNode* fromNode, IDTNode* toNode)
       if (copiedChild)
             {
             increaseGlobalIDTNodeIndex();
-            addCost(child->getCost());
             copiedChild->setMethodSummary(child->getMethodSummary());
+            copiedChild->setStaticBenefit(child->getStaticBenefit());
             copyDescendants(child, copiedChild);
             }
       }

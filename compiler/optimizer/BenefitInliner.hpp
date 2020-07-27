@@ -102,7 +102,7 @@ class BenefitInliner: public BenefitInlinerBase
       friend class BenefitInliner;
       public:
       BenefitInlinerUtil(TR::Compilation *comp);
-      void computeMethodBranchProfileInfo2(TR::Block *, TR_CallTarget *, TR::ResolvedMethodSymbol*, int, TR::Block *, TR::CFG *cfg);
+      void computeMethodBranchProfileInfo2(TR_CallTarget *, TR::ResolvedMethodSymbol*, int, TR::Block *, TR::CFG *cfg);
    };
 }
 
