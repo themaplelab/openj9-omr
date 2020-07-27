@@ -2,12 +2,6 @@
 
 #define SINGLE_CHILD_BIT 1
 
-bool IDTNodePtrOrder::operator()(IDTNode *left, IDTNode *right)
-   {  
-   TR_ASSERT_FATAL(left && right, "Comparing against null");
-   return left->getCost() < right->getCost() || left->getBenefit() < right->getBenefit();
-   }
-
 IDTNode::IDTNode(
       int idx, 
       TR_CallTarget* callTarget,
@@ -70,7 +64,7 @@ IDTNode* IDTNode::addChild(
       if (onlyChild && onlyChild->isNodeSimilar(callSiteBci, symbol))
          return NULL;
       
-      _children = new (region) IDTNodeChildren(region);
+      _children = new (region) IDTNodeDeque(region);
       TR_ASSERT_FATAL(!((uintptr_t)_children & SINGLE_CHILD_BIT), "Maligned memory address.\n");
  
       _children->push_back(onlyChild);
@@ -199,6 +193,6 @@ IDTNode* IDTNode::getOnlyChild()
 void IDTNode::setOnlyChild(IDTNode* child)
    {
    TR_ASSERT_FATAL(!((uintptr_t)child & SINGLE_CHILD_BIT), "Maligned memory address.\n");
-   _children = (IDTNodeChildren*)((uintptr_t)child | SINGLE_CHILD_BIT);
+   _children = (IDTNodeDeque*)((uintptr_t)child | SINGLE_CHILD_BIT);
    }
 

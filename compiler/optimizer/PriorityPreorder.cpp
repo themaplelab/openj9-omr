@@ -1,7 +1,6 @@
 #include <vector>
 #include <queue>
 
-#include "compiler/optimizer/PriorityPreorder.hpp"
 #include "compiler/optimizer/IDT.hpp"
 #include "compiler/optimizer/IDTNode.hpp"
 #include "compiler/infra/Assert.hpp"
@@ -12,7 +11,7 @@
 PriorityPreorder::PriorityPreorder(IDT* root, TR::Compilation* comp) : 
     _entries(comp->region()),
     _root(root),
-    _queue(IDTNodePtrOrder(), IDTNodePtrVector(comp->region()))
+    _queue(IDTNodePtrOrder(), IDTNodeVector(comp->region()))
 {
   TR_ASSERT_FATAL(root->getRoot(), "root is null");
   this->_queue.push(root->getRoot());

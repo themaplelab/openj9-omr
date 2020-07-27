@@ -7,6 +7,7 @@
 #include "infra/deque.hpp"
 #include "env/Region.hpp"
 #include "il/symbol/ResolvedMethodSymbol.hpp"
+#include <queue>
 
 class IDT
    {
@@ -19,7 +20,7 @@ class IDT
    TR::Region& getMemoryRegion() { return _region; };
    
    unsigned int getNumNodes() { return _maxIdx + 1; };
-   void copyDescendants(IDTNode* fromNode, IDTNode*toNode);
+   void copyDescendants(IDTNode* fromNode, IDTNode* toNode);
    
    int getNextGlobalIDTNodeIndex() { return _maxIdx; };
    void increaseGlobalIDTNodeIndex()  { _maxIdx ++; };
@@ -34,5 +35,32 @@ class IDT
    int _maxIdx;
    IDTNode* _root;
    IDTNode** _indices;
+   };
+
+
+class IDTPreorderPriorityQueue
+   {
+   public:
+   IDTPreorderPriorityQueue(IDT* idt, TR::Region& region);
+   unsigned int size() { return _idt->getNumNodes(); }
+
+   IDTNode* get(unsigned int index);
+
+   private:
+
+   struct IDTNodeCompare {
+      bool operator()(IDTNode *left, IDTNode *right)
+         {
+         TR_ASSERT_FATAL(left && right, "Comparing against null");
+         return left->getCost() < right->getCost() || left->getBenefit() < right->getBenefit();
+         };
+   };
+
+   typedef TR::vector<IDTNode*, TR::Region&> IDTNodeVector;
+   typedef std::priority_queue<IDTNode*, IDTNodeVector, IDTNodeCompare> IDTNodePriorityQueue;
+   
+   IDT* _idt;
+   IDTNodePriorityQueue _pQueue;
+   IDTNodeVector _entries;
    };
 #endif

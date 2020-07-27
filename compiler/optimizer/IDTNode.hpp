@@ -10,20 +10,12 @@
 #include "infra/deque.hpp"
 #include "compile/Compilation.hpp"
 #include "compiler/ilgen/J9ByteCodeIterator.hpp"
+#include "optimizer/MethodSummary.hpp"
 #include <queue>
 
-class MethodSummary;
 class IDTNode;
 
 typedef TR::deque<IDTNode*, TR::Region&> IDTNodeDeque;
-typedef TR::vector<IDTNode*, TR::Region&> IDTNodePtrVector;
-
-typedef std::stack<IDTNode*, IDTNodeDeque> IDTNodeStack;
-struct IDTNodePtrOrder {
-   bool operator()(IDTNode *left, IDTNode *right);
-};
-typedef std::priority_queue<IDTNode*, IDTNodePtrVector, IDTNodePtrOrder> IDTNodePtrPriorityQueue;
-typedef TR::deque<IDTNode*, TR::Region&> IDTNodeChildren;
 
 class IDTNode
    {
@@ -91,7 +83,7 @@ class IDTNode
    int _idx;
    int _callSiteBci;
    
-   IDTNodeChildren* _children; // NULL if 0, (IDTNode* & 1) if 1, otherwise a deque*
+   IDTNodeDeque* _children; // NULL if 0, (IDTNode* & 1) if 1, otherwise a deque*
    unsigned int _staticBenefit;
    TR::ResolvedMethodSymbol* _symbol;
    int _budget;

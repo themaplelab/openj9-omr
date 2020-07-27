@@ -12,6 +12,6 @@ public:
   IDTNode* get(size_t);
 private:
   IDT* _root;
-  IDTNodePtrVector _entries;
-  IDTNodePtrPriorityQueue _queue;
+  IDTNodeVector _entries;
+  IDTNodePriorityQueue _queue;
 };

@@ -46,6 +46,8 @@ void IDTBuilder::setCFGBlockFrequency(TR_CallTarget* callTarget, bool isRoot, TR
       }
 
    cfg->setStartBlockFrequency();
+   // traceMsg(comp(), "our cfg");
+   // comp()->getDebug()->print(comp()->getOutFile(), cfg);
    }
 
 IDT* IDTBuilder::buildIDT()
@@ -187,7 +189,7 @@ void IDTBuilder::addChild(IDTNode*node, int callerIndex, TR_CallSite* callSite, 
          continue;
 
       setCFGBlockFrequency(callTarget, false, callStack, block, node->getCallTarget()->_cfg);
-
+      //printf("compute %s\n",callTarget->signature(comp()->trMemory()));
       float callRatio = computeCallRatio(block, node->getCallTarget()->_cfg);
 
       if (traceBIIDTGen)
@@ -224,6 +226,7 @@ void IDTBuilder::addChild(IDTNode*node, int callerIndex, TR_CallSite* callSite, 
 
 float IDTBuilder::computeCallRatio(TR::Block* block, TR::CFG* callerCfg)
    {
+   //printf("block %d, caller %d\n",block->getFrequency(),callerCfg->getStartBlockFrequency());
    return ((float)block->getFrequency() / (float) callerCfg->getStartBlockFrequency());  
    }
 

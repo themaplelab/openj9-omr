@@ -12,7 +12,6 @@
 #include "optimizer/BenefitInliner.hpp"
 #include "optimizer/MethodSummary.hpp"
 #include "optimizer/J9EstimateCodeSize.hpp"
-#include "optimizer/PriorityPreorder.hpp"
 #include "optimizer/InlinerPacking.hpp"
 #include "optimizer/InliningProposal.hpp"
 #include "optimizer/IDTBuilder.hpp"
@@ -352,7 +351,7 @@ OMR::BenefitInliner::analyzeIDT()
    {
       if (this->_idt->getNumNodes() == 1) return; // No Need to analyze, since there is nothing to inline.
       _idt->buildIndices();
-      PriorityPreorder items(this->_idt, this->comp());
+      IDTPreorderPriorityQueue items(_idt, comp()->trMemory()->currentStackRegion());
       // traceMsg(TR::comp(), "Inlining Proposal: \n");
       // traceMsg(TR::comp(), "size = %d, budget = %d\n", items.size(), this->budget());
       Growable2dArray results(this->comp(), items.size(), this->budget() + 1, this);
@@ -608,7 +607,7 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
          int frequency = comp()->convertNonDeterministicInput(callblock->getFrequency(), MAX_BLOCK_COUNT + MAX_COLD_BLOCK_COUNT, randomGenerator(), 0);
          bool isColdCall = callerCFG->isColdCall(callsite->_bcInfo, this);
 
-         bool isCold = (isColdCall &&  (frequency <= MAX_COLD_BLOCK_COUNT));
+         bool isCold = (isColdCall &&  (frequency < MAX_COLD_BLOCK_COUNT));
          if (!allowInliningColdCallSites && isCold)
             {
             if (comp()->getOption(TR_TraceBIIDTGen))
@@ -622,7 +621,7 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
             }
 
          
-         if (!allowInliningColdTargets && callblock->getFrequency() <= 6)
+         if (!allowInliningColdTargets && callblock->getFrequency() < 6)
             {
             if (comp()->getOption(TR_TraceBIIDTGen))
                 {

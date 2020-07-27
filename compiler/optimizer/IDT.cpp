@@ -155,3 +155,40 @@ void IDT::copyDescendants(IDTNode* fromNode, IDTNode* toNode)
       }
   
    }
+
+IDTPreorderPriorityQueue::IDTPreorderPriorityQueue(IDT* idt, TR::Region& region)  :
+      _entries(region),
+      _idt(idt),
+      _pQueue(IDTNodeCompare(), IDTNodeVector(region))
+   {
+   _pQueue.push(idt->getRoot());
+   }
+
+IDTNode* IDTPreorderPriorityQueue::get(unsigned int index)
+   {
+   size_t entriesSize = _entries.size();
+
+   if (entriesSize > index) //already in entries
+      return _entries.at(index);
+
+   unsigned int idtSize = size();
+
+   if (index > idtSize - 1)
+      return NULL;
+
+   //not in entries yet. Update entries.
+   for (unsigned int i = 0 ; i < index + 1 - entriesSize; i ++)
+      {
+      IDTNode* newEntry = _pQueue.top();
+      _pQueue.pop();
+
+      _entries.push_back(newEntry);
+
+      for (int i = 0 ; i < newEntry->getNumChildren(); i ++)
+         {
+         _pQueue.push(newEntry->getChild(i));
+         }
+      }
+
+   return _entries.at(index);
+   }
