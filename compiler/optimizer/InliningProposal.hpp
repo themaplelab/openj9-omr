@@ -19,15 +19,17 @@ class InliningProposal
    InliningProposal(InliningProposal&, TR::Region& region);
    void print(TR::Compilation *comp);
    bool isEmpty() const;
+
    void clear();
    int getCost();
    int getBenefit();
-   void pushBack(IDTNode *);
+   void addNode(IDTNode *);
    bool inSet(IDTNode* );
    bool inSet(int calleeIndex);
    void intersectInPlace(InliningProposal &, InliningProposal&);
    void unionInPlace(InliningProposal &, InliningProposal&);
    bool overlaps(InliningProposal *p);
+   bool intersects(InliningProposal* other);
 
    private:
    InliningProposal() = delete;
@@ -42,4 +44,20 @@ class InliningProposal
    IDT *_idt;
 };
 
+
+class InliningProposalTable
+   {
+   public:
+   InliningProposalTable(unsigned int rows, unsigned int cols, TR::Region& region);
+   InliningProposal* get(unsigned int row, unsigned int col);
+   void set(unsigned int row, unsigned int col, InliningProposal* proposal);
+   TR::Region& region() { return _region; };
+   InliningProposal* getEmptyProposal() { return new (region()) InliningProposal(region(), NULL); };
+   
+   private:
+   unsigned int _rows;
+   unsigned int _cols;
+   TR::Region& _region;
+   InliningProposal ***_table;
+   };
 #endif

@@ -15,7 +15,7 @@
 #include "optimizer/InlinerPacking.hpp"
 #include "optimizer/InliningProposal.hpp"
 #include "optimizer/IDTBuilder.hpp"
-
+#include "optimizer/IDT.hpp"
 
 
 int32_t OMR::BenefitInlinerWrapper::perform()
@@ -42,9 +42,12 @@ int32_t OMR::BenefitInlinerWrapper::perform()
    
     int recursiveCost = inliner._idt->getRoot()->getRecursiveCost();
     bool canSkipAbstractInterpretation = recursiveCost < budget;
+
+   
+
     if (!canSkipAbstractInterpretation) {
      
-      inliner.analyzeIDT();
+       inliner.inlinerPacking();
    } else {
       inliner.addEverything();
    }
@@ -78,7 +81,7 @@ void
 OMR::BenefitInliner::addEverythingRecursively(IDTNode *node)
    {
    TR_ASSERT(_inliningProposal, "we don't have an inlining proposal\n");
-   _inliningProposal->pushBack(node);
+   _inliningProposal->addNode(node);
    int children = node->getNumChildren();
    for (int i = 0; i < children; i++)
       {
@@ -207,157 +210,59 @@ OMR::BenefitInlinerBase::usedSavedInformation(TR::ResolvedMethodSymbol *rms, TR_
     return inlined;
 }
 
-void
-OMR::BenefitInlinerBase::getSymbolAndFindInlineTargets(TR_CallStack *callStack, TR_CallSite *callsite, bool findNewTargets)
+void OMR::BenefitInliner::inlinerPacking()
    {
-   TR_InlinerDelimiter delimiter(tracer(),"getSymbolAndFindInlineTargets");
+   _idt->buildIndices();
 
-   TR::Node *callNode = callsite->_callNode;
-   TR::TreeTop *callNodeTreeTop  = callsite->_callNodeTreeTop;
+   unsigned int idtSize = _idt->getNumNodes();
+   unsigned int budget = _budget;
 
-   TR::SymbolReference * symRef = callNode->getSymbolReference();
-   TR_InlinerFailureReason isInlineable = InlineableTarget;
+   //initialize InliningProposal Table (idtSize x budget)
+   InliningProposalTable table(idtSize, budget + 1, comp()->trMemory()->currentStackRegion());
 
-
-   if (callsite->_initialCalleeSymbol)
+   IDTPreorderPriorityQueue preorderPQueue(_idt, comp()->trMemory()->currentStackRegion()); 
+   for (unsigned int row = 0; row < idtSize; row ++)
       {
-      callsite->_initialCalleeMethod = callsite->_initialCalleeSymbol->getResolvedMethod();
-      //this heuristic is not available during IDT construction so, it shouldn't be available here either...
-      //if (getPolicy()->supressInliningRecognizedInitialCallee(callsite, comp()))
-      //   isInlineable = Recognized_Callee;
-
-      if (isInlineable != InlineableTarget)
+      for (unsigned int col = 1; col < budget + 1; col ++)
          {
-         tracer()->insertCounter(isInlineable, callNodeTreeTop);
-         callsite->_failureReason=isInlineable;
-         callsite->removeAllTargets(tracer(),isInlineable);
-         traceMsg(comp(), "not inlineable target 1\n");
-         return;
-         }
+         InliningProposal currentSet(comp()->trMemory()->currentStackRegion(), _idt); // []
+         IDTNode* currentNode = preorderPQueue.get(row); 
+         
+         currentSet.addNode(currentNode); //[ currentNode ]
+         
+         int offsetRow = row - 1;
 
-      if (comp()->fe()->isInlineableNativeMethod(comp(), callsite->_initialCalleeSymbol))
-         {
-         TR_VirtualGuardSelection *guard = new (trHeapMemory()) TR_VirtualGuardSelection(TR_NoGuard);
-         callsite->addTarget(trMemory(),this ,guard ,callsite->_initialCalleeSymbol->getResolvedMethod(),callsite->_receiverClass, heapAlloc);
-         }
-      }
-   else if ((isInlineable = static_cast<TR_InlinerFailureReason> (checkInlineableWithoutInitialCalleeSymbol (callsite, comp()))) != InlineableTarget)
-      {
-      tracer()->insertCounter(isInlineable, callNodeTreeTop);
-      callsite->_failureReason=isInlineable;
-      callsite->removeAllTargets(tracer(),isInlineable);
-      traceMsg(comp(), "not inlineable target\n");
-      return;
-      }
+         while (!currentNode->isRoot() 
+            && !table.get(offsetRow, col-currentSet.getCost())->inSet(currentNode->getParent()))
+            {
+            currentSet.addNode(currentNode->getParent());
+            currentNode = currentNode->getParent();
+            }
 
-   if (callsite->_initialCalleeSymbol && callsite->_initialCalleeSymbol->firstArgumentIsReceiver())
-      {
-      if (callsite->_isIndirectCall && !callsite->_receiverClass)
-         {
-         if (callsite->_initialCalleeMethod)
-            callsite->_receiverClass = callsite->_initialCalleeMethod->classOfMethod();
+         while ( currentSet.intersects(table.get(offsetRow, col - currentSet.getCost()))
+            || ( !(currentNode->getParent() && table.get(offsetRow, col - currentSet.getCost())->inSet(currentNode->getParent()) )
+                  && !table.get(offsetRow, col - currentSet.getCost())->isEmpty() 
+                  ))
+            {
+            offsetRow--;
+            }
 
-         int32_t len;
-         const char * s = callNode->getChild(callNode->getFirstArgumentIndex())->getTypeSignature(len);
-         TR_OpaqueClassBlock * type = s ? fe()->getClassFromSignature(s, len, callsite->_callerResolvedMethod, true) : 0;
-         if (type && (!callsite->_receiverClass || (type != callsite->_receiverClass && fe()->isInstanceOf(type, callsite->_receiverClass, true, true) == TR_yes)))
-            callsite->_receiverClass = type;
+         InliningProposal* newProposal = new (comp()->trMemory()->currentStackRegion()) InliningProposal(comp()->trMemory()->currentStackRegion(), _idt);
+         newProposal->unionInPlace(*table.get(offsetRow, col - currentSet.getCost()), currentSet);
+
+         if (newProposal->getCost() <= col && newProposal->getBenefit() > table.get(row-1, col)->getBenefit()) //only set the new proposal if it fits the budget and has more benefits
+            table.set(row, col, newProposal);
+         else
+            table.set(row, col, table.get(row-1, col));
          }
       }
+   
+   InliningProposal* result = new (_cfgRegion) InliningProposal(_cfgRegion, _idt);
+   result->unionInPlace(*result, *table.get(idtSize-1, budget));
+   traceMsg(comp(), "inliner packing\n");
+   result->print(comp());
 
-   if(tracer()->debugLevel())
-      tracer()->dumpCallSite(callsite, "CallSite Before finding call Targets");
-
-   //////////
-
-   if (findNewTargets)
-      {
-      callsite->findCallSiteTarget(callStack, this);
-      applyPolicyToTargets(callStack, callsite);
-      }
-
-   if(tracer()->debugLevel())
-      tracer()->dumpCallSite(callsite, "CallSite after finding call Targets");
-
-   for (int32_t i=0; i<callsite->numTargets(); i++)
-      {
-      TR_CallTarget *target = callsite->getTarget(i);
-      if (!target->_calleeSymbol || !target->_calleeMethod->isSameMethod(target->_calleeSymbol->getResolvedMethod()))
-         {
-         target->_calleeMethod->setOwningMethod(callsite->_callNode->getSymbolReference()->getOwningMethodSymbol(comp())->getResolvedMethod()); //need to point to the owning method to the same one that got ilgen'd d157939
-
-         target->_calleeSymbol = comp()->getSymRefTab()->findOrCreateMethodSymbol(
-               symRef->getOwningMethodIndex(), -1, target->_calleeMethod, TR::MethodSymbol::Virtual /* will be target->_calleeMethodKind */)->getSymbol()->castToResolvedMethodSymbol();
-         }
-
-      TR_InlinerFailureReason checkInlineableTarget = getPolicy()->checkIfTargetInlineable(target, callsite, comp());
-
-      if (checkInlineableTarget != InlineableTarget)
-         {
-         tracer()->insertCounter(checkInlineableTarget,callsite->_callNodeTreeTop);
-         callsite->removecalltarget(i,tracer(),checkInlineableTarget);
-         i--;
-         continue;
-         }
-
-      TR::RecognizedMethod rm = target->_calleeSymbol ? target->_calleeSymbol->getRecognizedMethod() : target->_calleeMethod->getRecognizedMethod();
-      if (rm != TR::unknownMethod && !inlineRecognizedMethod(rm))
-         {
-         tracer()->insertCounter(Recognized_Callee,callNodeTreeTop);
-         callsite->removecalltarget(i,tracer(),Recognized_Callee);
-         i--;
-         continue;
-         }
-
-      getUtil()->collectCalleeMethodClassInfo(target->_calleeMethod);
-      }
-
-   if(callsite->numTargets())    //if we still have targets at this point we can return true as we would have in the loop
-      return;
-
-/*
-   if ( getUtil()->getCallCount(callNode) > 0)
-      {
-      if (callsite->isInterface())
-         TR::Options::INLINE_failedToDevirtualize ++;
-      else
-         TR::Options::INLINE_failedToDevirtualizeInterface ++;
-      }
-*/
-
-   if (callsite->numTargets()>0 && callsite->getTarget(0) && !callsite->getTarget(0)->_calleeMethod && comp()->trace(OMR::inlining))
-      {
-      traceMsg(comp(), "inliner: method is unresolved: %s into %s\n", callsite->_interfaceMethod->signature(trMemory()), tracer()->traceSignature(callStack->_methodSymbol));
-      callsite->_failureReason=Unresolved_Callee;
-      }
-
-   callsite->removeAllTargets(tracer(),Unresolved_Callee);
-   traceMsg(comp(), "unresolved callee\n");
-   callsite->_failureReason=No_Inlineable_Targets;
-   return;
-   }
-/*
-bool
-OMR::BenefitInlinerBase::inlineCallTarget(TR_CallStack *callStack, TR_CallTarget *calltarget, bool inlinefromgraph, TR_PrexArgInfo *argInfo, TR::TreeTop** cursorTreeTop)
-{
-   return false;
-}
-*/
-
-
-
-void
-OMR::BenefitInliner::analyzeIDT()
-   {
-      if (this->_idt->getNumNodes() == 1) return; // No Need to analyze, since there is nothing to inline.
-      _idt->buildIndices();
-      IDTPreorderPriorityQueue items(_idt, comp()->trMemory()->currentStackRegion());
-      // traceMsg(TR::comp(), "Inlining Proposal: \n");
-      // traceMsg(TR::comp(), "size = %d, budget = %d\n", items.size(), this->budget());
-      Growable2dArray results(this->comp(), items.size(), this->budget() + 1, this);
-      TR_ASSERT_FATAL(_idt, "IDT NULL");
-      _inliningProposal = forwards_BitVectorImpl(this->budget(), items, &results, this->comp(), this, this->_idt);
-      _inliningProposal->print(comp());
+   _inliningProposal = result;
    }
 
 int32_t

@@ -72,7 +72,7 @@ IDT* IDTBuilder::buildIDT()
    
    IDTNode* root = _idt->getRoot();
 
-   //generate the CFG for root call target and 
+   //generate the CFG for root call target 
    TR::CFG* cfg = generateFlowGraph(rootCallTarget, region());
 
    if (!cfg) //Fail to generate a CFG
@@ -160,12 +160,21 @@ void IDTBuilder::addChild(IDTNode*node, int callerIndex, TR_CallSite* callSite, 
    bool traceBIIDTGen = comp()->getOption(TR_TraceBIIDTGen);
 
    if (callSite == NULL)
+      {
+      if (traceBIIDTGen)
+         traceMsg(comp(), "Do not have a call site. Don't add\n");
       return;
+      }
       
    getInliner()->applyPolicyToTargets(callStack, callSite, block, node->getCallTarget()->_cfg); // eliminate call targets that are not inlinable thus they won't be added to IDT 
 
    if (callSite->numTargets() == 0) 
+      {
+      if (traceBIIDTGen)
+         traceMsg(comp(), "Do not have a call target. Don't add\n");
       return;
+      }
+      
       
    for (int i = 0 ; i < callSite->numTargets(); i++)
       {
@@ -173,12 +182,22 @@ void IDTBuilder::addChild(IDTNode*node, int callerIndex, TR_CallSite* callSite, 
 
       int remainingBudget = node->getBudget() - callTarget->_calleeMethod->maxBytecodeIndex();
       if (remainingBudget < 0 ) // no budget remains, stop building IDT.
+         {
+         if (traceBIIDTGen)
+            traceMsg(comp(), "No budget left. Don't add\n");
          continue;
+         }
+         
          
 
       bool isRecursiveCall = callStack->isAnywhereOnTheStack(callTarget->_calleeMethod, 1);
       if (isRecursiveCall) //Stop for recursive call
+         {
+         if (traceBIIDTGen)
+            traceMsg(comp(), "Recursive call. Don't add\n");  
          continue;
+         }
+         
       
       TR::ResolvedMethodSymbol * calleeMethodSymbol = TR::ResolvedMethodSymbol::create(comp()->trHeapMemory(), callTarget->_calleeMethod, comp());
 
@@ -186,7 +205,12 @@ void IDTBuilder::addChild(IDTNode*node, int callerIndex, TR_CallSite* callSite, 
       TR::CFG* cfg = generateFlowGraph(callTarget, region(), callStack);
 
       if (!cfg)
+         {
+         if (traceBIIDTGen)
+            traceMsg(comp(), "Fail to generate a CFG. Don't add\n");  
          continue;
+         }
+         
 
       setCFGBlockFrequency(callTarget, false, callStack, block, node->getCallTarget()->_cfg);
       //printf("compute %s\n",callTarget->signature(comp()->trMemory()));

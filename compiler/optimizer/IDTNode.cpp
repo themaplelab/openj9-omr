@@ -36,6 +36,8 @@ IDTNode* IDTNode::addChild(
    if (_rootCallRatio * callRatio * 100 < 25) // do not add to the IDT if this node's root call ratio is less than 0.25
       return NULL;
 
+   TR_ASSERT_FATAL(callTarget->_calleeMethod, "Callee method NULL");
+
    int budget =  getBudget() - callTarget->_calleeMethod->maxBytecodeIndex();
    
    if (budget < 0)

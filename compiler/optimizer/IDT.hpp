@@ -52,7 +52,7 @@ class IDTPreorderPriorityQueue
       bool operator()(IDTNode *left, IDTNode *right)
          {
          TR_ASSERT_FATAL(left && right, "Comparing against null");
-         return left->getCost() < right->getCost() || left->getBenefit() < right->getBenefit();
+         return left->getBenefit() < right->getBenefit() || left->getCost() < right->getCost();
          };
    };
 

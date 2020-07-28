@@ -42,7 +42,7 @@ class BenefitInlinerUtil;
 class BenefitInlinerBase: public TR_InlinerBase 
    {
    protected:
-      void getSymbolAndFindInlineTargets(TR_CallStack *callStack, TR_CallSite *callsite, bool findNewTargets=true);
+      
       virtual inline void updateBenefitInliner();
       virtual inline void popBenefitInlinerInformation();
       virtual bool analyzeCallSite(TR_CallStack *, TR::TreeTop *, TR::Node *, TR::Node *, TR_CallTarget*);
@@ -81,8 +81,8 @@ class BenefitInliner: public BenefitInlinerBase
       void buildIDT();
       
       BenefitInliner(TR::Optimizer *, TR::Optimization *, uint32_t);
+      void inlinerPacking();
       
-      void analyzeIDT();
       
       TR::Region _holdingProposalRegion;
       inline const uint32_t budget() const { return this->_budget; }

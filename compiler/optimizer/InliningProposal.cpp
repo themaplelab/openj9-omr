@@ -40,7 +40,7 @@ void InliningProposal::print(TR::Compilation* comp)
 
    int32_t numMethodsInlined =  _nodes->elementCount()-1;
   
-   TR_ASSERT_FATAL(_idt, "IDT is NULL");
+   TR_ASSERT_FATAL(_idt, "Must have an IDT");
 
    char header[1024];
    sprintf(header,"#Proposal: %d methods inlined into %s", numMethodsInlined, _idt->getRoot()->getName());
@@ -96,7 +96,7 @@ void InliningProposal::print(TR::Compilation* comp)
 }
 
 
-void InliningProposal::pushBack(IDTNode *node)
+void InliningProposal::addNode(IDTNode *node)
    {
    ensureBitVectorInitialized();
 
@@ -138,7 +138,10 @@ int InliningProposal::getBenefit()
    }
 
 void InliningProposal::computeCostAndBenefit()
-   {   
+   {  
+   if (!_idt)
+      return;
+
    this->_cost = 0;
    this->_benefit = 0;
    TR_BitVectorIterator bvi(*this->_nodes);
@@ -219,15 +222,61 @@ void InliningProposal::unionInPlace(InliningProposal &a, InliningProposal &b)
 
 bool InliningProposal::overlaps(InliningProposal *p)
    {
-   if (!_nodes)
+   if (!_nodes || !p->_nodes)
       return false;
+
    TR_BitVectorIterator bvi(*p->_nodes);
    int32_t igNodeIndex;
    while (bvi.hasMoreElements())
       {
       igNodeIndex = bvi.getNextElement();
-      if (!this->_nodes->isSet(igNodeIndex)) return false;
+      if (!this->_nodes->isSet(igNodeIndex))
+         return false;
       }
 
    return true;
+   }
+
+bool InliningProposal::intersects(InliningProposal* other)
+   {
+   if (!_nodes || !other->_nodes)
+      return false;
+   
+   return _nodes->intersects(*other->_nodes);
+   }
+
+
+InliningProposalTable::InliningProposalTable(unsigned int rows, unsigned int cols, TR::Region& region) :
+      _rows(rows),
+      _cols(cols),
+      _region(region)
+   {
+   _table = new (region) InliningProposal**[rows];
+
+   for (int i = 0; i < rows; i ++)
+      {
+      _table[i] = new (region) InliningProposal*[cols];
+      memset(_table[i], 0, sizeof(InliningProposal*)*cols);
+      }
+   }
+
+InliningProposal* InliningProposalTable::get(unsigned int row, unsigned int col)
+   {
+   InliningProposal* proposal = NULL;
+
+   if (row <0 || col <0 || row >= _rows || col >= _cols)
+      proposal = getEmptyProposal();
+   else
+      proposal = _table[row][col] ? _table[row][col] : getEmptyProposal();
+
+   return proposal;
+   }
+
+void InliningProposalTable::set(unsigned int row, unsigned int col, InliningProposal* proposal)
+   {
+   TR_ASSERT_FATAL(proposal, "proposal is NULL");
+   TR_ASSERT_FATAL(row >=0 && row < _rows, "Invalid row index" );
+   TR_ASSERT_FATAL(col >= 0 && col < _cols, "Invalid col index" );
+
+   _table[row][col] = proposal; 
    }

@@ -89,9 +89,10 @@ void IDT::buildIndices()
       return;
 
    //initialize nodes index array
-   unsigned int numNodes = getNumNodes()+1;
+   unsigned int numNodes = getNumNodes();
    _indices = new (_region) IDTNode *[numNodes];
-   memset(_indices,0,sizeof(IDTNode*) * numNodes);
+
+   memset(_indices, 0, sizeof(IDTNode*) * numNodes);
 
    //add all the descendents of the root node to the indices array
    IDTNodeDeque idtNodeQueue(comp()->trMemory()->currentStackRegion());
@@ -107,7 +108,7 @@ void IDT::buildIndices()
 
       _indices[calleeIndex + 1] = currentNode;
 
-      for (unsigned int i = 0;i < currentNode->getNumChildren(); i ++)
+      for (unsigned int i = 0; i < currentNode->getNumChildren(); i ++)
          {
          idtNodeQueue.push_back(currentNode->getChild(i));
          }

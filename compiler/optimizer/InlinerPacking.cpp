@@ -20,14 +20,14 @@ forwards_BitVectorImpl(const int cost_budget, IDTPreorderPriorityQueue& items, G
       TR_ASSERT(curr_item->getCallTarget()->_calleeSymbol->getFlowGraph(), "we have a cfg");
       //TODO: encapsulate this in a clear method.
       curr_set.intersectInPlace(*table->_get(-1, -1), *table->_get(-1, -1));
-      curr_set.pushBack(curr_item);
+      curr_set.addNode(curr_item);
       int offset_row = row - 1;
       int offset_col = budget - curr_set.getCost();
       prev_best = table->_get(offset_row, offset_col);
 
       while( !curr_item->isRoot() && !prev_best->inSet(curr_item->getParent())) {
 
-        curr_set.pushBack(curr_item->getParent());
+        curr_set.addNode(curr_item->getParent());
         curr_item = curr_item->getParent();
         offset_col = budget - curr_set.getCost();
         prev_best = table->_get(offset_row, offset_col);
