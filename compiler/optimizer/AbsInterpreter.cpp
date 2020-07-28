@@ -375,7 +375,7 @@ void AbsInterpreter::transferAbsStates(TR::Block* block)
       }
       
    if (traceAbstractInterpretion)
-      traceMsg(comp(), "No predecessor is interpreted. Stop.");
+      traceMsg(comp(), "No predecessor is interpreted. Stop.\n");
    }
 
 

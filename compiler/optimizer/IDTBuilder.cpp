@@ -59,6 +59,7 @@ IDT* IDTBuilder::buildIDT()
    
    //root call target
    TR_ResolvedMethod* rootMethod = _rootSymbol->getResolvedMethod();
+
    TR_CallTarget *rootCallTarget = new (region()) TR_CallTarget(
                                     NULL,
                                     _rootSymbol, 

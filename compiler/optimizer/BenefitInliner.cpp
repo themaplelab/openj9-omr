@@ -12,7 +12,6 @@
 #include "optimizer/BenefitInliner.hpp"
 #include "optimizer/MethodSummary.hpp"
 #include "optimizer/J9EstimateCodeSize.hpp"
-#include "optimizer/InlinerPacking.hpp"
 #include "optimizer/InliningProposal.hpp"
 #include "optimizer/IDTBuilder.hpp"
 #include "optimizer/IDT.hpp"

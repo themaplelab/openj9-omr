@@ -49,7 +49,7 @@ class BenefitInlinerBase: public TR_InlinerBase
       BenefitInlinerBase(TR::Optimizer *optimizer, TR::Optimization *optimization);
       TR::Region _cfgRegion;
    public:
-   int level = 0;
+      int level = 0;
       virtual bool supportsMultipleTargetInlining () { return false; }
       virtual void applyPolicyToTargets(TR_CallStack *, TR_CallSite *, TR::Block *block=NULL, TR::CFG* callerCFG=NULL);
       int _callerIndex;
