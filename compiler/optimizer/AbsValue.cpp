@@ -66,9 +66,13 @@ void AbsValue::merge(AbsValue *other, TR::ValuePropagation *vp)
 void AbsValue::print(TR::ValuePropagation *vp)    
    {
    traceMsg(TR::comp(), "AbsValue: type: %s ", TR::DataType::getName(_dataType));
-   if (isTOP())
+   if (isDummy())
       {
-      traceMsg(TR::comp(), "TOP");
+      traceMsg(TR::comp(), "DUMMY");
+      }
+   else if (isTOP())
+      {
+      traceMsg(TR::comp(), "TOP");  
       }
    else 
       {

@@ -21,7 +21,7 @@ void AbsState::merge(AbsState* other, TR::ValuePropagation *vp)
 
 void AbsState::trace(TR::ValuePropagation *vp)
    {
-   traceMsg(TR::comp(), "\n Contents of AbsState \n");
+   traceMsg(TR::comp(), "\nContents of AbsState \n");
    _array.trace(vp);
    _stack.trace(vp);
    }

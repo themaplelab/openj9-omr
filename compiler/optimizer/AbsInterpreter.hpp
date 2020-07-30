@@ -18,20 +18,26 @@ class AbsInterpreter
       TR::Region& region, 
       TR::Compilation* comp);
 
-   // invokeState is parent method's AbsState at the time the current method is invoked.
    void interpret();
 
-  
-   static void setCFGBlockFrequency(TR::CFG* cfg, bool isRoot, TR::Compilation* comp);
 
    private:
    TR::Compilation* comp() {  return _comp; };
    TR::Region& region() {  return _region;  };
    TR::ValuePropagation *vp();
 
-   AbsValue* getClassAbsValue(TR_OpaqueClassBlock* opaqueClass, TR::VPClassPresence *presence = NULL, TR::VPArrayInfo *info = NULL);
-   AbsValue* getTOPAbsValue(TR::DataType dataType);
-   AbsValue* getDummyAbsValue();
+   AbsValue* createClassAbsValue(TR_OpaqueClassBlock* opaqueClass, TR::VPClassPresence *presence = NULL, TR::VPArrayInfo *info = NULL);
+
+   AbsValue* createNullObjectAbsValue() { return new (region()) AbsValue(TR::VPNullObject::create(vp()), TR::Address); };
+
+   AbsValue* createIntConstAbsValue(int32_t value) { return new (region()) AbsValue(TR::VPIntConst::create(vp(), value), TR::Int32); };
+   AbsValue* createIntRangeAbsValue(int32_t low, int32_t high) { return new (region()) AbsValue(TR::VPIntRange::create(vp(), low, high), TR::Int32); };
+
+   AbsValue* createLongConstAbsValue(int64_t value) { return new (region()) AbsValue(TR::VPLongConst::create(vp(), value), TR::Int64); };
+   AbsValue* createLongRangeAbsValue(int64_t low, int64_t high) { return new (region()) AbsValue(TR::VPLongRange::create(vp(), low, high), TR::Int64); };
+
+   AbsValue* createTOPAbsValue(TR::DataType dataType) { return new (region()) AbsValue(NULL, dataType); };
+   AbsValue* createDummyAbsValue(TR::DataType dataType) { return new (region()) AbsValue(NULL, dataType, true); };
 
    AbsState* initializeAbsState(TR::ResolvedMethodSymbol* symbol);
 
@@ -45,15 +51,6 @@ class AbsInterpreter
    void interpretByteCode(AbsState* absState, TR_J9ByteCode bc, TR_J9ByteCodeIterator&, TR::Block* block);
 
    TR::SymbolReference* getSymbolReference(TR::ResolvedMethodSymbol *callerSymbol, int cpIndex, TR::MethodSymbol::Kinds kind);
-
-   TR_CallSite* findCallSiteTargets(
-      TR_ResolvedMethod *caller, 
-      int bcIndex, 
-      int cpIndex, 
-      TR::MethodSymbol::Kinds kind, 
-      int callerIndex, 
-      TR_CallStack* callStack,
-      TR::Block* block);
 
    TR_CallSite* getCallSite(
       TR::MethodSymbol::Kinds kind,
@@ -69,10 +66,21 @@ class AbsInterpreter
       TR::ResolvedMethodSymbol * initialCalleeSymbol,
       bool isIndirectCall,
       bool isInterface,
-      TR_ByteCodeInfo & bcInfo,
+      TR_ByteCodeInfo& bcInfo,
       int32_t depth=-1,
       bool allConsts=false,
       TR::SymbolReference *symRef=NULL);
+      
+   TR_CallSite* findCallSiteTargets(
+      TR_ResolvedMethod *caller, 
+      int bcIndex, 
+      int cpIndex, 
+      TR::MethodSymbol::Kinds kind, 
+      int callerIndex, 
+      TR_CallStack* callStack,
+      TR::Block* block);
+
+   
       
    //For interpreting bytecode and updating AbsState
    AbsState* aaload(AbsState*);
@@ -269,8 +277,8 @@ class AbsInterpreter
 // AbsState* nop(AbsState*);
 // AbsState* pop(AbsState*);
    AbsState* pop2(AbsState*);
-   AbsState* putfield(AbsState*);
-   AbsState* putstatic(AbsState*);
+   AbsState* putfield(AbsState*, int, TR_ResolvedMethod*);
+   AbsState* putstatic(AbsState*, int, TR_ResolvedMethod*);
 // AbsState* ret(AbsState*);
 // AbsState* return(AbsState*);
    AbsState* saload(AbsState*);

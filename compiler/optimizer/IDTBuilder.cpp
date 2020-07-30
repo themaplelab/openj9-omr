@@ -79,7 +79,9 @@ IDT* IDTBuilder::buildIDT()
    if (!cfg) //Fail to generate a CFG
       return _idt;
 
-   setCFGBlockFrequency(rootCallTarget, true);
+   cfg->setFrequencies();
+   cfg->setStartBlockFrequency();
+   //setCFGBlockFrequency(rootCallTarget, true);
    
    //add the decendants
    buildIDTHelper(root, NULL, -1, _rootBudget, NULL);
@@ -92,18 +94,16 @@ IDT* IDTBuilder::buildIDT()
 
 void IDTBuilder::buildIDTHelper(IDTNode* node, AbsParameterArray* parameterArray, int callerIndex, int32_t budget, TR_CallStack* callStack)
    {
-
    TR::ResolvedMethodSymbol* symbol = node->getResolvedMethodSymbol();
    TR_ResolvedMethod* method = symbol->getResolvedMethod();
    
-
    bool traceBIIDTGen = comp()->getOption(TR_TraceBIIDTGen);
 
    TR_CallStack* nextCallStack = new (region()) TR_CallStack(comp(), symbol, method, callStack, budget, true);
 
    IDTNode* interpretedMethodIDTNode = getInterpretedMethod(node->getResolvedMethodSymbol());
    
-   if (interpretedMethodIDTNode)
+   if (interpretedMethodIDTNode)//If this method has been already interpreted
       {
       node->setMethodSummary(interpretedMethodIDTNode->getMethodSummary()); //since they are the same method, they should have the same method summary. 
       int staticBenefit = computeStaticBenefitWithMethodSummary(node->getMethodSummary(), parameterArray);
@@ -163,11 +163,18 @@ void IDTBuilder::addChild(IDTNode*node, int callerIndex, TR_CallSite* callSite, 
    if (callSite == NULL)
       {
       if (traceBIIDTGen)
-         traceMsg(comp(), "Do not have a call site. Don't add\n");
+         traceMsg(comp(), "Do not have a callsite. Don't add\n");
       return;
       }
-      
-   getInliner()->applyPolicyToTargets(callStack, callSite, block, node->getCallTarget()->_cfg); // eliminate call targets that are not inlinable thus they won't be added to IDT 
+   
+   if (block->getFrequency() <= 0) 
+      {
+      if (traceBIIDTGen)
+         traceMsg(comp(), "Block frequency error. Don't add\n");
+      return;
+      }
+
+   getInliner()->applyPolicyToTargets(callStack, callSite); // eliminate call targets that are not inlinable thus they won't be added to IDT 
 
    if (callSite->numTargets() == 0) 
       {
@@ -180,7 +187,7 @@ void IDTBuilder::addChild(IDTNode*node, int callerIndex, TR_CallSite* callSite, 
    for (int i = 0 ; i < callSite->numTargets(); i++)
       {
       TR_CallTarget* callTarget = callSite->getTarget(0);
-
+      
       int remainingBudget = node->getBudget() - callTarget->_calleeMethod->maxBytecodeIndex();
       if (remainingBudget < 0 ) // no budget remains, stop building IDT.
          {
@@ -188,8 +195,6 @@ void IDTBuilder::addChild(IDTNode*node, int callerIndex, TR_CallSite* callSite, 
             traceMsg(comp(), "No budget left. Don't add\n");
          continue;
          }
-         
-         
 
       bool isRecursiveCall = callStack->isAnywhereOnTheStack(callTarget->_calleeMethod, 1);
       if (isRecursiveCall) //Stop for recursive call
@@ -212,8 +217,10 @@ void IDTBuilder::addChild(IDTNode*node, int callerIndex, TR_CallSite* callSite, 
          continue;
          }
          
+      cfg->setFrequencies();
+      cfg->setStartBlockFrequency();
 
-      setCFGBlockFrequency(callTarget, false, callStack, block, node->getCallTarget()->_cfg);
+      //setCFGBlockFrequency(callTarget, false, callStack, block, node->getCallTarget()->_cfg);
       //printf("compute %s\n",callTarget->signature(comp()->trMemory()));
       float callRatio = computeCallRatio(block, node->getCallTarget()->_cfg);
 
@@ -251,7 +258,6 @@ void IDTBuilder::addChild(IDTNode*node, int callerIndex, TR_CallSite* callSite, 
 
 float IDTBuilder::computeCallRatio(TR::Block* block, TR::CFG* callerCfg)
    {
-   //printf("block %d, caller %d\n",block->getFrequency(),callerCfg->getStartBlockFrequency());
    return ((float)block->getFrequency() / (float) callerCfg->getStartBlockFrequency());  
    }
 
@@ -266,8 +272,8 @@ int IDTBuilder::computeStaticBenefitWithMethodSummary(MethodSummary* methodSumma
 
    for (size_t i = 0; i < parameterArray->size(); i ++)
       {
-      AbsValue* value = parameterArray->at(i);
-      benefit += methodSummary->predicates(value->getConstraint(), i);
+      AbsValue* param = parameterArray->at(i);
+      benefit += methodSummary->predicates(param->getConstraint(), i);
       }
 
    return benefit;

@@ -302,7 +302,7 @@ OMR::BenefitInlinerWrapper::getBudget(TR::ResolvedMethodSymbol *resolvedMethodSy
 
 
 void
-OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSite *callsite, TR::Block *callblock, TR::CFG* callerCFG)
+OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSite *callsite)
    {
    if (!callsite->_initialCalleeSymbol)
      {
@@ -501,42 +501,7 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
             }
          }
 
-         //if we have the block and callerCFG
-         if (!callerCFG || !callblock)
-            continue;
-
-         bool allowInliningColdCallSites = false;
-         bool allowInliningColdTargets = false;
-        
-         int frequency = comp()->convertNonDeterministicInput(callblock->getFrequency(), MAX_BLOCK_COUNT + MAX_COLD_BLOCK_COUNT, randomGenerator(), 0);
-         bool isColdCall = callerCFG->isColdCall(callsite->_bcInfo, this);
-
-         bool isCold = (isColdCall &&  (frequency < MAX_COLD_BLOCK_COUNT));
-         if (!allowInliningColdCallSites && isCold)
-            {
-            if (comp()->getOption(TR_TraceBIIDTGen))
-                {
-                traceMsg(TR::comp(), "not considering %s cold call\n", calltarget->_calleeMethod->signature(this->comp()->trMemory()));
-                }
-            tracer()->insertCounter(DontInline_Callee,callsite->_callNodeTreeTop);
-            callsite->removecalltarget(i,tracer(),DontInline_Callee);
-            i--;
-            continue;
-            }
-
-         
-         if (!allowInliningColdTargets && callblock->getFrequency() < 6)
-            {
-            if (comp()->getOption(TR_TraceBIIDTGen))
-                {
-                traceMsg(TR::comp(), "not considering %s cold target\n", calltarget->_calleeMethod->signature(this->comp()->trMemory()));
-                }
-            callsite->removecalltarget(i,tracer(),DontInline_Callee);
-            i--;
-            continue;
-            }
       }
-   return;
    }
 
 OMR::BenefitInlinerUtil::BenefitInlinerUtil(TR::Compilation *c) : TR_J9InlinerUtil(c) {}

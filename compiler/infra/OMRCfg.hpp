@@ -169,11 +169,11 @@ class CFG
 
    virtual int getStartBlockFrequency();
    void setStartBlockFrequency();
-   virtual TR::Block *getCfgNodeWithByteCodeIndex(int bcIndex);
-   virtual int getBCInfoFrequency(TR_ByteCodeInfo &, TR_HasRandomGenerator *r);
-   virtual bool isColdCall(TR_ByteCodeInfo &, TR_HasRandomGenerator *r);
-   virtual bool isColdTarget(TR_ByteCodeInfo &, TR_CallTarget *, TR_HasRandomGenerator *r);
-   virtual bool isColdTarget(TR_ByteCodeInfo &, float, TR_HasRandomGenerator *r);
+   // virtual TR::Block *getCfgNodeWithByteCodeIndex(int bcIndex);
+   // virtual int getBCInfoFrequency(TR_ByteCodeInfo &, TR_HasRandomGenerator *r);
+   // virtual bool isColdCall(TR_ByteCodeInfo &, TR_HasRandomGenerator *r);
+   // virtual bool isColdTarget(TR_ByteCodeInfo &, TR_CallTarget *, TR_HasRandomGenerator *r);
+   // virtual bool isColdTarget(TR_ByteCodeInfo &, float, TR_HasRandomGenerator *r);
    //virtual void computeMethodBranchProfileInfo(BenefitInlinerUtil *util, TR_CallTarget*, TR::ResolvedMethodSymbol*, int, TR::Block*, TR::CFG* cfg);
 
    int32_t getNumberOfNodes() {return _nodes.getSize();}

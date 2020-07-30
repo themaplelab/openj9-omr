@@ -51,7 +51,7 @@ class BenefitInlinerBase: public TR_InlinerBase
    public:
       int level = 0;
       virtual bool supportsMultipleTargetInlining () { return false; }
-      virtual void applyPolicyToTargets(TR_CallStack *, TR_CallSite *, TR::Block *block=NULL, TR::CFG* callerCFG=NULL);
+      virtual void applyPolicyToTargets(TR_CallStack *, TR_CallSite *);
       int _callerIndex;
       int _nodes;
       //std::deque<int> inlinedNodes;
