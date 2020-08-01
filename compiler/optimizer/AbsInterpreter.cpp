@@ -53,7 +53,7 @@ void AbsInterpreter::interpret()
 
 //Get the AbsValue of a class object
 //Note: Do not use this for primitive type array
-AbsValue* AbsInterpreter::createClassAbsValue(TR_OpaqueClassBlock* opaqueClass, TR::VPClassPresence *presence, TR::VPArrayInfo *info)
+AbsValue* AbsInterpreter::createClassObjectAbsValue(TR_OpaqueClassBlock* opaqueClass, TR::VPClassPresence *presence, TR::VPArrayInfo *info)
    {
    TR::VPConstraint *classConstraint = NULL;  
 
@@ -97,7 +97,7 @@ AbsState* AbsInterpreter::initializeAbsState(TR::ResolvedMethodSymbol* symbol)
    if (hasImplicitParameter)
       {
       TR_OpaqueClassBlock *implicitParameterClass = resolvedMethod->containingClass();
-      AbsValue* value = createClassAbsValue(implicitParameterClass);
+      AbsValue* value = createClassObjectAbsValue(implicitParameterClass);
       value->setParamPosition(0);
       absState->set(0, value);
       }
@@ -185,7 +185,7 @@ AbsState* AbsInterpreter::initializeAbsState(TR::ResolvedMethodSymbol* symbol)
             }
          else 
             {
-            temp = createClassAbsValue(parameterClass);
+            temp = createClassObjectAbsValue(parameterClass);
             temp->setParamPosition(paramPos);
             absState->set(slot, temp);
             continue;
@@ -533,108 +533,11 @@ void AbsInterpreter::interpretByteCode(AbsState* state, TR_J9ByteCode bc, TR_J9B
    //printf("+Bytecode: %s | %d\n",J9_ByteCode_Strings[bc], bci.nextByte());
    switch(bc)
       {
-      //alphabetical order
-      case J9BCaaload: aaload(state); break;
-      case J9BCaastore: aastore(state); break;
+      case J9BCnop: nop(state); break;
+
       case J9BCaconstnull: aconstnull(state); break;
-      case J9BCaload: aload(state, bci.nextByte()); break;
-      case J9BCaload0: aload0(state); break;
-      case /* aload0getfield */ 215: aload0getfield(state); break;
-      case J9BCaload1: aload1(state); break;
-      case J9BCaload2: aload2(state); break;
-      case J9BCaload3: aload3(state); break;
-      case J9BCanewarray: anewarray(state, bci.next2Bytes(), bci.method()); break;
-      //case J9BCareturn:  state->pop(); break;
-      case J9BCarraylength: arraylength(state); break;
-      case J9BCastore: astore(state, bci.nextByte()); break;
-      case J9BCastore0: astore0(state); break;
-      case J9BCastore1: astore1(state); break;
-      case J9BCastore2: astore2(state); break;
-      case J9BCastore3: astore3(state); break;
-      case J9BCastorew: astore(state, bci.next2Bytes()); break; // WARN: internal bytecode
-      case J9BCathrow: athrow(state); break;
-      case J9BCbaload: baload(state); break;
-      case J9BCbastore: bastore(state); break;
-      case J9BCbipush: bipush(state, bci.nextByteSigned()); break;
-      case J9BCcaload : caload(state); break;
-      case J9BCcastore: castore(state); break;
-      case J9BCcheckcast: checkcast(state, bci.next2Bytes(), bci.currentByteCodeIndex(), bci.method()); break;
-      case J9BCd2f: d2f(state); break;
-      case J9BCd2i: d2i(state); break;
-      case J9BCd2l: d2l(state); break;
-      case J9BCdadd: dadd(state); break;
-      case J9BCdaload: daload(state); break;
-      case J9BCdastore: dastore(state); break;
-      case J9BCdcmpl: dcmpl(state); break;
-      case J9BCdcmpg: dcmpg(state); break;
-      case J9BCdconst0: dconst0(state); break;
-      case J9BCdconst1: dconst1(state); break;
-      case J9BCddiv: ddiv(state); break;
-      case J9BCdload: dload(state, bci.nextByte()); break;
-      case J9BCdload0: dload0(state); break;
-      case J9BCdload1: dload1(state); break;
-      case J9BCdload2: dload2(state); break;
-      case J9BCdload3: dload3(state); break;
-      case J9BCdmul: dmul(state); break;
-      case J9BCdneg: dneg(state); break;
-      case J9BCdrem: drem(state); break;
-      //case J9BCdreturn: state->pop(); state->pop(); break;
-      case J9BCdstore: dstore(state, bci.nextByte()); break;
-      case J9BCdstorew: dstore(state, bci.next2Bytes()); break; // WARN: internal bytecode
-      case J9BCdstore0: dstore0(state); break;
-      case J9BCdstore1: dstore1(state); break;
-      case J9BCdstore2: dstore2(state); break;
-      case J9BCdstore3: dstore3(state); break;
-      case J9BCdsub: dsub(state); break;
-      case J9BCdup: dup(state); break;
-      case J9BCdupx1: dupx1(state); break;
-      case J9BCdupx2: dupx2(state); break;
-      case J9BCdup2: dup2(state); break;
-      case J9BCdup2x1: dup2x1(state); break;
-      case J9BCdup2x2: dup2x2(state); break;
-      case J9BCf2d: f2d(state); break;
-      case J9BCf2i: f2i(state); break;
-      case J9BCf2l: f2l(state); break;
-      case J9BCfadd: fadd(state); break;
-      case J9BCfaload: faload(state); break;
-      case J9BCfastore: fastore(state); break;
-      case J9BCfcmpl: fcmpl(state); break;
-      case J9BCfcmpg: fcmpg(state); break;
-      case J9BCfconst0: fconst0(state); break;
-      case J9BCfconst1: fconst1(state); break;
-      case J9BCfconst2: fconst2(state); break;
-      case J9BCfdiv: fdiv(state); break;
-      case J9BCfload: fload(state, bci.nextByte()); break;
-      case J9BCfload0: fload0(state); break;
-      case J9BCfload1: fload1(state); break;
-      case J9BCfload2: fload2(state); break;
-      case J9BCfload3: fload3(state); break;
-      case J9BCfmul: fmul(state); break;
-      case J9BCfneg: fneg(state); break;
-      case J9BCfrem: frem(state); break;
-      //case J9BCfreturn: state->pop(); break;
-      case J9BCfstore: fstore(state, bci.nextByte()); break;
-      case J9BCfstorew: fstore(state, bci.next2Bytes()); break; // WARN: internal bytecode
-      case J9BCfstore0: fstore0(state); break;
-      case J9BCfstore1: fstore1(state); break;
-      case J9BCfstore2: fstore2(state); break;
-      case J9BCfstore3: fstore3(state); break;
-      case J9BCfsub: fsub(state); break;
-      case J9BCgenericReturn: state->getStackSize() != 0 ? state->pop() : 0; break; 
-      case J9BCgetfield: getfield(state, bci.next2Bytes(), bci.method()); break;
-      case J9BCgetstatic: getstatic(state, bci.next2Bytes(), bci.method()); break;
-      case J9BCgoto: _goto(state, bci.next2BytesSigned()); break;
-      case J9BCgotow: _gotow(state, bci.next4BytesSigned()); break;
-      case J9BCi2b: i2b(state); break;
-      case J9BCi2c: i2c(state); break;
-      case J9BCi2d: i2d(state); break;
-      case J9BCi2f: i2f(state); break;
-      case J9BCi2l: i2l(state); break;
-      case J9BCi2s: i2s(state); break;
-      case J9BCiadd: iadd(state); break;
-      case J9BCiaload: iaload(state); break;
-      case J9BCiand: iand(state); break;
-      case J9BCiastore: iastore(state); break;
+
+      //iconst_x
       case J9BCiconstm1: iconstm1(state); break;
       case J9BCiconst0: iconst0(state); break;
       case J9BCiconst1: iconst1(state); break;
@@ -642,136 +545,314 @@ void AbsInterpreter::interpretByteCode(AbsState* state, TR_J9ByteCode bc, TR_J9B
       case J9BCiconst3: iconst3(state); break;
       case J9BCiconst4: iconst4(state); break;
       case J9BCiconst5: iconst5(state); break;
+
+      //lconst_x
+      case J9BClconst0: lconst0(state); break;
+      case J9BClconst1: lconst1(state); break;
+
+      //fconst_x
+      case J9BCfconst0: fconst0(state); break;
+      case J9BCfconst1: fconst1(state); break;
+      case J9BCfconst2: fconst2(state); break;
+
+      //dconst_x
+      case J9BCdconst0: dconst0(state); break;
+      case J9BCdconst1: dconst1(state); break;
+
+      //x_push
+      case J9BCbipush: bipush(state, bci.nextByteSigned()); break;
+      case J9BCsipush: sipush(state, bci.next2BytesSigned()); break;
+
+      //ldc_x
+      case J9BCldc: ldc(state, bci.nextByte(), bci.method()); break;
+      case J9BCldcw: ldcw(state, bci.next2Bytes(), bci.method()); break;
+      case J9BCldc2lw: ldc(state, bci.next2Bytes(), bci.method()); break; //internal bytecode equivalent to ldc2_w
+      case J9BCldc2dw: ldc(state, bci.next2Bytes(), bci.method()); break; //internal bytecode equivalent to ldc2_w
+
+      //iload_x
+      case J9BCiload: iload(state, bci.nextByte()); break;
+      case J9BCiload0: iload0(state); break;
+      case J9BCiload1: iload1(state); break;
+      case J9BCiload2: iload2(state); break;
+      case J9BCiload3: iload3(state); break;
+      case J9BCiloadw: iload(state, bci.next2Bytes()); break;
+
+      //lload_x
+      case J9BClload: lload(state, bci.nextByte()); break;
+      case J9BClload0: lload0(state); break;
+      case J9BClload1: lload1(state); break;
+      case J9BClload2: lload2(state); break;
+      case J9BClload3: lload3(state); break;
+      case J9BClloadw: lload(state, bci.next2Bytes()); break;
+
+      //fload_x
+      case J9BCfload: fload(state, bci.nextByte()); break;
+      case J9BCfload0: fload0(state); break;
+      case J9BCfload1: fload1(state); break;
+      case J9BCfload2: fload2(state); break;
+      case J9BCfload3: fload3(state); break;
+      case J9BCfloadw: fload(state,bci.next2Bytes()); break;
+
+      //dload_x
+      case J9BCdload: dload(state, bci.nextByte()); break;
+      case J9BCdload0: dload0(state); break;
+      case J9BCdload1: dload1(state); break;
+      case J9BCdload2: dload2(state); break;
+      case J9BCdload3: dload3(state); break;
+      case J9BCdloadw: dload(state, bci.next2Bytes()); break;
+
+      //aload_x
+      case J9BCaload: aload(state, bci.nextByte()); break;
+      case J9BCaload0: aload0(state); break;
+      case J9BCaload1: aload1(state); break;
+      case J9BCaload2: aload2(state); break;
+      case J9BCaload3: aload3(state); break;
+      case J9BCaloadw: aload(state, bci.next2Bytes()); break;
+
+      //x_aload
+      case J9BCiaload: iaload(state); break;
+      case J9BClaload: laload(state); break;
+      case J9BCfaload: faload(state); break;
+      case J9BCaaload: aaload(state); break;
+      case J9BCdaload: daload(state); break;
+      case J9BCcaload: caload(state); break;
+      case J9BCsaload: saload(state); break;
+      case J9BCbaload: baload(state); break;
+
+      //istore_x
+      case J9BCistore: istore(state, bci.nextByte()); break;
+      case J9BCistore0: istore0(state); break;
+      case J9BCistore1: istore1(state); break;
+      case J9BCistore2: istore2(state); break;
+      case J9BCistore3: istore3(state); break;
+      case J9BCistorew: istore(state, bci.next2Bytes()); break;
+
+      //lstore_x
+      case J9BClstore: lstore(state, bci.nextByte()); break;
+      case J9BClstore0: lstore0(state); break;
+      case J9BClstore1: lstore1(state); break;
+      case J9BClstore2: lstore2(state); break;
+      case J9BClstore3: lstore3(state); break;
+      case J9BClstorew: lstorew(state, bci.next2Bytes()); break; 
+
+      //fstore_x
+      case J9BCfstore: fstore(state, bci.nextByte()); break;
+      case J9BCfstore0: fstore0(state); break;
+      case J9BCfstore1: fstore1(state); break;
+      case J9BCfstore2: fstore2(state); break;
+      case J9BCfstore3: fstore3(state); break;
+      case J9BCfstorew: fstore(state, bci.next2Bytes()); break; 
+      
+      //dstore_x
+      case J9BCdstore: dstore(state, bci.nextByte()); break;
+      case J9BCdstorew: dstore(state, bci.next2Bytes()); break; 
+      case J9BCdstore0: dstore0(state); break;
+      case J9BCdstore1: dstore1(state); break;
+      case J9BCdstore2: dstore2(state); break;
+      case J9BCdstore3: dstore3(state); break;
+
+      //astore_x
+      case J9BCastore: astore(state, bci.nextByte()); break;
+      case J9BCastore0: astore0(state); break;
+      case J9BCastore1: astore1(state); break;
+      case J9BCastore2: astore2(state); break;
+      case J9BCastore3: astore3(state); break;
+      case J9BCastorew: astore(state, bci.next2Bytes()); break;
+
+      //x_astore
+      case J9BCiastore: iastore(state); break;
+      case J9BCfastore: fastore(state); break;
+      case J9BCbastore: bastore(state); break;
+      case J9BCdastore: dastore(state); break;
+      case J9BClastore: lastore(state); break;
+      case J9BCsastore: sastore(state); break;
+      case J9BCcastore: castore(state); break;
+      case J9BCaastore: aastore(state); break;
+
+      //pop_x
+      case J9BCpop: pop(state); break;
+      case J9BCpop2: pop2(state); break;
+
+      //dup_x
+      case J9BCdup: dup(state); break;
+      case J9BCdupx1: dupx1(state); break;
+      case J9BCdupx2: dupx2(state); break;
+      case J9BCdup2: dup2(state); break;
+      case J9BCdup2x1: dup2x1(state); break;
+      case J9BCdup2x2: dup2x2(state); break;
+
+      case J9BCswap: swap(state); break;
+
+      //x_add
+      case J9BCiadd: iadd(state); break;
+      case J9BCdadd: dadd(state); break;
+      case J9BCfadd: fadd(state); break;
+      case J9BCladd: ladd(state); break;
+
+      //x_sub
+      case J9BCisub: isub(state); break;
+      case J9BCdsub: dsub(state); break;
+      case J9BCfsub: fsub(state); break;
+      case J9BClsub: lsub(state); break;
+
+      //x_mul
+      case J9BCimul: imul(state); break;
+      case J9BClmul: lmul(state); break;
+      case J9BCfmul: fmul(state); break;
+      case J9BCdmul: dmul(state); break;
+
+      //x_div
       case J9BCidiv: idiv(state); break;
-      case J9BCifacmpeq: ifacmpeq(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break; //TODO own function
-      case J9BCifacmpne: ifacmpne(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break; //TODO own function
-      case J9BCificmpeq: ificmpeq(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
-      case J9BCificmpge: ificmpge(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
-      case J9BCificmpgt: ificmpgt(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
-      case J9BCificmple: ificmple(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
-      case J9BCificmplt: ificmplt(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
-      case J9BCificmpne: ificmpne(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
+      case J9BCddiv: ddiv(state); break;
+      case J9BCfdiv: fdiv(state); break;
+      case J9BCldiv: ldiv(state); break;
+
+      //x_rem
+      case J9BCirem: irem(state); break;
+      case J9BCfrem: frem(state); break;
+      case J9BClrem: lrem(state); break;
+      case J9BCdrem: drem(state); break;
+
+      //x_neg
+      case J9BCineg: ineg(state); break;
+      case J9BCfneg: fneg(state); break;
+      case J9BClneg: lneg(state); break;
+      case J9BCdneg: dneg(state); break;
+
+      //x_sh_x
+      case J9BCishl: ishl(state); break;
+      case J9BCishr: ishr(state); break;
+      case J9BCiushr: iushr(state); break;
+      case J9BClshl: lshl(state); break;
+      case J9BClshr: lshr(state); break;
+      case J9BClushr: lushr(state); break;
+
+      //x_and
+      case J9BCiand: iand(state); break;
+      case J9BCland: land(state); break;
+
+      //x_or
+      case J9BCior: ior(state); break;
+      case J9BClor: lor(state); break;
+
+      //x_xor
+      case J9BCixor: ixor(state); break;
+      case J9BClxor: lxor(state); break;
+
+      //iinc_x
+      case J9BCiinc: iinc(state, bci.nextByte(), bci.nextByteSigned()); break;
+      case J9BCiincw: iinc(state, bci.next2Bytes(), bci.next2BytesSigned()); break;
+
+      //i2_x
+      case J9BCi2b: i2b(state); break;
+      case J9BCi2c: i2c(state); break;
+      case J9BCi2d: i2d(state); break;
+      case J9BCi2f: i2f(state); break;
+      case J9BCi2l: i2l(state); break;
+      case J9BCi2s: i2s(state); break;
+      
+      //l2_x
+      case J9BCl2d: l2d(state); break;
+      case J9BCl2f: l2f(state); break;
+      case J9BCl2i: l2i(state); break;
+
+      //d2_x
+      case J9BCd2f: d2f(state); break;
+      case J9BCd2i: d2i(state); break;
+      case J9BCd2l: d2l(state); break;
+
+      //f2_x
+      case J9BCf2d: f2d(state); break;
+      case J9BCf2i: f2i(state); break;
+      case J9BCf2l: f2l(state); break;
+
+      //x_cmp_x
+      case J9BCdcmpl: dcmpl(state); break;
+      case J9BCdcmpg: dcmpg(state); break;
+      case J9BCfcmpl: fcmpl(state); break;
+      case J9BCfcmpg: fcmpg(state); break;
+      case J9BClcmp: lcmp(state); break;
+
+      //if_x
       case J9BCifeq: ifeq(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
       case J9BCifge: ifge(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
       case J9BCifgt: ifgt(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
       case J9BCifle: ifle(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
       case J9BCiflt: iflt(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
       case J9BCifne: ifne(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
+
+      //if_x_null
       case J9BCifnonnull: ifnonnull(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
       case J9BCifnull: ifnull(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
-      case J9BCiinc: iinc(state, bci.nextByte(), bci.nextByteSigned(2)); break;
-      case J9BCiload: iload(state, bci.nextByte()); break;
-      case J9BCiload0: iload0(state); break;
-      case J9BCiload1: iload1(state); break;
-      case J9BCiload2: iload2(state); break;
-      case J9BCiload3: iload3(state); break;
-      case J9BCimul: imul(state); break;
-      case J9BCineg: ineg(state); break;
+
+      //ificmp_x
+      case J9BCificmpeq: ificmpeq(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
+      case J9BCificmpge: ificmpge(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
+      case J9BCificmpgt: ificmpgt(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
+      case J9BCificmple: ificmple(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
+      case J9BCificmplt: ificmplt(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
+      case J9BCificmpne: ificmpne(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
+
+      //ifacmp_x
+      case J9BCifacmpeq: ifacmpeq(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break; 
+      case J9BCifacmpne: ifacmpne(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break; 
+
+      //goto_x
+      case J9BCgoto: _goto(state, bci.next2BytesSigned()); break;
+      case J9BCgotow: _gotow(state, bci.next4BytesSigned()); break;
+
+      //x_switch
+      case J9BClookupswitch: lookupswitch(state); break;
+      case J9BCtableswitch: tableswitch(state); break;
+
+      //get_x
+      case J9BCgetfield: getfield(state, bci.next2Bytes(), bci.method()); break;
+      case J9BCgetstatic: getstatic(state, bci.next2Bytes(), bci.method()); break;
+
+      //put_x
+      case J9BCputfield: putfield(state, bci.next2Bytes(), bci.method()); break;
+      case J9BCputstatic: putstatic(state, bci.next2Bytes(), bci.method()); break;
+
+      //x_newarray
+      case J9BCnewarray: newarray(state, bci.next2Bytes(), bci.method()); break;
+      case J9BCanewarray: anewarray(state, bci.next2Bytes(), bci.method()); break;
+      case J9BCmultianewarray: multianewarray(state, bci.next2Bytes(), bci.nextByte(3)); break;
+
+      //monitor_x
+      case J9BCmonitorenter: monitorenter(state); break;
+      case J9BCmonitorexit: monitorexit(state); break;
+      
+      case J9BCnew: _new(state, bci.next2Bytes(), bci.method()); break;
+
+      case J9BCarraylength: arraylength(state); break;
+
+      case J9BCathrow: athrow(state); break;
+      
+      case J9BCcheckcast: checkcast(state, bci.next2Bytes(), bci.currentByteCodeIndex(), bci.method()); break;
+
       case J9BCinstanceof: instanceof(state, bci.next2Bytes(), bci.currentByteCodeIndex(), bci.method()); break;
-      // invokes...
-      case J9BCinvokedynamic: TR_ASSERT_FATAL(false, "no inoke dynamic"); break;
+
+      case J9BCwide: /* does this need to be handled? */ break;
+
+      //invoke_x
+      case J9BCinvokedynamic: invokedynamic(state, bci.currentByteCodeIndex(), bci.next2Bytes(),bci.method(), block);; break;
       case J9BCinvokeinterface: invokeinterface(state, bci.currentByteCodeIndex(), bci.next2Bytes(),bci.method(), block); break;
+      case J9BCinvokeinterface2: /*how should we handle invokeinterface2? */ break;
       case J9BCinvokespecial: invokespecial(state, bci.currentByteCodeIndex(), bci.next2Bytes(),bci.method(), block); break;
       case J9BCinvokestatic: invokestatic(state, bci.currentByteCodeIndex(), bci.next2Bytes(),bci.method(), block); break;
       case J9BCinvokevirtual: invokevirtual(state, bci.currentByteCodeIndex(), bci.next2Bytes(),bci.method(), block);break;
       case J9BCinvokespecialsplit: invokespecial(state, bci.currentByteCodeIndex(), bci.next2Bytes() | J9_SPECIAL_SPLIT_TABLE_INDEX_FLAG, bci.method(), block); break;
       case J9BCinvokestaticsplit: invokestatic(state, bci.currentByteCodeIndex(), bci.next2Bytes() | J9_STATIC_SPLIT_TABLE_INDEX_FLAG, bci.method(), block); break;
-      case J9BCior: ior(state); break;
-      case J9BCirem: irem(state); break;
-      //case J9BCireturn: state->pop(); break;
-      case J9BCishl: ishl(state); break;
-      case J9BCishr: ishr(state); break;
-      case J9BCistore: istore(state, bci.nextByte()); break;
-      case J9BCistorew: istore(state, bci.next2Bytes()); break; //WARN: internal bytecode
-      case J9BCistore0: istore0(state); break;
-      case J9BCistore1: istore1(state); break;
-      case J9BCistore2: istore2(state); break;
-      case J9BCistore3: istore3(state); break;
-      case J9BCisub: isub(state); break;
-      case J9BCiushr: iushr(state); break;
-      case J9BCixor: ixor(state); break;
-      // jsr
-      // jsr_w
-      case J9BCl2d: l2d(state); break;
-      case J9BCl2f: l2f(state); break;
-      case J9BCl2i: l2i(state); break;
-      case J9BCladd: ladd(state); break;
-      case J9BClaload: laload(state); break;
-      case J9BCland: land(state); break;
-      case J9BClastore: lastore(state); break;
-      case J9BClcmp: lcmp(state); break;
-      case J9BClconst0: lconst0(state); break;
-      case J9BClconst1: lconst1(state); break;
-      case J9BCldc: ldc(state, bci.nextByte(), bci.method()); break;
-      case J9BCldcw: ldcw(state, bci.next2Bytes(), bci.method()); break;
-      case J9BCldc2lw: ldc(state, bci.next2Bytes(), bci.method()); break; //WARN: internal bytecode equivalent to ldc2_w
-      case J9BCldc2dw: ldc(state, bci.next2Bytes(), bci.method()); break; //WARN: internal bytecode equivalent to ldc2_w
-      case J9BCldiv: ldiv(state); break;
-      case J9BClload: lload(state, bci.nextByte()); break;
-      case J9BClload0: lload0(state); break;
-      case J9BClload1: lload1(state); break;
-      case J9BClload2: lload2(state); break;
-      case J9BClload3: lload3(state); break;
-      case J9BClmul: lmul(state); break;
-      case J9BClneg: lneg(state); break;
-      case J9BClookupswitch : lookupswitch(state); break;
-      case J9BClor: lor(state); break;
-      case J9BClrem: lrem(state); break;
-      //case J9BClreturn: state->pop(); state->pop(); break;
-      case J9BClshl: lshl(state); break;
-      case J9BClshr: lshr(state); break;
-      case J9BClsub: lsub(state); break;
-      case J9BClushr: lushr(state); break;
-      case J9BClstore: lstore(state, bci.nextByte()); break;
-      case J9BClstorew: lstorew(state, bci.next2Bytes()); break; // WARN: internal bytecode
-      case J9BClstore0: lstore0(state); break;
-      case J9BClstore1: lstore1(state); break;
-      case J9BClstore2: lstore2(state); break;
-      case J9BClstore3: lstore3(state); break;
-      case J9BClxor: lxor(state); break;
-      case J9BCmonitorenter: monitorenter(state); break;
-      case J9BCmonitorexit: monitorexit(state); break;
-      case J9BCmultianewarray: multianewarray(state, bci.next2Bytes(), bci.nextByteSigned(3)); break;
-      case J9BCnew: _new(state, bci.next2Bytes(), bci.method()); break;
-      case J9BCnewarray: newarray(state, bci.next2Bytes(), bci.method()); break;
-      case J9BCnop: /* yeah nothing */ break;
-      case J9BCpop: state->pop(); break;
-      case J9BCpop2: pop2(state); break;
-      case J9BCputfield: putfield(state, bci.next2Bytes(), bci.method()); break;
-      case J9BCputstatic: putstatic(state, bci.next2Bytes(), bci.method()); break;
-      // ret
-      // return
-      case J9BCsaload: saload(state); break;
-      case J9BCsastore: sastore(state); break;
-      case J9BCsipush: sipush(state, bci.next2BytesSigned()); break;
-      case J9BCswap: swap(state); break;
+   
+      //return_x: to be implemented in the future for backward analysis
       case J9BCReturnC: state->pop(); break;
       case J9BCReturnS: state->pop(); break;
       case J9BCReturnB: state->pop(); break;
-      case J9BCReturnZ: /*yeah nothing */ break;
-      case J9BCtableswitch: tableswitch(state); break;
-      //TODO: clean me
-      case J9BCwide:
-      {
-         //TODO: iincw
-         bci.setIndex(bci.currentByteCodeIndex() + 1);
-         TR_J9ByteCode bc2 = bci.current();
-         switch (bc2)
-            {
-            case J9BCiload: iload(state, bci.next2Bytes()); break;
-            case J9BClload: lload(state, bci.next2Bytes()); break;
-            case J9BCfload: fload(state, bci.next2Bytes()); break;
-            case J9BCdload: dload(state, bci.next2Bytes()); break;
-            case J9BCaload: aload(state, bci.next2Bytes()); break;
-            case J9BCistore: istore(state, bci.next2Bytes()); break; 
-            case J9BClstore: lstore(state, bci.next2Bytes()); break; 
-            case J9BCfstore: fstore(state, bci.next2Bytes()); break; 
-            case J9BCdstore: dstore(state, bci.next2Bytes()); break; 
-            case J9BCastore: astore(state, bci.next2Bytes()); break; 
-            }
-      }
-      break;
+      case J9BCReturnZ: state->pop(); break;
+      case J9BCgenericReturn: state->getStackSize() != 0 ? state->pop() : 0; break; 
+      
       default:
+      printf("%s\n", J9_ByteCode_Strings[bc]);
       break;
       }
    
@@ -790,18 +871,21 @@ AbsState* AbsInterpreter::multianewarray(AbsState* absState, int cpIndex, int di
 
    TR::VPNonNullObject *presence = TR::VPNonNullObject::create(vp());
 
-   if (length->isTOP() || !length->getConstraint()->asIntConstraint() && !length->getConstraint()->asMergedIntConstraints() )
+   if (!length->isTOP())
       {
-      TR::VPArrayInfo *info = TR::VPArrayInfo::create(vp(), 0, INT_MAX , 4);
-      TR::VPConstraint* array = TR::VPClass::create(vp(), NULL, presence, NULL, info, NULL);
-      absState->push(new (region()) AbsValue(array, TR::Address));
-      return absState;
+      if (length->getConstraint()->asIntConstraint() || length->getConstraint()->asMergedIntConstraints())
+         {
+         TR::VPArrayInfo* info = TR::VPArrayInfo::create(vp(), length->getConstraint()->getLowInt(), length->getConstraint()->getHighInt(), 4);
+         TR::VPConstraint* array = TR::VPClass::create(vp(), NULL, presence, NULL, info, NULL);
+         absState->push(new (region()) AbsValue(array, TR::Address));
+         return absState;
+         }
       }
 
-   TR::VPArrayInfo *info = TR::VPArrayInfo::create(vp(), length->getConstraint()->getLowInt(), length->getConstraint()->getHighInt(), 4);
+   TR::VPArrayInfo* info = TR::VPArrayInfo::create(vp(), 0, INT_MAX , 4);
    TR::VPConstraint* array = TR::VPClass::create(vp(), NULL, presence, NULL, info, NULL);
    absState->push(new (region()) AbsValue(array, TR::Address));
-   return absState;
+   return absState;   
    }
 
 //-- Checked
@@ -1036,8 +1120,7 @@ AbsState* AbsInterpreter::astore3(AbsState* absState)
 //-- Checked
 AbsState* AbsInterpreter::bipush(AbsState* absState, int byte) 
    {
-   TR::VPIntConst *constraint = TR::VPIntConst::create(vp(), byte);
-   AbsValue *value = new (region()) AbsValue(constraint, TR::Int32);
+   AbsValue *value = createIntConstAbsValue(byte);
    absState->push(value);
    return absState;
    }
@@ -1069,60 +1152,44 @@ AbsState* AbsInterpreter::checkcast(AbsState* absState, int cpIndex, int bytecod
 
    TR_OpaqueClassBlock* classBlock = method->getClassFromConstantPool(comp(), cpIndex);
 
-   //adding to inlining summary
-   if ( objRef->getParamPosition() >= 0 )
+   //adding to method summary
+   if ( objRef->isParameter() )
       {
       _methodSummary->addCheckCast(objRef->getParamPosition(), classBlock);
       }
 
-   if (!objRef->getConstraint()) //Top
+   if (!objRef->isTOP())
       {
-      absState->push(objRef);
-      return absState;
-      }
-
-   if (objRef->getConstraint()->asNullObject()) // checkcast null object
-      {
-      absState->push(objRef);
-      return absState;
-      }
-
-   if (!objRef->getConstraint()->asClass()) // well, we have no idea what it is, it is not even a class constraint
-      {
-      absState->push(createTOPAbsValue(TR::Address));
-      return absState;
-      }
-
-   TR::VPClass *classConstraint = objRef->getConstraint()->asClass();
-   TR::VPClassType *classType = classConstraint->getClassType();
-
-   if (!classType || !classBlock) //If we do not have the class type or the cast class
-      {
-      absState->push(createTOPAbsValue(TR::Address));
-      return absState;
-      }
-
-   //Now we have all info to check the class hierachy
-   TR_YesNoMaybe yesNoMaybe = comp()->fe()->isInstanceOf(classType->getClass(), classBlock, true, true);
-   if (yesNoMaybe == TR_yes)
-      {
-      if (classBlock == classType->getClass()) //cast into the same type, no change
+      if (objRef->getConstraint()->asNullObject()) //Check cast null object
          {
          absState->push(objRef);
          return absState;
          }
-      else //cast into a different type
+
+      if (objRef->getConstraint()->asClass()) //check cast class object
          {
-         absState->push(createClassAbsValue(classBlock, classConstraint->getClassPresence()));
-         return absState;   
+         TR::VPClass *classConstraint = objRef->getConstraint()->asClass();
+         TR::VPClassType *classType = classConstraint->getClassType();
+         if (classType && classBlock)
+            {
+            TR_YesNoMaybe yesNoMaybe = comp()->fe()->isInstanceOf(classType->getClass(), classBlock, true, true);
+            if (yesNoMaybe == TR_yes)
+               {
+               if (classBlock == classType->getClass()) //cast into the same type, no change
+                  {
+                  absState->push(objRef);
+                  return absState;
+                  }
+               else //can cast into a different type
+                  {
+                  absState->push(createClassObjectAbsValue(classBlock, classConstraint->getClassPresence()));
+                  return absState;   
+                  }
+               }
+            }
          }
       }
-   else 
-      {
-      absState->push(createTOPAbsValue(TR::Address));
-      return absState;
-      }
-   
+
    absState->push(createTOPAbsValue(TR::Address));
    return absState;
    }
@@ -1132,7 +1199,7 @@ AbsState* AbsInterpreter::dup(AbsState* absState)
    {
    AbsValue *value = absState->pop();
    absState->push(value);
-   absState->push(value); 
+   absState->push(new (region()) AbsValue(value)); 
    return absState;
    }
 
@@ -1143,7 +1210,7 @@ AbsState* AbsInterpreter::dupx1(AbsState* absState)
    AbsValue *value2 = absState->pop();
    absState->push(value1);
    absState->push(value2);
-   absState->push(value1);
+   absState->push(new (region()) AbsValue(value1));
    return absState;
    }
 
@@ -1156,7 +1223,7 @@ AbsState* AbsInterpreter::dupx2(AbsState* absState)
    absState->push(value1);
    absState->push(value3);
    absState->push(value2);
-   absState->push(value1);
+   absState->push(new (region()) AbsValue(value1));
    return absState;
    }
 
@@ -1167,8 +1234,8 @@ AbsState* AbsInterpreter::dup2(AbsState* absState)
    AbsValue *value2 = absState->pop();
    absState->push(value2);
    absState->push(value1);
-   absState->push(value2);
-   absState->push(value1);
+   absState->push(new (region()) AbsValue(value2));
+   absState->push(new (region()) AbsValue(value1));
    return absState;
    }
 
@@ -1181,8 +1248,8 @@ AbsState* AbsInterpreter::dup2x1(AbsState *absState)
    absState->push(value2);
    absState->push(value1);
    absState->push(value3);
-   absState->push(value2);
-   absState->push(value1);
+   absState->push(new (region()) AbsValue(value2));
+   absState->push(new (region()) AbsValue(value1));
    return absState;
    }
 
@@ -1197,8 +1264,8 @@ AbsState* AbsInterpreter::dup2x2(AbsState* absState)
    absState->push(value1);
    absState->push(value4);
    absState->push(value3);
-   absState->push(value2);
-   absState->push(value1);
+   absState->push(new (region()) AbsValue(value2));
+   absState->push(new (region()) AbsValue(value1));
    return absState;
    }
 
@@ -1238,7 +1305,6 @@ AbsState* AbsInterpreter::getstatic(AbsState* absState, int cpIndex, TR_Resolved
                &isUnresolvedInVP,
                false); //needsAOTValidation
 
-   
    AbsValue *value1 = createTOPAbsValue(type);
    absState->push(value1);
 
@@ -1250,7 +1316,6 @@ AbsState* AbsInterpreter::getstatic(AbsState* absState, int cpIndex, TR_Resolved
    return absState;
    }
 
-//TODO: get object field with actual type (Not just TR::Address)
 //-- Checked
 AbsState* AbsInterpreter::getfield(AbsState* absState, int cpIndex, TR_ResolvedMethod* method)
    {
@@ -1298,23 +1363,19 @@ AbsState* AbsInterpreter::iand(AbsState* absState)
 
    bool isTOP = value1->isTOP() || value2->isTOP();
 
-   if (isTOP)
+   if (!isTOP)
       {
-      AbsValue *result = createTOPAbsValue(TR::Int32);
-      absState->push(result);
-      return absState;
+      if (value1->getConstraint()->asIntConst() && value2->getConstraint()->asIntConst()) //int consts
+         {
+         int32_t resultVal = value1->getConstraint()->asIntConst()->getInt() & value2->getConstraint()->asIntConst()->getInt();
+         AbsValue* value = createIntConstAbsValue(resultVal);
+         absState->push(value);
+         return absState;
+         }
       }
 
-   bool allConstants = value1->getConstraint()->asIntConst() && value2->getConstraint()->asIntConst();
-   if (!allConstants)
-      {
-      AbsValue *result = createTOPAbsValue(TR::Int32);
-      absState->push(result);
-      return absState;
-      }
-
-   int result = value1->getConstraint()->asIntConst()->getInt() & value2->getConstraint()->asIntConst()->getInt();
-   absState->push(new (region()) AbsValue(TR::VPIntConst::create(vp(), result), TR::Int32));
+   AbsValue *result = createTOPAbsValue(TR::Int32);
+   absState->push(result);
    return absState;
    }
 
@@ -1328,55 +1389,40 @@ AbsState* AbsInterpreter::instanceof(AbsState* absState, int cpIndex, int byteCo
    TR_OpaqueClassBlock *block = method->getClassFromConstantPool(comp(), cpIndex); //The cast class to be compared with
    
    //Add to the inlining summary
-   if (objectRef->getParamPosition() >= 0 )
+   if (objectRef->isParameter() )
       {
       _methodSummary->addInstanceOf(objectRef->getParamPosition(), block);
       }
       
-
-   //Instance Constraint is Top
-   if (!objectRef->getConstraint())
+   if (!objectRef->isTOP())
       {
-      absState->push(new (region()) AbsValue(TR::VPIntRange::create(vp(), 0, 1), TR::Int32));
-      return absState;
-      }
-
-   //isntance is null object, push false to stack
-   if (objectRef->getConstraint()->asNullObject())
-      {
-      absState->push(new (region()) AbsValue(TR::VPIntConst::create(vp(), 0), TR::Int32));
-      return absState;
-      }
-  
-   // Class Info is not available
-   if (!block || !objectRef->getConstraint()->getClass())
-      {
-      absState->push(new (region()) AbsValue(TR::VPIntRange::create(vp(), 0, 1), TR::Int32));
-      return absState;
-      }
-
-   //We Have the class info
-   //Check the class hierachy
-   if (objectRef->getConstraint()->asClass() || objectRef->getConstraint()->asConstString())
-      {
-      TR_YesNoMaybe yesNoMaybe = comp()->fe()->isInstanceOf(objectRef->getConstraint()->getClass(), block, true, true);
-      if( yesNoMaybe == TR_yes) //Instanceof must be true;
+      if (objectRef->getConstraint()->asNullObject()) // is null object. false
          {
-         absState->push(new (region()) AbsValue(TR::VPIntConst::create(vp(), 1), TR::Int32));
-         } 
-      else if (yesNoMaybe = TR_no) //Instanceof must be false;
-         {
-         absState->push(new (region()) AbsValue(TR::VPIntConst::create(vp(), 0), TR::Int32));
+         absState->push(createIntConstAbsValue(0));
+         return absState;
          }
-      else // we don't know
+
+      if (block && objectRef->getConstraint()->getClass()) //have the class types
          {
-         absState->push(new (region()) AbsValue(TR::VPIntRange::create(vp(), 0, 1), TR::Int32));
-         } 
-         
-      return absState;
+         if (objectRef->getConstraint()->asClass() || objectRef->getConstraint()->asConstString()) // is class object or string object
+            {
+            TR_YesNoMaybe yesNoMaybe = comp()->fe()->isInstanceOf(objectRef->getConstraint()->getClass(), block, true, true);
+
+            if( yesNoMaybe == TR_yes) //Instanceof must be true;
+               {
+               absState->push(createIntConstAbsValue(1));
+               return absState;
+               } 
+            else if (yesNoMaybe = TR_no) //Instanceof must be false;
+               {
+               absState->push(createIntConstAbsValue(0));
+               return absState;
+               }
+            }
+         }
       }
 
-   absState->push(new (region()) AbsValue(TR::VPIntRange::create(vp(), 0, 1), TR::Int32));
+   absState->push(createIntRangeAbsValue(0,1));
    return absState;
    }
 
@@ -1387,23 +1433,19 @@ AbsState* AbsInterpreter::ior(AbsState* absState)
    AbsValue* value1 = absState->pop();
 
    bool isTOP = value1->isTOP() || value2->isTOP();
-   if (isTOP)
+   if (!isTOP)
       {
-      AbsValue *result = createTOPAbsValue(TR::Int32);
-      absState->push(result);
-      return absState;
+      if (value1->getConstraint()->asIntConst() && value2->getConstraint()->asIntConst()) //both int consts
+         {
+         int32_t resultVal = value1->getConstraint()->asIntConst()->getInt() | value2->getConstraint()->asIntConst()->getInt();
+         AbsValue* result = createIntConstAbsValue(resultVal);
+         absState->push(result);
+         return absState;
+         }
       }
 
-   bool allConstants = value1->getConstraint()->asIntConst() && value2->getConstraint()->asIntConst();
-   if (!allConstants)
-      {
-      AbsValue *result = createTOPAbsValue(TR::Int32);
-      absState->push(result);
-      return absState;
-      }
-
-   int result = value1->getConstraint()->asIntConst()->getInt() | value2->getConstraint()->asIntConst()->getInt();
-   absState->push(new (region()) AbsValue(TR::VPIntConst::create(vp(), result), TR::Int32));
+   AbsValue *result = createTOPAbsValue(TR::Int32);
+   absState->push(result);
    return absState;
    }
 
@@ -1414,23 +1456,18 @@ AbsState* AbsInterpreter::ixor(AbsState* absState)
    AbsValue* value1 = absState->pop();
    bool isTOP = value1->isTOP() || value2->isTOP();
 
-   if (isTOP)
+   if (!isTOP)
       {
-      AbsValue *result = createTOPAbsValue(TR::Int32);
-      absState->push(result);
-      return absState;
+      if (value1->getConstraint()->asIntConst() && value2->getConstraint()->asIntConst())
+         {
+         int32_t resultVal = value1->getConstraint()->asIntConst()->getInt() ^ value2->getConstraint()->asIntConst()->getInt();
+         absState->push(createIntConstAbsValue(resultVal));
+         return absState;
+         }
       }
 
-   bool allConstants = value1->getConstraint()->asIntConst() && value2->getConstraint()->asIntConst();
-   if (!allConstants)
-      {
-      AbsValue *result = createTOPAbsValue(TR::Int32);
-      absState->push(result);
-      return absState;
-      }
-
-   int result = value1->getConstraint()->asIntConst()->getInt() ^ value2->getConstraint()->asIntConst()->getInt();
-   absState->push(new (region()) AbsValue(TR::VPIntConst::create(vp(), result), TR::Int32));
+   AbsValue *result = createTOPAbsValue(TR::Int32);
+   absState->push(result);
    return absState;
    }
 
@@ -1440,25 +1477,20 @@ AbsState* AbsInterpreter::irem(AbsState* absState)
    AbsValue *value2 = absState->pop();
    AbsValue* value1 = absState->pop();
    bool isTOP = value1->isTOP() || value2->isTOP();
-   if (isTOP)
+   if (!isTOP)
       {
-      AbsValue *result = createTOPAbsValue(TR::Int32);
-      absState->push(result);
-      return absState;
+      if ( value1->getConstraint()->asIntConst() && value2->getConstraint()->asIntConst())
+         {
+         int32_t int1 = value1->getConstraint()->asIntConst()->getInt();
+         int32_t int2 = value2->getConstraint()->asIntConst()->getInt();
+         int32_t resultVal = int1 % int2;
+         absState->push(createIntConstAbsValue(resultVal));
+         return absState;
+         }
       }
 
-   bool allConstants = value1->getConstraint()->asIntConst() && value2->getConstraint()->asIntConst();
-   if (!allConstants)
-      {
-      AbsValue *result = createTOPAbsValue(TR::Int32);
-      absState->push(result);
-      return absState;
-      }
-
-   int int1 = value1->getConstraint()->asIntConst()->getInt();
-   int int2 = value2->getConstraint()->asIntConst()->getInt();
-   int result = int1 % int2;
-   absState->push(new (region()) AbsValue(TR::VPIntConst::create(vp(), result), TR::Int32));
+   AbsValue *result = createTOPAbsValue(TR::Int32);
+   absState->push(result);
    return absState;
    }
 
@@ -1541,35 +1573,30 @@ AbsState* AbsInterpreter::iushr(AbsState* absState)
 //TODO: range div
 AbsState* AbsInterpreter::idiv(AbsState* absState)
    {
-   AbsValue *value2 = absState->pop();
+   AbsValue* value2 = absState->pop();
    AbsValue* value1 = absState->pop();
    bool isTOP = value1->isTOP() || value2->isTOP();
-   if (isTOP)
+   if (!isTOP)
       {
-      AbsValue *result = createTOPAbsValue(TR::Int32);
-      absState->push(result);
-      return absState;
+      if (value1->getConstraint()->asIntConst() && value2->getConstraint()->asIntConst())
+         {
+         int32_t int1 = value1->getConstraint()->asIntConst()->getInt();
+         int32_t int2 = value2->getConstraint()->asIntConst()->getInt();
+         if (int2 == 0) //throw exception
+            {
+            AbsValue *result = createTOPAbsValue(TR::Int32);
+            absState->push(result);
+            return absState;
+            }
+         
+         int32_t resultVal = int1/int2;
+         absState->push(createIntConstAbsValue(resultVal));
+         return absState;
+         }
       }
 
-   bool allConstants = value1->getConstraint()->asIntConst() && value2->getConstraint()->asIntConst();
-   if (!allConstants)
-      {
-      AbsValue *result = createTOPAbsValue(TR::Int32);
-      absState->push(result);
-      return absState;
-      }
-
-   int int1 = value1->getConstraint()->asIntConst()->getLow();
-   int int2 = value2->getConstraint()->asIntConst()->getLow();
-   if (int2 == 0)
-      {
-      // this should throw an exception.
-      AbsValue *result = createTOPAbsValue(TR::Int32);
-      absState->push(result);
-      return absState;
-      }
-   int result = int1 / int2;
-   absState->push(new (region()) AbsValue(TR::VPIntConst::create(vp(), result), TR::Int32));
+   AbsValue *result = createTOPAbsValue(TR::Int32);
+   absState->push(result);
    return absState;
    }
 
@@ -1579,27 +1606,22 @@ AbsState* AbsInterpreter::imul(AbsState* absState)
    {
    AbsValue* value2 = absState->pop();
    AbsValue* value1 = absState->pop();
-
    bool isTOP = value1->isTOP() || value2->isTOP();
-   if (isTOP)
+   if (!isTOP)
       {
-      AbsValue *result = createTOPAbsValue(TR::Int32);
-      absState->push(result);
-      return absState;
+      if (value1->getConstraint()->asIntConst() && value2->getConstraint()->asIntConst())
+         {
+         int32_t int1 = value1->getConstraint()->asIntConst()->getInt();
+         int32_t int2 = value2->getConstraint()->asIntConst()->getInt();
+         
+         int32_t resultVal = int1 * int2;
+         absState->push(createIntConstAbsValue(resultVal));
+         return absState;
+         }
       }
 
-   bool allConstants = value1->getConstraint()->asIntConst() && value2->getConstraint()->asIntConst();
-   if (!allConstants)
-      {
-      AbsValue *result = createTOPAbsValue(TR::Int32);
-      absState->push(result);
-      return absState;
-      }
-
-   int int1 = value1->getConstraint()->asIntConst()->getLow();
-   int int2 = value2->getConstraint()->asIntConst()->getLow();
-   int result = int1 * int2;
-   absState->push(new (region()) AbsValue(TR::VPIntConst::create(vp(), result), TR::Int32));
+   AbsValue *result = createTOPAbsValue(TR::Int32);
+   absState->push(result);
    return absState;
    }
 
@@ -1608,25 +1630,21 @@ AbsState* AbsInterpreter::ineg(AbsState* absState)
    {
    AbsValue *value = absState->pop();
 
-   if (value->isTOP()) //TOP
+   if (!value->isTOP()) //TOP
       {
-      AbsValue *result = createTOPAbsValue(TR::Int32);
-      absState->push(result);
-      return absState;
-      }
+      if (value->getConstraint()->asIntConst()) //const
+         {
+         AbsValue* result = createIntConstAbsValue( -value->getConstraint()->asIntConst()->getInt());
+         absState->push(result);
+         return absState;
+         }
 
-   if (value->getConstraint()->asMergedIntConstraints() || value->getConstraint()->asIntRange()) //range
-      {
-      AbsValue* result = new (region()) AbsValue(TR::VPIntRange::create(vp(), -value->getConstraint()->getHighInt(), -value->getConstraint()->getLowInt()), TR::Int32);
-      absState->push(result);
-      return absState;
-      }
-
-   if (value->getConstraint()->asIntConst()) //const
-      {
-      AbsValue* result = new (region()) AbsValue(TR::VPIntConst::create(vp(), -value->getConstraint()->asIntConst()->getInt()), TR::Int32);
-      absState->push(result);
-      return absState;
+      if (value->getConstraint()->asMergedIntConstraints() || value->getConstraint()->asIntRange()) //range
+         {
+         AbsValue* result = createIntRangeAbsValue(-value->getConstraint()->getHighInt(), -value->getConstraint()->getLowInt());
+         absState->push(result);
+         return absState;
+         }
       }
 
    AbsValue *result = createTOPAbsValue(TR::Int32);
@@ -1686,8 +1704,7 @@ AbsState* AbsInterpreter::iconst5(AbsState* absState)
 //-- Checked
 void AbsInterpreter::iconst(AbsState* absState, int n)
    {
-   TR::VPIntConst *intConst = TR::VPIntConst::create(vp(), n);
-   absState->push(new (region()) AbsValue(intConst, TR::Int32));
+   absState->push(createIntConstAbsValue(n));
    }
 
 //-- Checked
@@ -1706,7 +1723,7 @@ AbsState* AbsInterpreter::ifne(AbsState* absState, int branchOffset, int bytecod
    {
 
    AbsValue* absValue = absState->top();
-   if (absValue->getParamPosition() >= 0)
+   if (absValue->isParameter())
       _methodSummary->addIfNe(absValue->getParamPosition());
       
    absState->pop();
@@ -1717,7 +1734,7 @@ AbsState* AbsInterpreter::ifne(AbsState* absState, int branchOffset, int bytecod
 AbsState* AbsInterpreter::iflt(AbsState* absState, int branchOffset, int bytecodeIndex)
    {
    AbsValue* absValue = absState->top();
-   if (absValue->getParamPosition() >= 0)
+   if (absValue->isParameter())
       _methodSummary->addIfLt(absValue->getParamPosition());
       
    absState->pop();
@@ -1729,7 +1746,7 @@ AbsState* AbsInterpreter::ifle(AbsState* absState, int branchOffset, int bytecod
    {
 
    AbsValue* absValue = absState->top();
-   if (absValue->getParamPosition() >= 0)
+   if (absValue->isParameter())
       _methodSummary->addIfLe( absValue->getParamPosition());
       
    absState->pop();
@@ -1741,7 +1758,7 @@ AbsState* AbsInterpreter::ifgt(AbsState* absState, int branchOffset, int bytecod
    {
 
    AbsValue* absValue = absState->top();
-   if (absValue->getParamPosition() >= 0)
+   if (absValue->isParameter())
       _methodSummary->addIfGt(absValue->getParamPosition());
       
    absState->pop();
@@ -1752,7 +1769,7 @@ AbsState* AbsInterpreter::ifgt(AbsState* absState, int branchOffset, int bytecod
 AbsState* AbsInterpreter::ifge(AbsState* absState, int branchOffset, int bytecodeIndex) 
    {
    AbsValue* absValue = absState->top();
-   if (absValue->getParamPosition() >= 0)
+   if (absValue->isParameter())
       _methodSummary->addIfGe(absValue->getParamPosition());
       
    absState->pop();
@@ -1763,7 +1780,7 @@ AbsState* AbsInterpreter::ifge(AbsState* absState, int branchOffset, int bytecod
 AbsState* AbsInterpreter::ifnull(AbsState* absState, int branchOffset, int bytecodeIndex) 
    {
    AbsValue* absValue = absState->top();
-   if (absValue->getParamPosition() >= 0)
+   if (absValue->isParameter())
       _methodSummary->addIfNull(absValue->getParamPosition());
 
    absState->pop();
@@ -1774,7 +1791,7 @@ AbsState* AbsInterpreter::ifnull(AbsState* absState, int branchOffset, int bytec
 AbsState* AbsInterpreter::ifnonnull(AbsState* absState, int branchOffset, int bytecodeIndex)
    {
    AbsValue* absValue = absState->top();
-   if (absValue->getParamPosition() >= 0)
+   if (absValue->isParameter())
       _methodSummary->addIfNonNull(absValue->getParamPosition());
 
    absState->pop();
@@ -1922,14 +1939,13 @@ AbsState* AbsInterpreter::isub(AbsState* absState)
    AbsValue *value2 = absState->pop();
    AbsValue *value1 = absState->pop();
 
-   bool nonTOP = !value1->isTOP() && !value2->isTOP();
-   if (nonTOP)
+   bool isTOP = value1->isTOP() || value2->isTOP();
+   if (!isTOP)
       {
       if (value1->getConstraint()->asIntConst() && value2->getConstraint()->asIntConst()) //const int
          {
          int resultVal = value1->getConstraint()->asIntConst()->getInt() - value2->getConstraint()->asIntConst()->getInt();
-         TR::VPConstraint* resultConstraint = TR::VPIntConst::create(vp(), resultVal);
-         AbsValue* result = new (region()) AbsValue(resultConstraint, TR::Int32);
+         AbsValue* result = createIntConstAbsValue(resultVal);
          absState->push(result);
          return absState;
          }
@@ -1940,8 +1956,7 @@ AbsState* AbsInterpreter::isub(AbsState* absState)
          int resultValLow = value1->getConstraint()->getLowInt() - value2->getConstraint()->getHighInt();
          int resultValHigh = value1->getConstraint()->getHighInt() - value2->getConstraint()->getLowInt();
 
-         TR::VPConstraint* resultConstraint = TR::VPIntRange::create(vp(), resultValLow, resultValHigh);
-         AbsValue* result = new (region()) AbsValue(resultConstraint, TR::Int32);
+         AbsValue* result = createIntRangeAbsValue(resultValLow, resultValHigh);
          absState->push(result);
          return absState;
          }
@@ -1958,14 +1973,13 @@ AbsState* AbsInterpreter::iadd(AbsState* absState)
    AbsValue *value2 = absState->pop();
    AbsValue *value1 = absState->pop();
 
-   bool nonTOP = !value1->isTOP() && !value2->isTOP();
-   if (nonTOP)
+   bool isTOP = value1->isTOP() || value2->isTOP();
+   if (!isTOP)
       {
       if (value1->getConstraint()->asIntConst() && value2->getConstraint()->asIntConst()) //const int
          {
          int resultVal = value1->getConstraint()->asIntConst()->getInt() + value2->getConstraint()->asIntConst()->getInt();
-         TR::VPConstraint* resultConstraint = TR::VPIntConst::create(vp(), resultVal);
-         AbsValue* result = new (region()) AbsValue(resultConstraint, TR::Int32);
+         AbsValue* result =createIntConstAbsValue(resultVal);
          absState->push(result);
          return absState;
          }
@@ -1976,8 +1990,7 @@ AbsState* AbsInterpreter::iadd(AbsState* absState)
          int resultValLow = value1->getConstraint()->getLowInt() + value2->getConstraint()->getLowInt();
          int resultValHigh = value1->getConstraint()->getHighInt() + value2->getConstraint()->getHighInt();
 
-         TR::VPConstraint* resultConstraint = TR::VPIntRange::create(vp(), resultValLow, resultValHigh);
-         AbsValue* result = new (region()) AbsValue(resultConstraint, TR::Int32);
+         AbsValue* result = createIntRangeAbsValue(resultValLow, resultValHigh);
          absState->push(result);
          return absState;
          }
@@ -2017,7 +2030,7 @@ AbsState* AbsInterpreter::i2l(AbsState* absState)
       {
       if (value->getConstraint()->asIntConst()) //int const
          {
-         AbsValue *result1 = new (region()) AbsValue(TR::VPLongConst::create(vp(), (int64_t)value->getConstraint()->asIntConst()->getInt()), TR::Int64);
+         AbsValue *result1 = createLongConstAbsValue((int64_t)value->getConstraint()->asIntConst()->getInt());
          AbsValue *result2 = createDummyAbsValue(TR::Int64);
          absState->push(result1);
          absState->push(result2);
@@ -2028,7 +2041,7 @@ AbsState* AbsInterpreter::i2l(AbsState* absState)
          {
          int64_t low = (int64_t) value->getConstraint()->getLowInt();
          int64_t high = (int64_t) value->getConstraint()->getHighInt(); 
-         AbsValue* result1 = new (region()) AbsValue(TR::VPLongRange::create(vp(), low, high), TR::Int64);
+         AbsValue* result1 = createLongRangeAbsValue(low, high);
          AbsValue* result2 = createDummyAbsValue(TR::Int64);
          absState->push(result1);
          absState->push(result2);
@@ -2116,8 +2129,8 @@ AbsState* AbsInterpreter::ladd(AbsState* absState)
    AbsValue *value2 = absState->pop();
    absState->pop();
    AbsValue *value1 = absState->pop();
-   bool nonTOP = !value1->isTOP() && !value2->isTOP();
-   if (nonTOP)
+   bool isTOP = value1->isTOP() || value2->isTOP();
+   if (!isTOP)
       {
       if (value1->getConstraint()->asLongConst() && value2->getConstraint()->asLongConst()) //const int
          {
@@ -2156,8 +2169,9 @@ AbsState* AbsInterpreter::lsub(AbsState* absState)
    AbsValue *value2 = absState->pop();
    absState->pop();
    AbsValue *value1 = absState->pop();
-   bool nonTOP = !value1->isTOP() && !value2->isTOP();
-   if (nonTOP)
+   bool isTOP = value1->isTOP() || value2->isTOP();
+
+   if (!isTOP)
       {
       if (value1->getConstraint()->asLongConst() && value2->getConstraint()->asLongConst()) //const int
          {
@@ -2913,6 +2927,16 @@ AbsState* AbsInterpreter::lcmp(AbsState* absState)
    return absState;
    }
 
+AbsState* AbsInterpreter::pop(AbsState* absState)
+   {
+   absState->pop();
+   return absState;
+   }
+
+AbsState* AbsInterpreter::nop(AbsState* absState)
+   {
+   return absState;
+   }
 //-- Checked
 AbsState* AbsInterpreter::pop2(AbsState* absState)
    {
@@ -3219,18 +3243,16 @@ AbsState* AbsInterpreter::putstatic(AbsState* absState, int cpIndex, TR_Resolved
 void AbsInterpreter::ldcInt32(int cpIndex, TR_ResolvedMethod* method, AbsState* absState)
    {
    auto value = method->intConstant(cpIndex);
-   TR::VPIntConst *constraint = TR::VPIntConst::create(vp(), value);
-   AbsValue *result = new (region()) AbsValue(constraint, TR::Int32);
+   AbsValue *result = createIntConstAbsValue(value);
    absState->push(result);
    }
 
 void AbsInterpreter::ldcInt64(int cpIndex, TR_ResolvedMethod* method, AbsState* absState)
    {
    auto value = method->longConstant(cpIndex);
-   TR::VPLongConst *constraint = TR::VPLongConst::create(vp(), value);
-   AbsValue *result = new (region()) AbsValue(constraint, TR::Int64);
-   absState->push(result);
+   AbsValue *result1 = createLongConstAbsValue(value);
    AbsValue *result2 = createDummyAbsValue(TR::Int64);
+   absState->push(result1);
    absState->push(result2);
    }
 
@@ -3258,7 +3280,7 @@ void AbsInterpreter::ldcAddress(int cpIndex, TR_ResolvedMethod* method, AbsState
       }
    //TODO: non string case
    TR_OpaqueClassBlock* type = method->getClassFromConstantPool(comp(), cpIndex);
-   AbsValue* value = createClassAbsValue(type);
+   AbsValue* value = createClassObjectAbsValue(type);
    absState->push(value);
    }
 
@@ -3271,7 +3293,7 @@ void AbsInterpreter::ldcString(int cpIndex, TR_ResolvedMethod* method, AbsState*
    if (symRef->isUnresolved())
       {
       TR_OpaqueClassBlock* type = method->getClassFromConstantPool(comp(), cpIndex);
-      AbsValue* value = createClassAbsValue(type);
+      AbsValue* value = createClassObjectAbsValue(type);
       absState->push(value);
       return;
       }
@@ -3298,8 +3320,7 @@ AbsState* AbsInterpreter::ldc(AbsState* absState, int cpIndex,  TR_ResolvedMetho
       case TR::Address: this->ldcAddress(cpIndex, method, absState); break;
       default: 
          {
-         //TODO: arrays and what nots.
-         AbsValue *result = createTOPAbsValue(TR::Address);
+         AbsValue *result = createTOPAbsValue(TR::NoType);
          absState->push(result);
          } break;
       }
@@ -3347,13 +3368,13 @@ AbsState* AbsInterpreter::anewarray(AbsState* absState, int cpIndex, TR_Resolved
    if (count->getConstraint() && count->getConstraint()->asIntConstraint())
       {
       TR::VPArrayInfo *info = TR::VPArrayInfo::create(vp(),  ((TR::VPIntConstraint*)count->getConstraint())->getLow(), ((TR::VPIntConstraint*)count->getConstraint())->getHigh(), 4);
-      AbsValue* value = createClassAbsValue(type, nonnull, info);
+      AbsValue* value = createClassObjectAbsValue(type, nonnull, info);
       absState->push(value);
       return absState;
       }
 
    TR::VPArrayInfo *info = TR::VPArrayInfo::create(vp(),  0, INT_MAX, 4);
-   AbsValue* value = createClassAbsValue(type, nonnull, info);
+   AbsValue* value = createClassObjectAbsValue(type, nonnull, info);
    absState->push(value);
    return absState;
    }
@@ -3372,17 +3393,15 @@ AbsState* AbsInterpreter::arraylength(AbsState* absState)
    if (arrayRef->getConstraint()->getArrayInfo())
       {
       TR::VPArrayInfo* info = arrayRef->getConstraint()->getArrayInfo();
-      TR::VPConstraint* constraint = NULL;
+      AbsValue* result;
       if (info->lowBound() == info->highBound())
          {
-         constraint = TR::VPIntConst::create(vp(), info->lowBound());
+         result = createIntConstAbsValue(info->lowBound());
          }
       else
          {
-         constraint = TR::VPIntRange::create(vp(), info->lowBound(), info->highBound());
+         result = createIntRangeAbsValue(info->lowBound(), info->highBound());
          }
-      
-      AbsValue* result = new (region()) AbsValue(constraint, TR::Int32);
       absState->push(result);
       return absState;
       }
@@ -3394,10 +3413,9 @@ AbsState* AbsInterpreter::arraylength(AbsState* absState)
 
 AbsState* AbsInterpreter::_new(AbsState* absState, int cpIndex, TR_ResolvedMethod* method)
    {
-   //TODO: actually look at the semantics
    TR_OpaqueClassBlock* type = method->getClassFromConstantPool(comp(), cpIndex);
    TR::VPNonNullObject *nonnull = TR::VPNonNullObject::create(vp());
-   AbsValue* value = createClassAbsValue(type,  nonnull, NULL);
+   AbsValue* value = createClassObjectAbsValue(type,  nonnull, NULL);
 
    absState->push(value);
    return absState;
@@ -3430,7 +3448,7 @@ AbsState* AbsInterpreter::invokevirtual(AbsState* absState, int bcIndex, int cpI
    {
    AbsValue* absValue = absState->top();
 
-   if (absValue->getParamPosition() >= 0)
+   if (absValue->isParameter())
       {
       _methodSummary->addNullCheck(absValue->getParamPosition());
       }
@@ -3657,8 +3675,9 @@ TR_CallSite* AbsInterpreter::findCallSiteTargets(
       return NULL;
 
    callsite->_byteCodeIndex = bcIndex;
-   callsite->_bcInfo = info; //info has to be a reference, so it is being deleted after node exits.
+   callsite->_bcInfo = info;
    callsite->_cpIndex= cpIndex;
+
    callsite->findCallSiteTarget(callStack, _idtBuilder->getInliner());
    return callsite;   
    }

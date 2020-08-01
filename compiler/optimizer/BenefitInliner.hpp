@@ -38,7 +38,7 @@ namespace OMR {
    };
 
 
-class BenefitInlinerUtil;
+
 class BenefitInlinerBase: public TR_InlinerBase 
    {
    protected:
@@ -65,10 +65,6 @@ protected:
       IDTNode *_currentChild;
       InliningProposal *_inliningProposal;
    private:
-      
-      BenefitInlinerUtil *_util2;
-      void setAbsEnvUtil(BenefitInlinerUtil *u) { this->_util2 = u; }
-      BenefitInlinerUtil *getAbsEnvUtil() { return this->_util2; }
    };
 
 
@@ -95,15 +91,7 @@ class BenefitInliner: public BenefitInlinerBase
      
    };
 
-   class BenefitInlinerUtil : public TR_J9InlinerUtil
-   {
-      friend class TR_InlinerBase;
-      friend class TR_MultipleCallTargetInliner;
-      friend class BenefitInliner;
-      public:
-      BenefitInlinerUtil(TR::Compilation *comp);
-      void computeMethodBranchProfileInfo2(TR_CallTarget *, TR::ResolvedMethodSymbol*, int, TR::Block *, TR::CFG *cfg);
-   };
+
 }
 
 #endif

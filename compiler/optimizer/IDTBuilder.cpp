@@ -8,17 +8,8 @@ IDTBuilder::IDTBuilder(TR::ResolvedMethodSymbol* symbol, int32_t budget, TR::Reg
       _comp(comp),
       _inliner(inliner),
       _idt(NULL),
-      _util(NULL),
-      _callSiteIndex(0),
       _interpretedMethodMap(InterpretedMethodMapComparator(), InterpretedMethodMapAllocator(region))
    {
-   }
-
-OMR::BenefitInlinerUtil* IDTBuilder::getUtil()
-   {
-   if (!_util)
-      _util = new (comp()->allocator()) OMR::BenefitInlinerUtil(comp());
-   return _util;
    }
 
 //The CFG is generated from EstimateCodeSize. It is different from a normal CFG. 
@@ -30,25 +21,6 @@ TR::CFG* IDTBuilder::generateFlowGraph(TR_CallTarget* callTarget, TR::Region& re
    return cfg;
    }
 
-//Is this correct?
-void IDTBuilder::setCFGBlockFrequency(TR_CallTarget* callTarget, bool isRoot, TR_CallStack* callStack, TR::Block* callBlock, TR::CFG* callerCfg)
-   {
-   TR::CFG* cfg = callTarget->_cfg;
-   if (isRoot) //root method
-      {
-      cfg->computeInitialBlockFrequencyBasedOnExternalProfiler(comp());
-      cfg->setFrequencies();
-      }
-   else
-      {
-      TR::ResolvedMethodSymbol* caller = callStack->_methodSymbol;
-      getUtil()->computeMethodBranchProfileInfo2(callTarget, caller, _callSiteIndex++, callBlock, callerCfg);
-      }
-
-   cfg->setStartBlockFrequency();
-   // traceMsg(comp(), "our cfg");
-   // comp()->getDebug()->print(comp()->getOutFile(), cfg);
-   }
 
 IDT* IDTBuilder::buildIDT()
    {

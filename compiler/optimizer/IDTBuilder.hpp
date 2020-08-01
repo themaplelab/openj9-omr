@@ -23,7 +23,6 @@ class IDTBuilder
    void buildIDTHelper(IDTNode* node, AbsParameterArray* parameterArray, int callerIndex, int32_t budget, TR_CallStack* callStack);
 
    TR::CFG* generateFlowGraph(TR_CallTarget* callTarget, TR::Region& region, TR_CallStack* callStack=NULL);
-   void setCFGBlockFrequency(TR_CallTarget* callTarget, bool isRoot, TR_CallStack* callStack=NULL, TR::Block* callBlock=NULL, TR::CFG* callerCfg=NULL);
    
    void performAbstractInterpretation(IDTNode* node,  int callerIndex, TR_CallStack* callStack);
 
@@ -41,8 +40,6 @@ class IDTBuilder
 
    OMR::BenefitInliner* getInliner()  { return _inliner; };
    
-   //Used for calculating method branch profile
-   OMR::BenefitInlinerUtil* getUtil();
 
    //This will be called from AbsInterpreter
    void addChild(IDTNode*node,
@@ -60,12 +57,10 @@ class IDTBuilder
    typedef std::map<TR_OpaqueMethodBlock *, IDTNode*, InterpretedMethodMapComparator, InterpretedMethodMapAllocator> InterpretedMethodMap;
    InterpretedMethodMap _interpretedMethodMap;
 
-   int _callSiteIndex;
    int32_t _rootBudget;
    TR::Region& _region;
    TR::Compilation* _comp;
    OMR::BenefitInliner* _inliner;
-   OMR::BenefitInlinerUtil* _util;
    };
 
 #endif

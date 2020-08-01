@@ -52,7 +52,6 @@ class TR_BitVector;
 class TR_BlockCloner;
 class TR_BlockFrequencyInfo;
 class TR_ExternalProfiler;
-namespace OMR { class BenefitInlinerUtil; }
 namespace TR { class Block; }
 namespace TR { class CFG; }
 namespace TR { class CFGEdge; }

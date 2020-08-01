@@ -318,6 +318,7 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
         return;
         }
      }
+     
    for (int32_t i=0; i<callsite->numTargets(); i++)
       {
       TR_CallTarget *calltarget = callsite->getTarget(i);
@@ -504,53 +505,19 @@ OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSi
       }
    }
 
-OMR::BenefitInlinerUtil::BenefitInlinerUtil(TR::Compilation *c) : TR_J9InlinerUtil(c) {}
 
-
-//Is this correct?
-void OMR::BenefitInlinerUtil::computeMethodBranchProfileInfo2(TR_CallTarget * calltarget, TR::ResolvedMethodSymbol* callerSymbol, int callsiteIndex, TR::Block *callBlock, TR::CFG * callerCFG)
-   {
-   TR::ResolvedMethodSymbol * calleeSymbol = calltarget->_calleeSymbol;
-
-   TR_MethodBranchProfileInfo *mbpInfo = TR_MethodBranchProfileInfo::getMethodBranchProfileInfo(callsiteIndex, comp());
-   if (!mbpInfo)
-      {
-      mbpInfo = TR_MethodBranchProfileInfo::addMethodBranchProfileInfo (callsiteIndex, comp());
-      calleeSymbol->getFlowGraph()->computeInitialBlockFrequencyBasedOnExternalProfiler(comp());
-      uint32_t firstBlockFreq = calleeSymbol->getFlowGraph()->getInitialBlockFrequency();
-
-      int32_t blockFreq = callBlock->getFrequency();
-      if (blockFreq < 0)
-         blockFreq = 6;
-
-      float freqScaleFactor = 0.0;
-      if (callerCFG->getStartBlockFrequency() > 0)
-         {
-         freqScaleFactor = (float)(blockFreq)/callerCFG->getStartBlockFrequency();
-         if (callerCFG->getInitialBlockFrequency() > 0)
-            freqScaleFactor *= (float)(callerCFG->getInitialBlockFrequency())/(float)firstBlockFreq;
-         }
-      mbpInfo->setInitialBlockFrequency(firstBlockFreq);
-      mbpInfo->setCallFactor(freqScaleFactor);
-
-      calleeSymbol->getFlowGraph()->setFrequencies();
-      }
-   }
 
 OMR::BenefitInlinerBase::BenefitInlinerBase(TR::Optimizer *optimizer, TR::Optimization *optimization) :
    TR_InlinerBase(optimizer, optimization),
    _cfgRegion(optimizer->comp()->region()),
    _callerIndex(-1),
    _nodes(0),
-   _util2(NULL),
    _idt(NULL),
    _currentNode(NULL),
    _previousNode(NULL),
    _currentChild(NULL),
    _inliningProposal(NULL)
    {
-      BenefitInlinerUtil *absEnvUtil = new (comp()->allocator()) BenefitInlinerUtil(this->comp());
-      this->setAbsEnvUtil(absEnvUtil);
    }
 
 OMR::BenefitInliner::BenefitInliner(TR::Optimizer *optimizer, TR::Optimization *optimization, uint32_t budget) : 

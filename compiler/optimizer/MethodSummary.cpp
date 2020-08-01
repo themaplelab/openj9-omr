@@ -3,8 +3,7 @@
 #include "optimizer/GlobalValuePropagation.hpp"
 #include "optimizer/LocalValuePropagation.hpp"
 
-//TODO: Do we need to consider unsigned integers?
-// Be careful, other can be an VPIntConst, VPIntRange or VPMergedConstraint
+// Be careful, other can be an VPIntConst, VPIntRange or VPMergedIntConstraint
 // _constraint can be a VPIntConst or VPIntRange 
 int BranchFolding::predicate(TR::VPConstraint *other, TR::ValuePropagation *vp)
    {

@@ -26,7 +26,7 @@ class AbsInterpreter
    TR::Region& region() {  return _region;  };
    TR::ValuePropagation *vp();
 
-   AbsValue* createClassAbsValue(TR_OpaqueClassBlock* opaqueClass, TR::VPClassPresence *presence = NULL, TR::VPArrayInfo *info = NULL);
+   AbsValue* createClassObjectAbsValue(TR_OpaqueClassBlock* opaqueClass, TR::VPClassPresence *presence = NULL, TR::VPArrayInfo *info = NULL);
 
    AbsValue* createNullObjectAbsValue() { return new (region()) AbsValue(TR::VPNullObject::create(vp()), TR::Address); };
 
@@ -274,8 +274,8 @@ class AbsInterpreter
    AbsState* multianewarray(AbsState*, int, int);
    AbsState* _new(AbsState*, int, TR_ResolvedMethod*);
    AbsState* newarray(AbsState*, int, TR_ResolvedMethod*);
-// AbsState* nop(AbsState*);
-// AbsState* pop(AbsState*);
+   AbsState* nop(AbsState*);
+   AbsState* pop(AbsState*);
    AbsState* pop2(AbsState*);
    AbsState* putfield(AbsState*, int, TR_ResolvedMethod*);
    AbsState* putstatic(AbsState*, int, TR_ResolvedMethod*);
