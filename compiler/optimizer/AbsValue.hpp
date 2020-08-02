@@ -52,6 +52,8 @@ class AbsValue
     */
    bool isTOP() { return _constraint == NULL; }; 
 
+   bool hasConstraint() { return _constraint != NULL; };
+
    /**
     * @brief Check if the AbsValue is 64-bit sized data. (Two 32-bit words)
     *

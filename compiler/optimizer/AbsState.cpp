@@ -6,9 +6,9 @@ AbsState::AbsState(TR::Region &region) :
    {
    }
 
-AbsState::AbsState(AbsState* other) :
-      _array(other->_array),
-      _stack(other->_stack)
+AbsState::AbsState(AbsState* other, TR::Region& region ) :
+      _array(other->_array, region),
+      _stack(other->_stack, region)
    {
    }
 

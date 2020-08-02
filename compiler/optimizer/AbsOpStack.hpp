@@ -38,7 +38,7 @@ class AbsOpStack
    {
    public:
    AbsOpStack(TR::Region& region);
-   AbsOpStack(AbsOpStack&);
+   AbsOpStack(AbsOpStack&, TR::Region& region);
 
    /**
     * @brief Merge with another AbsOpStack. This is in-place merge.
@@ -78,8 +78,7 @@ class AbsOpStack
    void trace(TR::ValuePropagation *);
 
    private:
-   typedef TR::deque<AbsValue*, TR::Region&> StackContainer;
-   typedef std::stack<AbsValue*, StackContainer> AbsValueStack;
+   typedef TR::deque<AbsValue*, TR::Region&> AbsValueStack;
    
    AbsValueStack _stack; 
    };

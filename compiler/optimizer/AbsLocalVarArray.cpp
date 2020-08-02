@@ -26,9 +26,20 @@ AbsLocalVarArray::AbsLocalVarArray(TR::Region &region) :
    {
    }
 
-AbsLocalVarArray::AbsLocalVarArray(AbsLocalVarArray &other) :
-      _array(other._array)
+AbsLocalVarArray::AbsLocalVarArray(AbsLocalVarArray &other, TR::Region& region) :
+      _array(region)
    {
+   for (size_t i = 0; i < other._array.size(); i ++)
+      {
+      if (other._array.at(i))
+         {
+         _array.push_back(new (region) AbsValue(other._array.at(i)));
+         }
+      else
+         {
+         _array.push_back(NULL);
+         }
+      }
    }
 
 void AbsLocalVarArray::merge(AbsLocalVarArray &other, TR::ValuePropagation *vp)

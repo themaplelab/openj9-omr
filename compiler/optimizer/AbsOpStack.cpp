@@ -24,34 +24,38 @@
 #include "infra/deque.hpp"
 
 AbsOpStack::AbsOpStack(TR::Region &region) :
-      _stack(StackContainer(region))
+      _stack(region)
    {
    }
 
 
-AbsOpStack::AbsOpStack(AbsOpStack &other) :
-      _stack(other._stack)
+AbsOpStack::AbsOpStack(AbsOpStack &other, TR::Region &region) :
+      _stack(region)
    {
+   for (size_t i = 0; i < other.size(); i ++)
+      {
+      push(other._stack.at(i));
+      }
    }
 
 void AbsOpStack::push(AbsValue* value)
    {
    TR_ASSERT_FATAL(value, "Push a NULL value");
-   _stack.push(value);
+   _stack.push_back(value);
    }
 
 AbsValue* AbsOpStack::pop()
    {
    TR_ASSERT_FATAL(size() > 0, "Pop an empty stack!");
-   AbsValue *value = _stack.top();
-   _stack.pop();
+   AbsValue *value = _stack.back();
+   _stack.pop_back();
    return value;
    }
 
 AbsValue* AbsOpStack::top()
    {
    TR_ASSERT_FATAL(size() > 0, "Top an empty stack!");
-   return _stack.top(); 
+   return _stack.back(); 
    }
 
 void AbsOpStack::merge(AbsOpStack &other, TR::ValuePropagation *vp)
@@ -92,12 +96,11 @@ void AbsOpStack::trace(TR::ValuePropagation *vp)
       traceMsg(comp, "\n");
       return;
       }
-   AbsValueStack copy(_stack);
+   
    traceMsg(comp, "<top>\n");
    for (int i = 0; i < stackSize; i++) 
       {
-      AbsValue *value = copy.top();
-      copy.pop();
+      AbsValue *value = _stack.at(stackSize - i -1 );
       traceMsg(comp, "S[%d] = ", stackSize - i - 1);
       if (value) value->print(vp);
       traceMsg(comp, "\n");

@@ -38,7 +38,7 @@ class AbsLocalVarArray
    {
    public:
    AbsLocalVarArray(TR::Region &region);
-   AbsLocalVarArray(AbsLocalVarArray&);
+   AbsLocalVarArray(AbsLocalVarArray&, TR::Region& region);
 
    /**
     * @brief Merge with another AbsLocalVarArray. This is in-place merge.

@@ -105,7 +105,12 @@ void IDTBuilder::buildIDTHelper(IDTNode* node, AbsParameterArray* parameterArray
 void IDTBuilder::performAbstractInterpretation(IDTNode* node, int callerIndex, TR_CallStack* callStack)
    {
    AbsInterpreter interpreter(node, callerIndex, this, callStack, region(), comp());
-   interpreter.interpret();
+   bool success = interpreter.interpret();
+   if (!success)
+      {
+      if (comp()->getOption(TR_TraceAbstractInterpretation))
+         traceMsg(comp(), "Fail to interpret method: %s\n", node->getName());
+      }
    }
 
 IDTNode* IDTBuilder::getInterpretedMethod(TR::ResolvedMethodSymbol* symbol)

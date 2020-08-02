@@ -18,9 +18,17 @@ class AbsInterpreter
       TR::Region& region, 
       TR::Compilation* comp);
 
-   void interpret();
+   bool interpret();
 
+   MethodSummary* getMethodSummary() { return _methodSummary; };
+   AbsValue* getReturnValue() { return _returnValue; }; 
 
+   void setCallerIndex(int callerIndex) { _callerIndex = callerIndex; };
+   void setCallerMethodSymbol(TR::ResolvedMethodSymbol* symbol) { _callerMethodSymbol = symbol; };
+   void setCallStack(TR_CallStack* callStack) { _callStack = callStack; };  
+
+   void cleanup(); 
+   
    private:
    TR::Compilation* comp() {  return _comp; };
    TR::Region& region() {  return _region;  };
@@ -44,11 +52,7 @@ class AbsInterpreter
    void transferAbsStates(TR::Block* block);
    AbsState* mergeAllPredecessors(TR::Block* block);
    
-   //Three methods used to walk and interpret the bytecode
-   void walkBasicBlocks(TR::CFG* cfg);
-   TR::Block* getStartBlock(TR::CFG* cfg);
-   void walkByteCode(TR::Block *block);
-   void interpretByteCode(AbsState* absState, TR_J9ByteCode bc, TR_J9ByteCodeIterator&, TR::Block* block);
+   bool interpretByteCode(AbsState* absState, TR_J9ByteCode bc, TR_J9ByteCodeIterator&, TR::Block* block);
 
    TR::SymbolReference* getSymbolReference(TR::ResolvedMethodSymbol *callerSymbol, int cpIndex, TR::MethodSymbol::Kinds kind);
 
@@ -300,10 +304,14 @@ class AbsInterpreter
 
 
    MethodSummary* _methodSummary;
+   AbsValue* _returnValue;
    IDTBuilder* _idtBuilder;
    IDTNode* _idtNode;
-   int _callerIndex;
+   int32_t _callerIndex;
    TR_CallStack* _callStack;
+   TR::ResolvedMethodSymbol* _callerMethodSymbol;
+   TR_ResolvedMethod* _callerMethod;
+
    TR::Region& _region;
    TR::Compilation* _comp;
    TR_J9ByteCodeIterator _bcIterator;

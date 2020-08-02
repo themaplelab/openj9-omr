@@ -38,7 +38,7 @@ class AbsState
     {
     public:
     AbsState(TR::Region &region);
-    AbsState(AbsState* other);
+    AbsState(AbsState* other, TR::Region& region);
 
     /**
      * @brief Set an AbsValue at index i of the local variable array in this AbsState.
