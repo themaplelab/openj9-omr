@@ -63,21 +63,11 @@ IDTNode* IDTNode::addChild(
    if (getNumChildren() == 1)
       {
       IDTNode* onlyChild = getOnlyChild();
-      if (onlyChild && onlyChild->isNodeSimilar(callSiteBci, symbol))
-         return NULL;
       
       _children = new (region) IDTNodeDeque(region);
       TR_ASSERT_FATAL(!((uintptr_t)_children & SINGLE_CHILD_BIT), "Maligned memory address.\n");
  
       _children->push_back(onlyChild);
-      }
-   
-   for (auto curr = _children->begin(); curr != _children->end(); ++curr)
-      {
-      if ((*curr)->isNodeSimilar(callSiteBci, symbol))
-         {
-         return NULL;
-         }
       }
 
    IDTNode *newChild = new (region) IDTNode(
@@ -149,7 +139,7 @@ IDTNode* IDTNode::getChild(unsigned int index)
 IDTNode* IDTNode::findChildWithBytecodeIndex(int bcIndex)
    {
    unsigned int size = getNumChildren();
-   //TODO: not linear search
+   
    if (size == 0)
       return NULL;
    
@@ -162,28 +152,25 @@ IDTNode* IDTNode::findChildWithBytecodeIndex(int bcIndex)
    IDTNode* child = NULL;
    for (unsigned int i = 0; i < size; i ++)
       {
-      if (child && _children->at(i)->getByteCodeIndex() == bcIndex)
-         TR_ASSERT_FATAL(false, "Two children with the same bytecode index!");
       
       if (_children->at(i)->getByteCodeIndex() == bcIndex)
-         child = _children->at(i);
+         return _children->at(i);
       }
-   return child;
+
+   return NULL;
    }
 
 void IDTNode::printTrace()
    {
-   if (TR::comp()->getOption(TR_TraceBIIDTGen))
-      traceMsg(TR::comp(), "IDT: name = %s\n",getName());
+   traceMsg(TR::comp(), "IDTNode: name = %s\n",getName());
    }
 
-bool IDTNode::isNodeSimilar(int32_t callSiteBci, TR::ResolvedMethodSymbol* rms)
-   {
-   auto a = _symbol->getResolvedMethod()->maxBytecodeIndex();
-   auto b = _symbol->getResolvedMethod()->maxBytecodeIndex();
-
-   return a == b && _callSiteBci == callSiteBci;
-   }
+// bool IDTNode::isNodeSimilar(int32_t callSiteBci, TR::ResolvedMethodSymbol* rms)
+//    {
+//    auto a = _symbol->getResolvedMethod()->maxBytecodeIndex();
+//    auto b = _symbol->getResolvedMethod()->maxBytecodeIndex();
+//    return a == b && _callSiteBci == callSiteBci;
+//    }
 
 IDTNode* IDTNode::getOnlyChild()
    {

@@ -81,7 +81,7 @@ void IDTBuilder::buildIDTHelper(IDTNode* node, AbsParameterArray* parameterArray
       int staticBenefit = computeStaticBenefitWithMethodSummary(node->getMethodSummary(), parameterArray);
 
       node->setStaticBenefit(staticBenefit);
-      _idt->copyDescendants(interpretedMethodIDTNode, node); //IDT is built in DFS order, at this time, we have all the descendants so it is safe to copy the descendants
+      _idt->copyDescendants(interpretedMethodIDTNode, node); //IDT is built in DFS order, at this point, we have all the descendants so it is safe to copy the descendants
       return;
       }
    else
@@ -144,14 +144,29 @@ void IDTBuilder::addChild(IDTNode*node, int callerIndex, TR_CallSite* callSite, 
       return;
       }
    
-   if (block->getFrequency() <= 0) 
+   if (block->getFrequency() < 6) //cold block. Do not worth adding it to the IDT.
       {
       if (traceBIIDTGen)
-         traceMsg(comp(), "Block frequency error. Don't add\n");
+         traceMsg(comp(), "Cold block. Don't add\n");
       return;
       }
-
+      
+     
    getInliner()->applyPolicyToTargets(callStack, callSite); // eliminate call targets that are not inlinable thus they won't be added to IDT 
+
+   int frequency = comp()->convertNonDeterministicInput(block->getFrequency(), MAX_BLOCK_COUNT + MAX_COLD_BLOCK_COUNT, getInliner()->randomGenerator(), 0);	
+   bool isColdCall = node->getCallTarget()->_cfg->isColdCall(callSite->_bcInfo, getInliner());	
+
+   bool isCold = (isColdCall &&  (frequency < MAX_COLD_BLOCK_COUNT));	
+   if ( isCold)	
+      {	
+      printf("cold call\n");
+      // getInliner()->tracer()->insertCounter(DontInline_Callee, callsite->_callNodeTreeTop);	
+      // callsite->removecalltarget(i,tracer(),DontInline_Callee);	
+      // i--;	
+      // continue;	
+      return;
+      }
 
    if (callSite->numTargets() == 0) 
       {
@@ -159,7 +174,6 @@ void IDTBuilder::addChild(IDTNode*node, int callerIndex, TR_CallSite* callSite, 
          traceMsg(comp(), "Do not have a call target. Don't add\n");
       return;
       }
-      
       
    for (int i = 0 ; i < callSite->numTargets(); i++)
       {
@@ -197,12 +211,15 @@ void IDTBuilder::addChild(IDTNode*node, int callerIndex, TR_CallSite* callSite, 
       cfg->setFrequencies();
       cfg->setStartBlockFrequency();
 
-      //setCFGBlockFrequency(callTarget, false, callStack, block, node->getCallTarget()->_cfg);
-      //printf("compute %s\n",callTarget->signature(comp()->trMemory()));
+      if (traceBIIDTGen)
+         traceMsg(comp(), "+ IDTBuilder: Adding a child Node: %s for IDTNode: %s\n", calleeMethodSymbol->signature(comp()->trMemory()), node->getName(comp()->trMemory()));
+
       float callRatio = computeCallRatio(block, node->getCallTarget()->_cfg);
 
       if (traceBIIDTGen)
-         traceMsg(comp(), "+ IDTBuilder: Adding Child %s for IDTNode: %s\n",calleeMethodSymbol->signature(comp()->trMemory()), node->getName(comp()->trMemory()));
+         {
+         traceMsg(comp(), "Block Freq: %d, Start Block Freq: %d, Call Ratio: %f \n", block->getFrequency(), node->getCallTarget()->_cfg->getStartBlockFrequency(), callRatio);
+         }
 
       IDTNode* child = node->addChild(
                               _idt->getNextGlobalIDTNodeIndex(),
@@ -235,7 +252,8 @@ void IDTBuilder::addChild(IDTNode*node, int callerIndex, TR_CallSite* callSite, 
 
 float IDTBuilder::computeCallRatio(TR::Block* block, TR::CFG* callerCfg)
    {
-   return ((float)block->getFrequency() / (float) callerCfg->getStartBlockFrequency());  
+   float callRatio = ((float)block->getFrequency() / (float) callerCfg->getStartBlockFrequency());
+   return callRatio;  
    }
 
 int IDTBuilder::computeStaticBenefitWithMethodSummary(MethodSummary* methodSummary, AbsParameterArray* parameterArray)

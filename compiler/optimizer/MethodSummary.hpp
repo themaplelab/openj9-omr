@@ -14,8 +14,8 @@ class PotentialOptimization
       _paramPosition(paramPosition)
    {};
    
-   virtual void trace(TR::ValuePropagation *vp)=0; 
-   virtual int predicate(TR::VPConstraint *other, TR::ValuePropagation* vp) { return 0; };
+   virtual void trace(OMR::ValuePropagation *vp)=0; 
+   virtual int predicate(TR::VPConstraint *other,OMR::ValuePropagation* vp) { return 0; };
 
    TR::VPConstraint* getConstraint()  { return _constraint; } 
    int getParamPosition() { return _paramPosition; }
@@ -45,8 +45,8 @@ class BranchFolding : public PotentialOptimization
       _kind(kind)
    {};
 
-   virtual int predicate(TR::VPConstraint *other, TR::ValuePropagation* vp);
-   virtual void trace(TR::ValuePropagation *vp); 
+   virtual int predicate(TR::VPConstraint *other,OMR::ValuePropagation* vp);
+   virtual void trace(OMR::ValuePropagation *vp); 
 
    private:
    Kinds _kind;
@@ -60,7 +60,7 @@ class NullBranchFolding : public BranchFolding
       BranchFolding(constraint, paramPosition, kind)
    {};
 
-   virtual int predicate(TR::VPConstraint* other, TR::ValuePropagation* vp);
+   virtual int predicate(TR::VPConstraint* other,OMR::ValuePropagation* vp);
    };
 
 class NullCheckFolding : public PotentialOptimization
@@ -70,8 +70,8 @@ class NullCheckFolding : public PotentialOptimization
       PotentialOptimization(constraint, paramPosition)
    {};
 
-   virtual int predicate(TR::VPConstraint *other, TR::ValuePropagation* vp);
-   virtual void trace(TR::ValuePropagation *vp);
+   virtual int predicate(TR::VPConstraint *other,OMR::ValuePropagation* vp);
+   virtual void trace(OMR::ValuePropagation *vp);
 
    };
 
@@ -82,8 +82,8 @@ class InstanceOfFolding : public PotentialOptimization
       PotentialOptimization(constraint, paramPosition)
    {};
 
-   virtual int predicate(TR::VPConstraint* other, TR::ValuePropagation* vp);
-   virtual void trace(TR::ValuePropagation* vp);
+   virtual int predicate(TR::VPConstraint* other,OMR::ValuePropagation* vp);
+   virtual void trace(OMR::ValuePropagation* vp);
    };
 
 class CheckCastFolding : public PotentialOptimization
@@ -93,8 +93,8 @@ class CheckCastFolding : public PotentialOptimization
       PotentialOptimization(constraint, paramPosition)
    {};
 
-   virtual int predicate(TR::VPConstraint* other, TR::ValuePropagation* vp);
-   virtual void trace(TR::ValuePropagation* vp);
+   virtual int predicate(TR::VPConstraint* other,OMR::ValuePropagation* vp);
+   virtual void trace(OMR::ValuePropagation* vp);
    };
 
 //The followings are to be completed in the future.
@@ -106,8 +106,8 @@ class CheckCastFolding : public PotentialOptimization
 //       PotentialOptimization(constraint, paramPosition)
 //    {};
 
-//    virtual int test(TR::VPConstraint *constraint, TR::ValuePropagation* vp);
-//    virtual void trace(TR::ValuePropagation *vp); 
+//    virtual int test(TR::VPConstraint *constraint,OMR::ValuePropagation* vp);
+//    virtual void trace(OMR::ValuePropagation *vp); 
 //    };
 
 // class InstanceOfFolding : public PotentialOptimization
@@ -117,7 +117,7 @@ class CheckCastFolding : public PotentialOptimization
 //       PotentialOptimization(constraint, paramPosition)
 //    {};
 
-//    virtual void trace(TR::ValuePropagation *vp); 
+//    virtual void trace(OMR::ValuePropagation *vp); 
 //    };
 
 // class CheckCastFolding : public PotentialOptimization
@@ -127,7 +127,7 @@ class CheckCastFolding : public PotentialOptimization
 //       PotentialOptimization(constraint, paramPosition)
 //    {};
 
-//    virtual void trace(TR::ValuePropagation *vp); 
+//    virtual void trace(OMR::ValuePropagation *vp); 
 //    };
 
 class MethodSummary
@@ -135,7 +135,7 @@ class MethodSummary
    public:
    int predicates(TR::VPConstraint* constraint, int paramPosition);
 
-   MethodSummary(TR::Region& region, TR::ValuePropagation* vp) :
+   MethodSummary(TR::Region& region,OMR::ValuePropagation* vp) :
       _region(region),
       _potentialOpts(region),
       _vp(vp)
@@ -161,7 +161,7 @@ class MethodSummary
    void add(PotentialOptimization*);
    List<PotentialOptimization> _potentialOpts;
    TR::Region &_region;
-   TR::ValuePropagation *_vp;
+  OMR::ValuePropagation *_vp;
    };
 
 

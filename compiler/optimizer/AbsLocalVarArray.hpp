@@ -44,10 +44,10 @@ class AbsLocalVarArray
     * @brief Merge with another AbsLocalVarArray. This is in-place merge.
     *
     * @param other AbsLocalVarArray&
-    * @param vp TR::ValuePropagation* 
+    * @param vpOMR::ValuePropagation* 
     * @return void
     */
-   void merge(AbsLocalVarArray& other, TR::ValuePropagation* vp);
+   void merge(AbsLocalVarArray& other, OMR::ValuePropagation* vp);
    
    /**
     * @brief Get the AbsValue at index i
@@ -67,7 +67,7 @@ class AbsLocalVarArray
    void set(unsigned int i, AbsValue* value);
 
    size_t size() { return _array.size(); };
-   void trace(TR::ValuePropagation *vp);
+   void print(TR::Compilation* comp, OMR::ValuePropagation *vp);
 
    private:
    typedef TR::deque<AbsValue*, TR::Region&> AbsValueArray;

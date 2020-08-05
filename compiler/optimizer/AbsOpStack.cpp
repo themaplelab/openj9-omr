@@ -34,7 +34,7 @@ AbsOpStack::AbsOpStack(AbsOpStack &other, TR::Region &region) :
    {
    for (size_t i = 0; i < other.size(); i ++)
       {
-      push(other._stack.at(i));
+      push(new (region) AbsValue(other._stack.at(i)));
       }
    }
 
@@ -58,7 +58,7 @@ AbsValue* AbsOpStack::top()
    return _stack.back(); 
    }
 
-void AbsOpStack::merge(AbsOpStack &other, TR::ValuePropagation *vp)
+void AbsOpStack::merge(AbsOpStack &other,OMR::ValuePropagation *vp)
    {
    TR_ASSERT_FATAL(other._stack.size() == _stack.size(), "Stacks have different sizes!");
 
@@ -85,9 +85,8 @@ void AbsOpStack::merge(AbsOpStack &other, TR::ValuePropagation *vp)
       }
    }
 
-void AbsOpStack::trace(TR::ValuePropagation *vp)
+void AbsOpStack::print(TR::Compilation* comp,OMR::ValuePropagation *vp)
    {
-   TR::Compilation *comp = TR::comp();
    traceMsg(comp, "Contents of Abstract Operand Stack:\n");
    int stackSize = size();
    if (stackSize == 0)
@@ -100,9 +99,10 @@ void AbsOpStack::trace(TR::ValuePropagation *vp)
    traceMsg(comp, "<top>\n");
    for (int i = 0; i < stackSize; i++) 
       {
-      AbsValue *value = _stack.at(stackSize - i -1 );
+      AbsValue *value = _stack.at(stackSize - i - 1);
       traceMsg(comp, "S[%d] = ", stackSize - i - 1);
-      if (value) value->print(vp);
+      if (value)
+         value->print(comp, vp);
       traceMsg(comp, "\n");
       }
    traceMsg(comp, "<bottom>\n");

@@ -29,8 +29,7 @@
 #include "AbsValue.hpp"
 
 /**
- * For holding parameters passed from caller method to callee method during IDT construction.
- * This is used to calculate static benefit with method summary.
+ * For holding parameters passed from caller method to callee method during Abstract Interpretation.
  */
 typedef TR::deque<AbsValue*, TR::Region&> AbsParameterArray;
 
@@ -83,15 +82,15 @@ class AbsState
      * @brief Merge with another AbsState. This is in-place merge.
      *
      * @param value AbsValue*
-     * @param vp TR::ValuePropagation*
+     * @param vpOMR::ValuePropagation*
      * @return void
      */
-    void merge(AbsState* value, TR::ValuePropagation* vp);
+    void merge(AbsState* value,OMR::ValuePropagation* vp);
 
     size_t getStackSize() {   return _stack.size();  };
     size_t getArraySize() {  return _array.size();  };
     
-    void trace(TR::ValuePropagation*);
+    void print(TR::Compilation* comp,OMR::ValuePropagation*vp);
 
     private:
     AbsLocalVarArray _array;

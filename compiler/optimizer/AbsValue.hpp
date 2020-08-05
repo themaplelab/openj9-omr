@@ -34,32 +34,89 @@ class AbsValue
    public:
    AbsValue(TR::VPConstraint *constraint, TR::DataType dataType, bool isDummy=false);
    AbsValue(AbsValue* other);
-   
-   /**
-    * @brief Merge with another AbsValue. This is in-place merge.
-    *
-    * @param other AbsValue*
-    * @param vp TR::ValuePropagation* 
-    * @return void
-    */
-   void merge(AbsValue *other, TR::ValuePropagation *vp);
 
    /**
-    * @brief Check if the AbsValue is TOP. 
-    * 'TOP' is a notion in lattice theory, denoting the 'maximum' in the lattice. 
+    * A set of methods for creating different kinds of AbsValue.
+    * OMR::ValuePropagation is required as a parameter since we are using TR::VPConstraint as the constraint.
+    * Though it has nothing to do with the Value Propagation optimization.
+    */
+   static AbsValue* create(TR::VPConstraint *constraint, TR::DataType dataType, TR::Region& region);
+   
+   static AbsValue* createClassObject(TR_OpaqueClassBlock* opaqueClass, bool mustBeNonNull, TR::Region& region, OMR::ValuePropagation* vp);
+
+   static AbsValue* createNullObject(TR::Region& region, OMR::ValuePropagation* vp);
+   static AbsValue* createArrayObject(TR_OpaqueClassBlock* arrayClass, bool mustBeNonNull, int32_t lengthLow, int32_t lengthHigh, int32_t elementSize, TR::Region& region, OMR::ValuePropagation* vp);
+   
+   static AbsValue* createStringConst(TR::SymbolReference* symRef, TR::Region& region, OMR::ValuePropagation* vp);
+   static AbsValue* createIntConst(int32_t value, TR::Region& region, OMR::ValuePropagation* vp);
+   static AbsValue* createLongConst(int64_t value, TR::Region& region, OMR::ValuePropagation* vp);
+   static AbsValue* createIntRange(int32_t low, int32_t high, TR::Region& region, OMR::ValuePropagation* vp);
+   static AbsValue* createLongRange(int64_t low, int64_t high, TR::Region& region, OMR::ValuePropagation* vp);
+
+   static AbsValue* createTopInt(TR::Region& region);
+   static AbsValue* createTopLong(TR::Region& region);
+
+   static AbsValue* createTopObject(TR::Region& region);
+
+   static AbsValue* createTopDouble(TR::Region& region);
+   static AbsValue* createTopFloat(TR::Region& region);
+
+   static AbsValue* createDummyDouble(TR::Region& region);
+   static AbsValue* createDummyLong(TR::Region& region);
+
+   
+   /**
+    * @brief Merge with another AbsValue. 
+    * Note: This is in-place merge. 
+    * Other should have the exact SAME dataType as self. 
+    * Any type promotion, such as Int16 => Int32 should be handled outside before calling merge() since this is not handled inside this method.
+    *
+    * @param other AbsValue*
+    * @param vp OMR::ValuePropagation* 
+    * @return AbsValue*
+    * 
+    * The return value is self or NULL.
+    * When succeeding to merge, it returns self.
+    * NULL denotes the merge fails (when merging with different dataTypes or merging with a Dummy AbsValue).
+    */
+   AbsValue* merge(AbsValue *other,OMR::ValuePropagation *vp);
+
+   /**
+    * @brief Check if the AbsValue is Top.
+    * 
+    * Top is a notion in lattice theory, denoting the 'maximum'.
+    * Though this method seems doing the same thing as hasConstriant().
+    * 
+    * A Top value, theoretically, can still have a constraint.
+    * For example, a Top Int has the constraint <INT_MIN, INT_MAX>
+    * However, by the implementation of TR::VPConstaint, we are not allowed to create an Int constraint <INT_MIN, INT_MAX>.
+    * 
+    * This method should be re-implmented in the future in case we are not using TR::VPConstaint as the constraint.
     *
     * @return bool
     */
-   bool isTOP() { return _constraint == NULL; }; 
+   bool isTop() { return _constraint == NULL; };
 
+   /**
+    * @brief Check if the AbsValue has a constraint
+    *
+    * @return bool
+    */
    bool hasConstraint() { return _constraint != NULL; };
+
+   /**
+    * @brief Set the constriant to unknown.
+    *
+    * @return void
+    */
+   void setToTop() { setConstraint(NULL); };
 
    /**
     * @brief Check if the AbsValue is 64-bit sized data. (Two 32-bit words)
     *
     * @return bool
     */
-   bool isType2() { return _dataType == TR::Double || _dataType == TR::Int64; };
+   bool isType2() { return _dataType.isDouble() || _dataType.isInt64(); };
 
    /**
     * @brief Check if the AbsValue is only used to take a slot as the second 32-bit part of the 64-bit data types
@@ -86,7 +143,7 @@ class AbsValue
    TR::VPConstraint* getConstraint() { return _constraint; };
    void setConstraint(TR::VPConstraint *constraint) { _constraint = constraint; };
 
-   void print(TR::ValuePropagation *vp);
+   void print(TR::Compilation* comp,OMR::ValuePropagation *vp);
 
    private:
    bool _isDummy;

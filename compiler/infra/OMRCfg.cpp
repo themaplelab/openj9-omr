@@ -3294,32 +3294,32 @@ void OMR::CFG::setStartBlockFrequency()
    }
 
 
-// int
-// OMR::CFG::getBCInfoFrequency(TR_ByteCodeInfo &info, TR_HasRandomGenerator *r)
-//    {
-//    return comp()->convertNonDeterministicInput(comp()->fej9()->getIProfilerCallCount(info, comp()), MAX_BLOCK_COUNT + MAX_COLD_BLOCK_COUNT, r->randomGenerator(), 0);
-//    }
+int
+OMR::CFG::getBCInfoFrequency(TR_ByteCodeInfo &info, TR_HasRandomGenerator *r)
+   {
+   return comp()->convertNonDeterministicInput(comp()->fej9()->getIProfilerCallCount(info, comp()), MAX_BLOCK_COUNT + MAX_COLD_BLOCK_COUNT, r->randomGenerator(), 0);
+   }
 
-// bool
-// OMR::CFG::isColdCall(TR_ByteCodeInfo &info, TR_HasRandomGenerator *r)
-//    {
-//       int frequency = this->getBCInfoFrequency(info, r);
-//       return frequency < this->getLowFrequency();
-//    }
+bool
+OMR::CFG::isColdCall(TR_ByteCodeInfo &info, TR_HasRandomGenerator *r)
+   {
+      int frequency = this->getBCInfoFrequency(info, r);
+      return frequency < this->getLowFrequency();
+   }
 
-// bool
-// OMR::CFG::isColdTarget(TR_ByteCodeInfo &info, TR_CallTarget *calltarget, TR_HasRandomGenerator *r)
-//    {
-//       return isColdTarget(info, calltarget->_frequencyAdjustment, r);
-//    }
+bool
+OMR::CFG::isColdTarget(TR_ByteCodeInfo &info, TR_CallTarget *calltarget, TR_HasRandomGenerator *r)
+   {
+      return isColdTarget(info, calltarget->_frequencyAdjustment, r);
+   }
 
-// bool
-// OMR::CFG::isColdTarget(TR_ByteCodeInfo &info, float frequencyAdjustment, TR_HasRandomGenerator *r)
-//    {
-//       int frequency = this->getBCInfoFrequency(info, r);
-//       frequency *= frequencyAdjustment;
-//       return frequency < this->getLowFrequency();
-//    }
+bool
+OMR::CFG::isColdTarget(TR_ByteCodeInfo &info, float frequencyAdjustment, TR_HasRandomGenerator *r)
+   {
+      int frequency = this->getBCInfoFrequency(info, r);
+      frequency *= frequencyAdjustment;
+      return frequency < this->getLowFrequency();
+   }
 
 // void
 // OMR::CFG::computeMethodBranchProfileInfo(BenefitInlinerUtil *util, TR_CallTarget* calltarget, TR::ResolvedMethodSymbol* callerSymbol, int callerIndex, TR::Block *callBlock, TR::CFG* callerCfg)

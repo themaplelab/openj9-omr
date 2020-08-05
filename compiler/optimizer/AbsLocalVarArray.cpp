@@ -42,7 +42,7 @@ AbsLocalVarArray::AbsLocalVarArray(AbsLocalVarArray &other, TR::Region& region) 
       }
    }
 
-void AbsLocalVarArray::merge(AbsLocalVarArray &other, TR::ValuePropagation *vp)
+void AbsLocalVarArray::merge(AbsLocalVarArray &other,OMR::ValuePropagation *vp)
    {
    int otherSize = other.size();
    int selfSize = size();
@@ -59,7 +59,8 @@ void AbsLocalVarArray::merge(AbsLocalVarArray &other, TR::ValuePropagation *vp)
          }
       else if (selfValue && otherValue) 
          {
-         selfValue->merge(otherValue, vp);
+         AbsValue* mergedVal = selfValue->merge(otherValue, vp);
+         set(i, mergedVal);
          } 
       else if (selfValue) 
          {
@@ -100,9 +101,8 @@ AbsValue* AbsLocalVarArray::at(unsigned int index)
    return _array.at(index); 
    }
 
-void AbsLocalVarArray::trace(TR::ValuePropagation *vp)
+void AbsLocalVarArray::print(TR::Compilation* comp, OMR::ValuePropagation *vp)
    {
-   TR::Compilation *comp = TR::comp();
    traceMsg(comp, "Contents of Abstract Local Variable Array:\n");
    int arraySize = size();
    for (int i = 0; i < arraySize; i++)
@@ -113,7 +113,7 @@ void AbsLocalVarArray::trace(TR::ValuePropagation *vp)
          traceMsg(comp, "NULL\n");
          continue;
          }
-      at(i)->print(vp);
+      at(i)->print(comp, vp);
       traceMsg(comp, "\n");
       }
    traceMsg(comp, "\n");

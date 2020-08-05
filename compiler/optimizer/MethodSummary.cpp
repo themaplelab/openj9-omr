@@ -3,9 +3,9 @@
 #include "optimizer/GlobalValuePropagation.hpp"
 #include "optimizer/LocalValuePropagation.hpp"
 
-// Be careful, other can be an VPIntConst, VPIntRange or VPMergedIntConstraint
+// Be careful, other can be an VPIntConst, VPIntRange
 // _constraint can be a VPIntConst or VPIntRange 
-int BranchFolding::predicate(TR::VPConstraint *other, TR::ValuePropagation *vp)
+int BranchFolding::predicate(TR::VPConstraint *other,OMR::ValuePropagation *vp)
    {
    traceMsg(TR::comp(), "Contraint to Compare: ");
 
@@ -68,7 +68,7 @@ int BranchFolding::predicate(TR::VPConstraint *other, TR::ValuePropagation *vp)
    return 0;
    }
 
-int NullBranchFolding::predicate(TR::VPConstraint *other, TR::ValuePropagation* vp)
+int NullBranchFolding::predicate(TR::VPConstraint *other,OMR::ValuePropagation* vp)
    {
    if (!other)
       return 0;
@@ -92,7 +92,7 @@ int NullBranchFolding::predicate(TR::VPConstraint *other, TR::ValuePropagation* 
    return 0;
    }
 
-int NullCheckFolding::predicate(TR::VPConstraint* other, TR::ValuePropagation *vp)
+int NullCheckFolding::predicate(TR::VPConstraint* other,OMR::ValuePropagation *vp)
    {
    if (!other)
       return 0;
@@ -119,7 +119,7 @@ int NullCheckFolding::predicate(TR::VPConstraint* other, TR::ValuePropagation *v
 
 //Note: other can be VPClass or VPNullObject
 // constraint is VPFixedClass or VPNullObject
-int InstanceOfFolding::predicate(TR::VPConstraint* other, TR::ValuePropagation *vp)
+int InstanceOfFolding::predicate(TR::VPConstraint* other,OMR::ValuePropagation *vp)
    {
    if (!other)
       return 0;
@@ -150,7 +150,7 @@ int InstanceOfFolding::predicate(TR::VPConstraint* other, TR::ValuePropagation *
       return 0;
    }
 
-int CheckCastFolding::predicate(TR::VPConstraint* other, TR::ValuePropagation *vp)
+int CheckCastFolding::predicate(TR::VPConstraint* other,OMR::ValuePropagation *vp)
    {
    if (!other)
       return 0;
@@ -225,7 +225,7 @@ void MethodSummary::trace()
       }
    }
 
-void BranchFolding::trace(TR::ValuePropagation *vp)
+void BranchFolding::trace(OMR::ValuePropagation *vp)
    {
    char* branchFoldingName;
 
@@ -273,21 +273,21 @@ void BranchFolding::trace(TR::ValuePropagation *vp)
    traceMsg(TR::comp(), "\n");
    }
 
-void NullCheckFolding::trace(TR::ValuePropagation *vp)
+void NullCheckFolding::trace(OMR::ValuePropagation *vp)
    {
    traceMsg(TR::comp(), "Null Check Folding for argument %d constraint: ", _paramPosition);
    _constraint->print(vp);
    traceMsg(TR::comp(), "\n");
    }
 
-void InstanceOfFolding::trace(TR::ValuePropagation *vp)
+void InstanceOfFolding::trace(OMR::ValuePropagation *vp)
    {
    traceMsg(TR::comp(), "Instanceof Folding for argument %d constraint: ", _paramPosition);
    _constraint->print(vp);
    traceMsg(TR::comp(), "\n");
    }
 
-void CheckCastFolding::trace(TR::ValuePropagation *vp)
+void CheckCastFolding::trace(OMR::ValuePropagation *vp)
    {
    traceMsg(TR::comp(), "Checkcast Folding for argument %d constraint: ", _paramPosition);
    _constraint->print(vp);

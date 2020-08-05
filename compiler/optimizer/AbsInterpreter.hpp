@@ -32,20 +32,26 @@ class AbsInterpreter
    private:
    TR::Compilation* comp() {  return _comp; };
    TR::Region& region() {  return _region;  };
-   TR::ValuePropagation *vp();
+   OMR::ValuePropagation *vp();
 
-   AbsValue* createClassObjectAbsValue(TR_OpaqueClassBlock* opaqueClass, TR::VPClassPresence *presence = NULL, TR::VPArrayInfo *info = NULL);
+   // AbsValue* createClassObjectAbsValue(TR_OpaqueClassBlock* opaqueClass, TR::VPClassPresence *presence = NULL, TR::VPArrayInfo *info = NULL);
 
-   AbsValue* createNullObjectAbsValue() { return new (region()) AbsValue(TR::VPNullObject::create(vp()), TR::Address); };
+   // AbsValue* createNullObjectAbsValue() { return new (region()) AbsValue(TR::VPNullObject::create(vp()), TR::Address); };
 
-   AbsValue* createIntConstAbsValue(int32_t value) { return new (region()) AbsValue(TR::VPIntConst::create(vp(), value), TR::Int32); };
-   AbsValue* createIntRangeAbsValue(int32_t low, int32_t high) { return new (region()) AbsValue(TR::VPIntRange::create(vp(), low, high), TR::Int32); };
+   // AbsValue* createIntConstAbsValue(int32_t value) { return new (region()) AbsValue(TR::VPIntConst::create(vp(), value), TR::Int32); };
+   // AbsValue* createIntRangeAbsValue(int32_t low, int32_t high) { return new (region()) AbsValue(TR::VPIntRange::create(vp(), low, high), TR::Int32); };
 
-   AbsValue* createLongConstAbsValue(int64_t value) { return new (region()) AbsValue(TR::VPLongConst::create(vp(), value), TR::Int64); };
-   AbsValue* createLongRangeAbsValue(int64_t low, int64_t high) { return new (region()) AbsValue(TR::VPLongRange::create(vp(), low, high), TR::Int64); };
+   // AbsValue* createLongConstAbsValue(int64_t value) { return new (region()) AbsValue(TR::VPLongConst::create(vp(), value), TR::Int64); };
+   // AbsValue* createLongRangeAbsValue(int64_t low, int64_t high) { return new (region()) AbsValue(TR::VPLongRange::create(vp(), low, high), TR::Int64); };
 
-   AbsValue* createTOPAbsValue(TR::DataType dataType) { return new (region()) AbsValue(NULL, dataType); };
-   AbsValue* createDummyAbsValue(TR::DataType dataType) { return new (region()) AbsValue(NULL, dataType, true); };
+   // //used for types other than int, long, class objects
+   // AbsValue* createTOPAbsValue(TR::DataType dataType) { return new (region()) AbsValue(NULL, dataType, false, true); };
+
+   // AbsValue* createTOPIntAbsValue();
+   // AbsValue* createTOPLongTopAbsValue();
+   // AbsValue* createTOPClasObjectAbsValue();
+
+   // AbsValue* createDummyAbsValue(TR::DataType dataType) { return new (region()) AbsValue(NULL, dataType, true, false); };
 
    AbsState* initializeAbsState(TR::ResolvedMethodSymbol* symbol);
 
@@ -275,7 +281,7 @@ class AbsInterpreter
    AbsState* lxor(AbsState*);
    AbsState* monitorenter(AbsState*);
    AbsState* monitorexit(AbsState*);
-   AbsState* multianewarray(AbsState*, int, int);
+   AbsState* multianewarray(AbsState*, int, int, TR_ResolvedMethod*);
    AbsState* _new(AbsState*, int, TR_ResolvedMethod*);
    AbsState* newarray(AbsState*, int, TR_ResolvedMethod*);
    AbsState* nop(AbsState*);
@@ -314,8 +320,7 @@ class AbsInterpreter
 
    TR::Region& _region;
    TR::Compilation* _comp;
-   TR_J9ByteCodeIterator _bcIterator;
-   TR::ValuePropagation* _vp;
+   OMR::ValuePropagation* _vp;
    };
 
 

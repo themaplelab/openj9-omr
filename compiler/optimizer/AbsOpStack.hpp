@@ -44,10 +44,10 @@ class AbsOpStack
     * @brief Merge with another AbsOpStack. This is in-place merge.
     *
     * @param other AbsOpStack&
-    * @param vp TR::ValuePropagation* 
+    * @param vpOMR::ValuePropagation* 
     * @return void
     */
-   void merge(AbsOpStack&, TR::ValuePropagation *);
+   void merge(AbsOpStack&,OMR::ValuePropagation *);
 
    /**
     * @brief Push an AbsValue to the AbsOpStack.
@@ -75,7 +75,7 @@ class AbsOpStack
    bool empty()  {  return _stack.empty();  };
    size_t size()  {  return _stack.size();  };
   
-   void trace(TR::ValuePropagation *);
+   void print(TR::Compilation* comp,OMR::ValuePropagation *vp);
 
    private:
    typedef TR::deque<AbsValue*, TR::Region&> AbsValueStack;

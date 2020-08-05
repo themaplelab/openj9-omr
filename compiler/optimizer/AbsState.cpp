@@ -12,16 +12,16 @@ AbsState::AbsState(AbsState* other, TR::Region& region ) :
    {
    }
 
-void AbsState::merge(AbsState* other, TR::ValuePropagation *vp)
+void AbsState::merge(AbsState* other,OMR::ValuePropagation *vp)
    {
    _array.merge(other->_array, vp);
    _stack.merge(other->_stack, vp);
    }
 
 
-void AbsState::trace(TR::ValuePropagation *vp)
+void AbsState::print(TR::Compilation* comp,OMR::ValuePropagation *vp)
    {
-   traceMsg(TR::comp(), "\nContents of AbsState \n");
-   _array.trace(vp);
-   _stack.trace(vp);
+   traceMsg(comp, "\nContents of AbsState \n");
+   _array.print(comp,vp);
+   _stack.print(comp,vp);
    }

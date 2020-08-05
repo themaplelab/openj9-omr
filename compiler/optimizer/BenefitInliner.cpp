@@ -21,7 +21,7 @@ int32_t OMR::BenefitInlinerWrapper::perform()
    {
   
    TR::ResolvedMethodSymbol * sym = comp()->getMethodSymbol();
-   //printf("======= %s\n",sym->signature(comp()->trMemory()));
+   //printf("======= %s ======\n\n\n",sym->signature(comp()->trMemory()));
    TR::CFG *prevCFG = sym->getFlowGraph();
    int32_t budget = getBudget(sym);
    if (budget < 0)
@@ -61,10 +61,10 @@ int32_t OMR::BenefitInlinerWrapper::perform()
 
    // while (inliner.inlinedNodes.empty() == false)
    //    {
-   //    printf(" %d  ,", inliner.inlinedNodes.front());
+   //    //printf(" %d  ,", inliner.inlinedNodes.front());
    //    inliner.inlinedNodes.pop_front();
    //    }
-   // printf("\n");
+   // //printf("\n");
 
    return 1;
    }
@@ -107,7 +107,7 @@ OMR::BenefitInlinerBase::inlineCallTargets(TR::ResolvedMethodSymbol *rms, TR_Cal
    if (!this->_currentNode) {
       return false;
    }
-   //printf("inlining into %s\n", this->_currentNode->getName());
+   ////printf("inlining into %s\n", this->_currentNode->getName());
    traceMsg(TR::comp(), "inlining into %s\n", this->_currentNode->getName());
    TR_ASSERT(!prevCallStack || prevCallStack->_methodSymbol->getFlowGraph(), "we have a null call graph");
 
@@ -151,7 +151,7 @@ bool
 OMR::BenefitInlinerBase::usedSavedInformation(TR::ResolvedMethodSymbol *rms, TR_CallStack *callStack, TR_InnerPreexistenceInfo *info, IDTNode *idtNode)
 {     
       //level ++;
-      //printf("level %d\n",level);
+      ////printf("level %d\n",level);
       bool inlined = false;
       uint32_t inlineCount = 0;
       for (TR::TreeTop * tt = rms->getFirstTreeTop(); tt; tt = tt->getNextTreeTop())
@@ -216,7 +216,7 @@ void OMR::BenefitInliner::inlinerPacking()
    unsigned int idtSize = _idt->getNumNodes();
    unsigned int budget = _budget;
 
-   //initialize InliningProposal Table (idtSize x budget)
+   //initialize InliningProposal Table (idtSize x budget+1)
    InliningProposalTable table(idtSize, budget + 1, comp()->trMemory()->currentStackRegion());
 
    IDTPreorderPriorityQueue preorderPQueue(_idt, comp()->trMemory()->currentStackRegion()); 
@@ -271,13 +271,13 @@ OMR::BenefitInlinerWrapper::getBudget(TR::ResolvedMethodSymbol *resolvedMethodSy
       
       if (this->comp()->getMethodHotness() >= scorching)
       {
-         //printf("size: %d\n",size);
+         ////printf("size: %d\n",size);
          return std::max(1500, size * 2);
       }
 
       if (this->comp()->getMethodHotness() >= hot)
       {
-         //printf("size: %d\n",size);
+         ////printf("size: %d\n",size);
          return std::max(1500, size + (size >> 2));
       }
 
