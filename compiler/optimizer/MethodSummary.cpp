@@ -3,9 +3,8 @@
 #include "optimizer/GlobalValuePropagation.hpp"
 #include "optimizer/LocalValuePropagation.hpp"
 
-// Be careful, other can be an VPIntConst, VPIntRange
-// _constraint can be a VPIntConst or VPIntRange 
-int BranchFolding::predicate(TR::VPConstraint *other,OMR::ValuePropagation *vp)
+
+int BranchFolding::predicate(TR::VPConstraint *other, OMR::ValuePropagation *vp)
    {
    traceMsg(TR::comp(), "Contraint to Compare: ");
 
@@ -18,53 +17,12 @@ int BranchFolding::predicate(TR::VPConstraint *other,OMR::ValuePropagation *vp)
    other->print(vp);
    traceMsg(TR::comp(), "\n");
 
-   TR::VPIntConst* otherIntConst = other->asIntConst();
-   TR::VPIntRange* otherIntRange = other->asIntRange();
-   TR::VPMergedConstraints* otherMerged = other->asMergedIntConstraints();
-
-   TR::VPIntRange* constraintIntRange = _constraint->asIntRange();
-   if (constraintIntRange) //If the constraint is a range
+   if (other->asIntConstraint() && _constraint->asIntConstraint())
       {
-      int32_t constraintLow = constraintIntRange->getLowInt();
-      int32_t constraintHigh = constraintIntRange->getHighInt();
-
-      if (otherIntConst)
-         {
-         if (constraintLow <= otherIntConst->getInt() && constraintHigh >= otherIntConst->getInt())
-            return 1;
-         return 0;
-         }
-
-      if (otherIntRange)
-         {
-         if (otherIntRange->getLowInt() >= constraintLow && otherIntRange->getHighInt() <= constraintHigh)
-            return 1;
-         return 0;
-         }
-
-      if (otherMerged)
-         {
-         if (otherMerged->getLowInt() >= constraintLow && otherMerged->getHighInt() <= constraintHigh)
-            return 1;
-         return 0;
-         }
-      
-      return 0;
-
+      if (_constraint->asIntConstraint()->getLowInt()<= other->asIntConstraint()->getLowInt() 
+         && _constraint->asIntConstraint()->getHigh() >= other->asIntConstraint()->getHigh())
+         return 1;
       }
-
-   TR::VPIntConst* constraintIntConst = _constraint->asIntConst();
-   if (constraintIntConst) //If the constraint is an int const
-      {
-      if (otherIntConst)
-         {
-         if (otherIntConst->getInt() == constraintIntConst->getInt())
-            return 1;
-         return 0;
-         }
-      return 0;
-      }
-
    return 0;
    }
 
@@ -76,17 +34,11 @@ int NullBranchFolding::predicate(TR::VPConstraint *other,OMR::ValuePropagation* 
    other->print(vp);
    traceMsg(TR::comp(), "\n");
 
-   TR::VPClass* otherClass = other->asClass(); 
-
-   TR::VPNullObject* otherNullObject = other->asNullObject();
-
-   TR::VPNullObject* constraintNullObject = _constraint->asNullObject();
-   TR::VPNonNullObject* constraintNonNullObject = _constraint->asNonNullObject();
-
-   if (constraintNullObject && otherNullObject) //both null
+   if (other->asNullObject() && _constraint->asNullObject()) //both null
       return 1; 
 
-   if (constraintNonNullObject && otherClass && otherClass->getClassPresence()->asNonNullObject() ) //both non null
+   if (other->asClass() && other->asClass()->getClassPresence() && other->asClass()->getClassPresence()->asNonNullObject()
+       && _constraint->asNonNullObject() ) //both non null
       return 1;
 
    return 0;
@@ -101,16 +53,11 @@ int NullCheckFolding::predicate(TR::VPConstraint* other,OMR::ValuePropagation *v
    other->print(vp);
    traceMsg(TR::comp(), "\n");
 
-   TR::VPClass* otherClass = other->asClass(); 
-   TR::VPNullObject* otherNullObject = other->asNullObject();
-
-   TR::VPNullObject* constraintNullObject = _constraint->asNullObject();
-   TR::VPNonNullObject* constraintNonNullObject = _constraint->asNonNullObject();
-
-   if (constraintNullObject && otherNullObject) //both null
+   if (other->asNullObject() && _constraint->asNullObject()) //both null
       return 1; 
 
-   if (constraintNonNullObject && otherClass && otherClass->getClassPresence()->asNonNullObject()) //both non null
+   if (other->asClass() && other->asClass()->getClassPresence() && other->asClass()->getClassPresence()->asNonNullObject()
+       && _constraint->asNonNullObject() ) //both non null
       return 1;
       
    return 0;
@@ -128,26 +75,17 @@ int InstanceOfFolding::predicate(TR::VPConstraint* other,OMR::ValuePropagation *
    other->print(vp);
    traceMsg(TR::comp(), "\n");
 
-   TR::VPClass* otherClass = other->asClass(); //if other is a class object
-   TR::VPNullObject* otherNullObject = other->asNullObject();
-
-   TR::VPClassType* constraintClassType = _constraint->asClassType(); //check if constraint is classType
-   TR::VPNullObject* constraintNullObject = _constraint->asNullObject();//check if constraint is null object
-
    //instance of null object
-   if (constraintNullObject && otherNullObject)
-      {
+   if (_constraint->asNullObject() && other->asNullObject())
       return 1;
-      }
+   
+   //instance of non-null object. Have the exact same type
+   if (_constraint->asClassType() && other->asClass() && other->asClass()->getClassPresence() && other->asClass()->getClassPresence()->asNonNullObject()
+      && other->asClass()->getClass() == _constraint->asClassType()->getClass())
+      return 1;
 
-   if (otherClass && constraintClassType)
-      {
-      if (otherClass->getClassType()->getClass() == constraintClassType->getClass())    //Exact same type
-         return 1;
-      return 0;
-      }
 
-      return 0;
+   return 0;
    }
 
 int CheckCastFolding::predicate(TR::VPConstraint* other,OMR::ValuePropagation *vp)
@@ -159,24 +97,13 @@ int CheckCastFolding::predicate(TR::VPConstraint* other,OMR::ValuePropagation *v
    other->print(vp);
    traceMsg(TR::comp(), "\n");
 
-   TR::VPClass* otherClass = other->asClass(); //if other is a class object
-   TR::VPNullObject* otherNullObject = other->asNullObject();
-
-   TR::VPClassType* constraintClassType = _constraint->asClassType(); //check if constraint is classType
-   TR::VPNullObject* constraintNullObject = _constraint->asNullObject();//check if constraint is null object
-
-   //Check cast null object
-   if (constraintNullObject && otherNullObject)
-      {
+   //Checkcast null object
+   if (_constraint->asNullObject() && other->asNullObject())
       return 1;
-      }
-
-   if (otherClass && constraintClassType)
-      {
-      if (otherClass->getClassType()->getClass() == constraintClassType->getClass())    //Exact same type
-         return 1;
-      return 0;
-      }
+      
+   if (_constraint->asClassType() && other->asClass() && other->asClass()->getClassPresence() && other->asClass()->getClassPresence()->asNonNullObject()
+      && other->asClass()->getClass() == _constraint->asClassType()->getClass())
+      return 1;
       
    
    return 0;

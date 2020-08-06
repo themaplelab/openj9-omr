@@ -42,7 +42,7 @@ AbsLocalVarArray::AbsLocalVarArray(AbsLocalVarArray &other, TR::Region& region) 
       }
    }
 
-void AbsLocalVarArray::merge(AbsLocalVarArray &other,OMR::ValuePropagation *vp)
+void AbsLocalVarArray::merge(AbsLocalVarArray &other, OMR::ValuePropagation *vp)
    {
    int otherSize = other.size();
    int selfSize = size();

@@ -178,7 +178,7 @@ IDTNode* IDTPreorderPriorityQueue::get(unsigned int index)
       return NULL;
 
    //not in entries yet. Update entries.
-   for (unsigned int i = 0 ; i < index + 1 - entriesSize; i ++)
+   while (_entries.size() <= index) 
       {
       IDTNode *newEntry = _pQueue.top();
       _pQueue.pop();

@@ -154,19 +154,6 @@ void IDTBuilder::addChild(IDTNode*node, int callerIndex, TR_CallSite* callSite, 
      
    getInliner()->applyPolicyToTargets(callStack, callSite); // eliminate call targets that are not inlinable thus they won't be added to IDT 
 
-   int frequency = comp()->convertNonDeterministicInput(block->getFrequency(), MAX_BLOCK_COUNT + MAX_COLD_BLOCK_COUNT, getInliner()->randomGenerator(), 0);	
-   bool isColdCall = node->getCallTarget()->_cfg->isColdCall(callSite->_bcInfo, getInliner());	
-
-   bool isCold = (isColdCall &&  (frequency < MAX_COLD_BLOCK_COUNT));	
-   if ( isCold)	
-      {	
-      printf("cold call\n");
-      // getInliner()->tracer()->insertCounter(DontInline_Callee, callsite->_callNodeTreeTop);	
-      // callsite->removecalltarget(i,tracer(),DontInline_Callee);	
-      // i--;	
-      // continue;	
-      return;
-      }
 
    if (callSite->numTargets() == 0) 
       {

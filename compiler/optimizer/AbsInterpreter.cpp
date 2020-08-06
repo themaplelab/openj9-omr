@@ -828,7 +828,7 @@ AbsState* AbsInterpreter::multianewarray(AbsState* absState, int cpIndex, int di
                               arrayType,
                               true,
                               length->getConstraint()->asIntConstraint()->getLowInt(),
-                              length->getConstraint()->asIntConstraint()->getLowInt(),
+                              length->getConstraint()->asIntConstraint()->getHigh(),
                               4,
                               region(),
                               vp());
@@ -1393,7 +1393,7 @@ AbsState* AbsInterpreter::instanceof(AbsState* absState, int cpIndex, int byteCo
          {
          if (objectRef->getConstraint()->asClass() || objectRef->getConstraint()->asConstString()) // is class object or string object
             {
-            TR_YesNoMaybe yesNoMaybe = comp()->fe()->isInstanceOf(objectRef->getConstraint()->getClass(), block, true, true);
+            TR_YesNoMaybe yesNoMaybe = comp()->fe()->isInstanceOf(objectRef->getConstraint()->getClass(), block, false, true, true);
 
             if( yesNoMaybe == TR_yes) //Instanceof must be true;
                {
@@ -3314,6 +3314,9 @@ AbsState* AbsInterpreter::anewarray(AbsState* absState, int cpIndex, TR_Resolved
 AbsState* AbsInterpreter::arraylength(AbsState* absState)
    {
    AbsValue* arrayRef = absState->pop();
+
+   if (arrayRef->isParameter())
+      _methodSummary->addNullCheck(arrayRef->getParamPosition());
 
    if (arrayRef->hasConstraint()&& arrayRef->getConstraint()->getArrayInfo())
       {
