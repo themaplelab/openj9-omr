@@ -16,6 +16,7 @@ class PotentialOptimization
    
    virtual void trace(OMR::ValuePropagation *vp)=0; 
    virtual int predicate(TR::VPConstraint *other,OMR::ValuePropagation* vp) { return 0; };
+   virtual int getWeight() { return 1; };
 
    TR::VPConstraint* getConstraint()  { return _constraint; } 
    int getParamPosition() { return _paramPosition; }
@@ -47,6 +48,7 @@ class BranchFolding : public PotentialOptimization
 
    virtual int predicate(TR::VPConstraint *other,OMR::ValuePropagation* vp);
    virtual void trace(OMR::ValuePropagation *vp); 
+   virtual int getWeight() { return 3; };
 
    private:
    Kinds _kind;
@@ -61,6 +63,7 @@ class NullBranchFolding : public BranchFolding
    {};
 
    virtual int predicate(TR::VPConstraint* other,OMR::ValuePropagation* vp);
+   virtual int getWeight() { return 2; };
    };
 
 class NullCheckFolding : public PotentialOptimization
@@ -72,6 +75,7 @@ class NullCheckFolding : public PotentialOptimization
 
    virtual int predicate(TR::VPConstraint *other,OMR::ValuePropagation* vp);
    virtual void trace(OMR::ValuePropagation *vp);
+   virtual int getWeight() { return 1; };
 
    };
 
@@ -83,6 +87,7 @@ class InstanceOfFolding : public PotentialOptimization
    {};
 
    virtual int predicate(TR::VPConstraint* other,OMR::ValuePropagation* vp);
+   virtual int getWeight() { return 1; };
    virtual void trace(OMR::ValuePropagation* vp);
    };
 
@@ -94,6 +99,7 @@ class CheckCastFolding : public PotentialOptimization
    {};
 
    virtual int predicate(TR::VPConstraint* other,OMR::ValuePropagation* vp);
+   virtual int getWeight() { return 1; };
    virtual void trace(OMR::ValuePropagation* vp);
    };
 

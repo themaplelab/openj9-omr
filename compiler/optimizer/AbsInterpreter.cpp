@@ -11,7 +11,7 @@ AbsInterpreter::AbsInterpreter(
    ):
       _idtNode(node),
       _callerMethodSymbol(node->getResolvedMethodSymbol()),
-      _callerMethod(node->getCallTarget()->_calleeMethod),
+      _callerMethod( node->getResolvedMethod()),
       _idtBuilder(idtBuilder),
       _callerIndex(callerIndex),
       _region(region),
@@ -19,7 +19,7 @@ AbsInterpreter::AbsInterpreter(
       _callStack(callStack),
       _vp(NULL)
    {
-   _methodSummary = new (_region) MethodSummary(_region, vp());
+   _methodSummary = new (_region) MethodSummary(_region, vp(), comp);
    }
 
 
@@ -44,16 +44,16 @@ bool AbsInterpreter::interpret()
    
    //TR_CallTarget* callTarget = _idtNode->getCallTarget();
 
-   TR_ASSERT_FATAL(_callerMethod, "Caller method is NULL!");
-   TR_ASSERT_FATAL(_callerMethodSymbol->getFlowGraph(), "CFG is NULL!");
-   TR::CFG* cfg = _callerMethodSymbol->getFlowGraph();
+   // TR_ASSERT_FATAL(_callerMethod, "Caller method is NULL!");
+   // TR_ASSERT_FATAL(_callerMethodSymbol->getFlowGraph(), "CFG is NULL!");
+   TR::CFG* cfg = _idtNode->getCallTarget()->_cfg;
 
    TR_J9ByteCodeIterator bci(_callerMethodSymbol, static_cast<TR_ResolvedJ9Method*>(_callerMethod), static_cast<TR_J9VMBase*>(comp()->fe()), comp());
 
    if (traceAbstractInterpretation)
       traceMsg(comp(), "-1. Abstract Interpreter: Initialize AbsState of method: %s\n", _idtNode->getResolvedMethodSymbol()->signature(comp()->trMemory()));
 
-   AbsState *startBlockState = initializeAbsState(_callerMethodSymbol);
+   AbsState *startBlockState = initializeAbsState();
 
    TR::Block* startBlock = cfg->getStart()->asBlock();
 
@@ -132,12 +132,12 @@ bool AbsInterpreter::interpret()
    }
 
 //Get the abstract state of the START block of CFG
-AbsState* AbsInterpreter::initializeAbsState(TR::ResolvedMethodSymbol* symbol)
+AbsState* AbsInterpreter::initializeAbsState()
    {  
-   //printf("- 1. Abstract Interpreter: Enter method: %s\n", symbol->signature(comp()->trMemory()));
+   //printf("- 1. Abstract Interpreter: Enter method: %s\n", _callerMethodSymbol->signature(comp()->trMemory()));
    AbsState* absState = new (region()) AbsState(region());
 
-   TR_ResolvedMethod *resolvedMethod = symbol->getResolvedMethod();
+   TR_ResolvedMethod *resolvedMethod = _callerMethodSymbol->getResolvedMethod();
 
    int32_t numberOfParameters = resolvedMethod->numberOfParameters();
    int32_t numberOfExplicitParameters = resolvedMethod->numberOfExplicitParameters();
@@ -147,8 +147,9 @@ AbsState* AbsInterpreter::initializeAbsState(TR::ResolvedMethodSymbol* symbol)
    if (numberOfImplicitParameters == 1)
       {
       TR_OpaqueClassBlock *implicitParameterClass = resolvedMethod->containingClass();
-      AbsValue* value = AbsValue::createClassObject(implicitParameterClass, true, region(), vp());
+      AbsValue* value = AbsValue::createClassObject(implicitParameterClass, true, comp(), region(), vp());
       value->setParamPosition(0);
+      value->setImplicitParam();
       absState->set(0, value);
       }
 
@@ -207,7 +208,7 @@ AbsState* AbsInterpreter::initializeAbsState(TR::ResolvedMethodSymbol* symbol)
                }
             else 
                {
-               paramValue = AbsValue::createClassObject(classBlock, false, region(), vp());
+               paramValue = AbsValue::createClassObject(classBlock, false, comp(), region(), vp());
                paramValue->setParamPosition(paramPos);
                absState->set(slot, paramValue);
                break;
@@ -509,10 +510,10 @@ bool AbsInterpreter::interpretByteCode(AbsState* state, TR_J9ByteCode bc, TR_J9B
       case J9BCsipush: sipush(state, bci.next2BytesSigned()); break;
 
       //ldc_x
-      case J9BCldc: ldc(state, bci.nextByte(), bci.method()); break;
-      case J9BCldcw: ldcw(state, bci.next2Bytes(), bci.method()); break;
-      case J9BCldc2lw: ldc(state, bci.next2Bytes(), bci.method()); break; //internal bytecode equivalent to ldc2_w
-      case J9BCldc2dw: ldc(state, bci.next2Bytes(), bci.method()); break; //internal bytecode equivalent to ldc2_w
+      case J9BCldc: ldc(state, bci.nextByte()); break;
+      case J9BCldcw: ldcw(state, bci.next2Bytes()); break;
+      case J9BCldc2lw: ldc(state, bci.next2Bytes()); break; //internal bytecode equivalent to ldc2_w
+      case J9BCldc2dw: ldc(state, bci.next2Bytes()); break; //internal bytecode equivalent to ldc2_w
 
       //iload_x
       case J9BCiload: iload(state, bci.nextByte()); break;
@@ -751,50 +752,50 @@ bool AbsInterpreter::interpretByteCode(AbsState* state, TR_J9ByteCode bc, TR_J9B
       case J9BCtableswitch: tableswitch(state); break;
 
       //get_x
-      case J9BCgetfield: getfield(state, bci.next2Bytes(), bci.method()); break;
-      case J9BCgetstatic: getstatic(state, bci.next2Bytes(), bci.method()); break;
+      case J9BCgetfield: getfield(state, bci.next2Bytes()); break;
+      case J9BCgetstatic: getstatic(state, bci.next2Bytes()); break;
 
       //put_x
-      case J9BCputfield: putfield(state, bci.next2Bytes(), bci.method()); break;
-      case J9BCputstatic: putstatic(state, bci.next2Bytes(), bci.method()); break;
+      case J9BCputfield: putfield(state, bci.next2Bytes()); break;
+      case J9BCputstatic: putstatic(state, bci.next2Bytes()); break;
 
       //x_newarray
-      case J9BCnewarray: newarray(state, bci.nextByte(), bci.method()); break;
-      case J9BCanewarray: anewarray(state, bci.next2Bytes(), bci.method()); break;
-      case J9BCmultianewarray: multianewarray(state, bci.next2Bytes(), bci.nextByte(3), bci.method()); break;
+      case J9BCnewarray: newarray(state, bci.nextByte()); break;
+      case J9BCanewarray: anewarray(state, bci.next2Bytes()); break;
+      case J9BCmultianewarray: multianewarray(state, bci.next2Bytes(), bci.nextByte(3)); break;
 
       //monitor_x
       case J9BCmonitorenter: monitorenter(state); break;
       case J9BCmonitorexit: monitorexit(state); break;
       
-      case J9BCnew: _new(state, bci.next2Bytes(), bci.method()); break;
+      case J9BCnew: _new(state, bci.next2Bytes()); break;
 
       case J9BCarraylength: arraylength(state); break;
 
       case J9BCathrow: athrow(state); break;
       
-      case J9BCcheckcast: checkcast(state, bci.next2Bytes(), bci.currentByteCodeIndex(), bci.method()); break;
+      case J9BCcheckcast: checkcast(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
 
-      case J9BCinstanceof: instanceof(state, bci.next2Bytes(), bci.currentByteCodeIndex(), bci.method()); break;
+      case J9BCinstanceof: instanceof(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
 
       case J9BCwide: /* does this need to be handled? */ break;
 
       //invoke_x
       case J9BCinvokedynamic: return false; break; //Encounter an invokedynamic. 
-      case J9BCinvokeinterface: invokeinterface(state, bci.currentByteCodeIndex(), bci.next2Bytes(),bci.method(), block); break;
+      case J9BCinvokeinterface: invokeinterface(state, bci.currentByteCodeIndex(), bci.next2Bytes(), block); break;
       case J9BCinvokeinterface2: /*how should we handle invokeinterface2? */ break;
-      case J9BCinvokespecial: invokespecial(state, bci.currentByteCodeIndex(), bci.next2Bytes(),bci.method(), block); break;
-      case J9BCinvokestatic: invokestatic(state, bci.currentByteCodeIndex(), bci.next2Bytes(),bci.method(), block); break;
-      case J9BCinvokevirtual: invokevirtual(state, bci.currentByteCodeIndex(), bci.next2Bytes(),bci.method(), block);break;
-      case J9BCinvokespecialsplit: invokespecial(state, bci.currentByteCodeIndex(), bci.next2Bytes() | J9_SPECIAL_SPLIT_TABLE_INDEX_FLAG, bci.method(), block); break;
-      case J9BCinvokestaticsplit: invokestatic(state, bci.currentByteCodeIndex(), bci.next2Bytes() | J9_STATIC_SPLIT_TABLE_INDEX_FLAG, bci.method(), block); break;
+      case J9BCinvokespecial: invokespecial(state, bci.currentByteCodeIndex(), bci.next2Bytes(),block); break;
+      case J9BCinvokestatic: invokestatic(state, bci.currentByteCodeIndex(), bci.next2Bytes(), block); break;
+      case J9BCinvokevirtual: invokevirtual(state, bci.currentByteCodeIndex(), bci.next2Bytes(),block);break;
+      case J9BCinvokespecialsplit: invokespecial(state, bci.currentByteCodeIndex(), bci.next2Bytes() | J9_SPECIAL_SPLIT_TABLE_INDEX_FLAG, block); break;
+      case J9BCinvokestaticsplit: invokestatic(state, bci.currentByteCodeIndex(), bci.next2Bytes() | J9_STATIC_SPLIT_TABLE_INDEX_FLAG, block); break;
    
       //return_x: to be implemented in the future for backward analysis
       case J9BCReturnC: state->pop(); break;
       case J9BCReturnS: state->pop(); break;
       case J9BCReturnB: state->pop(); break;
       case J9BCReturnZ: state->pop(); break;
-      case J9BCgenericReturn: state->getStackSize() != 0 ? state->pop() : 0; break; 
+      case J9BCgenericReturn: state->getStackSize() != 0 ? state->pop() && state->getStackSize() && state->pop() : 0; break; 
       
       default:
       //printf("%s\n", J9_ByteCode_Strings[bc]);
@@ -806,9 +807,9 @@ bool AbsInterpreter::interpretByteCode(AbsState* state, TR_J9ByteCode bc, TR_J9B
 
 //TODO: Add Type of the array to the contraint
 //-- Checked
-AbsState* AbsInterpreter::multianewarray(AbsState* absState, int cpIndex, int dimensions, TR_ResolvedMethod* method)
+AbsState* AbsInterpreter::multianewarray(AbsState* absState, int cpIndex, int dimensions)
    {
-   TR_OpaqueClassBlock* arrayType = method->getClassFromConstantPool(comp(), cpIndex);
+   TR_OpaqueClassBlock* arrayType = _callerMethod->getClassFromConstantPool(comp(), cpIndex);
 
    //get the outer-most length
    for (int i = 0; i < dimensions-1; i++)
@@ -828,8 +829,9 @@ AbsState* AbsInterpreter::multianewarray(AbsState* absState, int cpIndex, int di
                               arrayType,
                               true,
                               length->getConstraint()->asIntConstraint()->getLowInt(),
-                              length->getConstraint()->asIntConstraint()->getHigh(),
+                              length->getConstraint()->asIntConstraint()->getHighInt(),
                               4,
+                              comp(),
                               region(),
                               vp());
          absState->push(value);
@@ -843,6 +845,7 @@ AbsState* AbsInterpreter::multianewarray(AbsState* absState, int cpIndex, int di
                         0,
                         INT32_MAX,
                         4,
+                        comp(),
                         region(),
                         vp());
    absState->push(value);
@@ -1099,11 +1102,11 @@ AbsState* AbsInterpreter::baload(AbsState* absState)
 
 //TODO: checkcast array types, primitive arrays
 //-- Checked
-AbsState* AbsInterpreter::checkcast(AbsState* absState, int cpIndex, int bytecodeIndex, TR_ResolvedMethod* method) 
+AbsState* AbsInterpreter::checkcast(AbsState* absState, int cpIndex, int bytecodeIndex) 
    {
    AbsValue *objRef = absState->pop();
 
-   TR_OpaqueClassBlock* classBlock = method->getClassFromConstantPool(comp(), cpIndex);
+   TR_OpaqueClassBlock* classBlock = _callerMethod->getClassFromConstantPool(comp(), cpIndex);
 
    //adding to method summary
    if ( objRef->isParameter() )
@@ -1135,7 +1138,7 @@ AbsState* AbsInterpreter::checkcast(AbsState* absState, int cpIndex, int bytecod
                   }
                else //can cast into a different type
                   {
-                  absState->push(AbsValue::createClassObject(classBlock, true, region(), vp()));
+                  absState->push(AbsValue::createClassObject(classBlock, true, comp(), region(), vp()));
                   return absState;   
                   }
                }
@@ -1236,7 +1239,7 @@ AbsState* AbsInterpreter::_gotow(AbsState* absState, int branch)
 
 //TODO: get object with actual type (Not just TR::Address)
 //-- Checked
-AbsState* AbsInterpreter::getstatic(AbsState* absState, int cpIndex, TR_ResolvedMethod* method) 
+AbsState* AbsInterpreter::getstatic(AbsState* absState, int cpIndex) 
    {
    void* staticAddress;
 
@@ -1246,7 +1249,7 @@ AbsState* AbsInterpreter::getstatic(AbsState* absState, int cpIndex, TR_Resolved
    bool isPrivate;
    bool isUnresolvedInVP;
    bool isFinal;
-   method->staticAttributes(
+   _callerMethod->staticAttributes(
                comp(),
                cpIndex,
                &staticAddress,
@@ -1287,9 +1290,9 @@ AbsState* AbsInterpreter::getstatic(AbsState* absState, int cpIndex, TR_Resolved
    }
 
 //-- Checked
-AbsState* AbsInterpreter::getfield(AbsState* absState, int cpIndex, TR_ResolvedMethod* method)
+AbsState* AbsInterpreter::getfield(AbsState* absState, int cpIndex)
    {
-   if (absState->top()->isParameter())
+   if (absState->top()->isParameter() && !absState->top()->isImplicitParam()) //implict param won't be null checked.
       {
       _methodSummary->addNullCheck(absState->top()->getParamPosition());
       }
@@ -1302,7 +1305,7 @@ AbsState* AbsInterpreter::getfield(AbsState* absState, int cpIndex, TR_ResolvedM
    bool isPrivate;
    bool isUnresolvedInVP;
    bool isFinal;
-   bool isResolved = method->fieldAttributes(
+   bool isResolved = _callerMethod->fieldAttributes(
          comp(),
          cpIndex,
          &fieldOffset,
@@ -1369,11 +1372,11 @@ AbsState* AbsInterpreter::iand(AbsState* absState)
 
 //TODO: instanceof <interface>. Current implementation does not support intereface. And instanceof array types
 //-- Checked
-AbsState* AbsInterpreter::instanceof(AbsState* absState, int cpIndex, int byteCodeIndex, TR_ResolvedMethod* method)
+AbsState* AbsInterpreter::instanceof(AbsState* absState, int cpIndex, int byteCodeIndex)
    {
    AbsValue *objectRef = absState->pop();
 
-   TR_OpaqueClassBlock *block = method->getClassFromConstantPool(comp(), cpIndex); //The cast class to be compared with
+   TR_OpaqueClassBlock *block = _callerMethod->getClassFromConstantPool(comp(), cpIndex); //The cast class to be compared with
    
    //Add to the inlining summary
    if (objectRef->isParameter() )
@@ -3100,9 +3103,9 @@ AbsState* AbsInterpreter::iinc(AbsState* absState, int index, int incVal)
    }
 
 //-- Checked
-AbsState* AbsInterpreter::putfield(AbsState* absState, int cpIndex, TR_ResolvedMethod* method)
+AbsState* AbsInterpreter::putfield(AbsState* absState, int cpIndex)
    {
-   if (absState->top()->isParameter())
+   if (absState->top()->isParameter() && !absState->top()->isImplicitParam())
       {
       _methodSummary->addNullCheck(absState->top()->getParamPosition());
       }
@@ -3116,7 +3119,7 @@ AbsState* AbsInterpreter::putfield(AbsState* absState, int cpIndex, TR_ResolvedM
    bool isUnresolvedInVP;
    bool isFinal;
 
-   method->fieldAttributes(
+   _callerMethod->fieldAttributes(
          comp(),
          cpIndex,
          &fieldOffset,
@@ -3142,7 +3145,7 @@ AbsState* AbsInterpreter::putfield(AbsState* absState, int cpIndex, TR_ResolvedM
    }  
 
 //-- Checked
-AbsState* AbsInterpreter::putstatic(AbsState* absState, int cpIndex, TR_ResolvedMethod* method)
+AbsState* AbsInterpreter::putstatic(AbsState* absState, int cpIndex)
    {
    void* staticAddress;
 
@@ -3152,7 +3155,7 @@ AbsState* AbsInterpreter::putstatic(AbsState* absState, int cpIndex, TR_Resolved
    bool isPrivate;
    bool isUnresolvedInVP;
    bool isFinal;
-   method->staticAttributes(
+   _callerMethod->staticAttributes(
             comp(),
             cpIndex,
             &staticAddress,
@@ -3177,16 +3180,16 @@ AbsState* AbsInterpreter::putstatic(AbsState* absState, int cpIndex, TR_Resolved
    return absState;
    }
 
-void AbsInterpreter::ldcInt32(int cpIndex, TR_ResolvedMethod* method, AbsState* absState)
+void AbsInterpreter::ldcInt32(int cpIndex, AbsState* absState)
    {
-   auto value = method->intConstant(cpIndex);
+   auto value = _callerMethod->intConstant(cpIndex);
    AbsValue *result = AbsValue::createIntConst(value, region(), vp());
    absState->push(result);
    }
 
-void AbsInterpreter::ldcInt64(int cpIndex, TR_ResolvedMethod* method, AbsState* absState)
+void AbsInterpreter::ldcInt64(int cpIndex, AbsState* absState)
    {
-   auto value = method->longConstant(cpIndex);
+   auto value = _callerMethod->longConstant(cpIndex);
    AbsValue *result1 = AbsValue::createLongConst(value, region(), vp());
    AbsValue *result2 = AbsValue::createDummyLong(region());
    absState->push(result1);
@@ -3207,24 +3210,23 @@ void AbsInterpreter::ldcDouble(AbsState* absState)
    absState->push(result2);
    }
 
-void AbsInterpreter::ldcAddress(int cpIndex, TR_ResolvedMethod* method, AbsState* absState) 
+void AbsInterpreter::ldcAddress(int cpIndex, AbsState* absState) 
    {
-   bool isString = method->isStringConstant(cpIndex);
+   bool isString = _callerMethod->isStringConstant(cpIndex);
    if (isString) 
       {
-      ldcString(cpIndex, method, absState); 
+      ldcString(cpIndex, absState); 
       return;
       }
    //TODO: non string case
-   TR_OpaqueClassBlock* type = method->getClassFromConstantPool(comp(), cpIndex);
-   AbsValue* value = AbsValue::createClassObject(type, false, region(), vp());
+   TR_OpaqueClassBlock* type = _callerMethod->getClassFromConstantPool(comp(), cpIndex);
+   AbsValue* value = AbsValue::createClassObject(type, false, comp(), region(), vp());
    absState->push(value);
    }
 
-void AbsInterpreter::ldcString(int cpIndex, TR_ResolvedMethod* method, AbsState* absState)
+void AbsInterpreter::ldcString(int cpIndex, AbsState* absState)
    {   
-   TR::ResolvedMethodSymbol* callerResolvedMethodSymbol = TR::ResolvedMethodSymbol::create(comp()->trHeapMemory(), method, comp());
-   TR::SymbolReference *symRef = comp()->getSymRefTab()->findOrCreateStringSymbol(callerResolvedMethodSymbol, cpIndex);
+   TR::SymbolReference *symRef = comp()->getSymRefTab()->findOrCreateStringSymbol(_callerMethodSymbol, cpIndex);
    if (symRef->isUnresolved())
       {
       AbsValue* value = AbsValue::createTopObject(region());
@@ -3237,22 +3239,22 @@ void AbsInterpreter::ldcString(int cpIndex, TR_ResolvedMethod* method, AbsState*
    absState->push(result);
    }
 
-AbsState* AbsInterpreter::ldcw(AbsState*absState, int cpIndex,  TR_ResolvedMethod* method)
+AbsState* AbsInterpreter::ldcw(AbsState*absState, int cpIndex)
    {
-   ldc(absState, cpIndex, method);
+   ldc(absState, cpIndex);
    return absState;
    }
 
-AbsState* AbsInterpreter::ldc(AbsState* absState, int cpIndex,  TR_ResolvedMethod* method)
+AbsState* AbsInterpreter::ldc(AbsState* absState, int cpIndex)
    {
-   TR::DataType datatype = method->getLDCType(cpIndex);
+   TR::DataType datatype = _callerMethod->getLDCType(cpIndex);
    switch(datatype) 
       {
-      case TR::Int32: this->ldcInt32(cpIndex, method, absState); break;
-      case TR::Int64: this->ldcInt64(cpIndex,method, absState); break;
+      case TR::Int32: this->ldcInt32(cpIndex, absState); break;
+      case TR::Int64: this->ldcInt64(cpIndex, absState); break;
       case TR::Float: this->ldcFloat(absState); break;
       case TR::Double: this->ldcDouble(absState); break;
-      case TR::Address: this->ldcAddress(cpIndex, method, absState); break;
+      case TR::Address: this->ldcAddress(cpIndex, absState); break;
       default: 
          //printf("LDC Type %s\n", TR::DataType::getName(datatype));
          TR_ASSERT(false, "wrong type");
@@ -3293,20 +3295,20 @@ AbsState* AbsInterpreter::athrow(AbsState* absState)
    return absState;
    }
 
-AbsState* AbsInterpreter::anewarray(AbsState* absState, int cpIndex, TR_ResolvedMethod* method)
+AbsState* AbsInterpreter::anewarray(AbsState* absState, int cpIndex )
    {
-   TR_OpaqueClassBlock* type = method->getClassFromConstantPool(comp(), cpIndex);
+   TR_OpaqueClassBlock* type = _callerMethod->getClassFromConstantPool(comp(), cpIndex);
 
    AbsValue *length = absState->pop();
 
    if (length->getConstraint() && length->getConstraint()->asIntConstraint())
       {
-      AbsValue* value = AbsValue::createArrayObject(type, true, length->getConstraint()->asIntConstraint()->getLowInt(), length->getConstraint()->asIntConstraint()->getHighInt(),4, region(), vp());
+      AbsValue* value = AbsValue::createArrayObject(type, true, length->getConstraint()->asIntConstraint()->getLowInt(), length->getConstraint()->asIntConstraint()->getHighInt(),4, comp(), region(), vp());
       absState->push(value);
       return absState;
       }
 
-   AbsValue* value = AbsValue::createArrayObject(type, true, 0, INT32_MAX ,4, region(), vp());
+   AbsValue* value = AbsValue::createArrayObject(type, true, 0, INT32_MAX ,4, comp(), region(), vp());
    absState->push(value);
    return absState;
    }
@@ -3315,7 +3317,7 @@ AbsState* AbsInterpreter::arraylength(AbsState* absState)
    {
    AbsValue* arrayRef = absState->pop();
 
-   if (arrayRef->isParameter())
+   if (arrayRef->isParameter() && !arrayRef->isImplicitParam())
       _methodSummary->addNullCheck(arrayRef->getParamPosition());
 
    if (arrayRef->hasConstraint()&& arrayRef->getConstraint()->getArrayInfo())
@@ -3339,15 +3341,15 @@ AbsState* AbsInterpreter::arraylength(AbsState* absState)
    return absState;
    }
 
-AbsState* AbsInterpreter::_new(AbsState* absState, int cpIndex, TR_ResolvedMethod* method)
+AbsState* AbsInterpreter::_new(AbsState* absState, int cpIndex)
    {
-   TR_OpaqueClassBlock* type = method->getClassFromConstantPool(comp(), cpIndex);
-   AbsValue* value = AbsValue::createClassObject(type, true, region(), vp());
+   TR_OpaqueClassBlock* type = _callerMethod->getClassFromConstantPool(comp(), cpIndex);
+   AbsValue* value = AbsValue::createClassObject(type, true, comp(), region(), vp());
    absState->push(value);
    return absState;
    }
 
-AbsState* AbsInterpreter::newarray(AbsState* absState, int atype, TR_ResolvedMethod* method)
+AbsState* AbsInterpreter::newarray(AbsState* absState, int atype)
    {
    /**
     * atype
@@ -3368,57 +3370,68 @@ AbsState* AbsInterpreter::newarray(AbsState* absState, int atype, TR_ResolvedMet
 
    if (length->getConstraint() && length->getConstraint()->asIntConstraint())
       {
-      AbsValue* value = AbsValue::createArrayObject(arrayType, true, length->getConstraint()->getLowInt(), length->getConstraint()->getHighInt(), elementSize, region(), vp());
+      AbsValue* value = AbsValue::createArrayObject(arrayType, true, length->getConstraint()->getLowInt(), length->getConstraint()->getHighInt(), elementSize, comp(), region(), vp());
       absState->push(value);
       return absState;
       }
 
-   AbsValue* value = AbsValue::createArrayObject(arrayType, true, 0, INT32_MAX, elementSize, region(), vp());
+   AbsValue* value = AbsValue::createArrayObject(arrayType, true, 0, INT32_MAX, elementSize, comp(), region(), vp());
    absState->push(value);
    return absState;
    }
 
-AbsState* AbsInterpreter::invokevirtual(AbsState* absState, int bcIndex, int cpIndex, TR_ResolvedMethod* method, TR::Block* block)
+AbsState* AbsInterpreter::invokevirtual(AbsState* absState, int bcIndex, int cpIndex, TR::Block* block)
    {
    AbsValue* absValue = absState->top();
 
-   if (absValue->isParameter())
+   if (absValue->isParameter() && !absValue->isImplicitParam())
       {
       _methodSummary->addNullCheck(absValue->getParamPosition());
       }
 
-   invoke(bcIndex, cpIndex, TR::MethodSymbol::Kinds::Virtual, method, absState, block);
+   invoke(bcIndex, cpIndex, TR::MethodSymbol::Kinds::Virtual, absState, block);
    return absState;
    }
 
-AbsState* AbsInterpreter::invokestatic(AbsState* absState, int bcIndex, int cpIndex, TR_ResolvedMethod* method, TR::Block* block)
+AbsState* AbsInterpreter::invokestatic(AbsState* absState, int bcIndex, int cpIndex,TR::Block* block)
    {
-   invoke(bcIndex, cpIndex, TR::MethodSymbol::Kinds::Static, method, absState, block);
+   invoke(bcIndex, cpIndex, TR::MethodSymbol::Kinds::Static, absState, block);
    return absState;
    }
 
-AbsState* AbsInterpreter::invokespecial(AbsState* absState, int bcIndex, int cpIndex, TR_ResolvedMethod* method, TR::Block* block)
+AbsState* AbsInterpreter::invokespecial(AbsState* absState, int bcIndex, int cpIndex,  TR::Block* block)
    {
-   invoke(bcIndex, cpIndex, TR::MethodSymbol::Kinds::Special, method, absState, block);
+   AbsValue* absValue = absState->top();
+   if (absValue->isParameter() && !absValue->isImplicitParam())
+      {
+      _methodSummary->addNullCheck(absValue->getParamPosition());
+      }
+
+   invoke(bcIndex, cpIndex, TR::MethodSymbol::Kinds::Special, absState, block);
    return absState;
    }
 
-AbsState* AbsInterpreter::invokedynamic(AbsState* absState, int bcIndex, int cpIndex, TR_ResolvedMethod* method, TR::Block* block)
+AbsState* AbsInterpreter::invokedynamic(AbsState* absState, int bcIndex, int cpIndex, TR::Block* block)
    {
    return NULL;
    }
 
-AbsState* AbsInterpreter::invokeinterface(AbsState* absState, int bcIndex, int cpIndex, TR_ResolvedMethod* method, TR::Block* block)
+AbsState* AbsInterpreter::invokeinterface(AbsState* absState, int bcIndex, int cpIndex, TR::Block* block)
    {
-   invoke(bcIndex, cpIndex, TR::MethodSymbol::Kinds::Interface, method, absState, block);
+   AbsValue* absValue = absState->top();
+   if (absValue->isParameter() && !absValue->isImplicitParam())
+      {
+      _methodSummary->addNullCheck(absValue->getParamPosition());
+      }
+   invoke(bcIndex, cpIndex, TR::MethodSymbol::Kinds::Interface, absState, block);
    return absState;
    }
 
-void AbsInterpreter::invoke(int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind, TR_ResolvedMethod* callerMethod, AbsState* absState, TR::Block* block) 
+void AbsInterpreter::invoke(int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind,  AbsState* absState, TR::Block* block) 
    {
-   TR::Method *calleeMethod = comp()->fej9()->createMethod(comp()->trMemory(), callerMethod->containingClass(), cpIndex);
+   TR::Method *calleeMethod = comp()->fej9()->createMethod(comp()->trMemory(), _callerMethod->containingClass(), cpIndex);
    
-   TR_CallSite* callsite = findCallSiteTargets(callerMethod, bcIndex, cpIndex, kind, _callerIndex, _callStack, block); // callsite can be NULL, such case will be handled by addChild().
+   TR_CallSite* callsite = findCallSiteTargets(_callerMethod, bcIndex, cpIndex, kind, _callerIndex, _callStack, block); // callsite can be NULL, such case will be handled by addChild().
 
    uint32_t numExplicitParams = calleeMethod->numberOfExplicitParameters();
    uint32_t numImplicitParams = kind == TR::MethodSymbol::Kinds::Static ? 0 : 1; 
@@ -3560,7 +3573,6 @@ TR_CallSite* AbsInterpreter::findCallSiteTargets(
    callsite->_bcInfo = info;
    callsite->_cpIndex= cpIndex;
 
-   callsite->findCallSiteTarget(callStack, _idtBuilder->getInliner());
    return callsite;   
    }
 

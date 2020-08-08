@@ -45,7 +45,7 @@ class AbsValue
    static AbsValue* createClassObject(TR_OpaqueClassBlock* opaqueClass, bool mustBeNonNull, TR::Compilation*comp, TR::Region& region, OMR::ValuePropagation* vp);
 
    static AbsValue* createNullObject(TR::Region& region, OMR::ValuePropagation* vp);
-   static AbsValue* createArrayObject(TR_OpaqueClassBlock* arrayClass, bool mustBeNonNull, int32_t lengthLow, int32_t lengthHigh, int32_t elementSize,TR::Compilation*comp, TR::Region& region, OMR::ValuePropagation* vp);
+   static AbsValue* createArrayObject(TR_OpaqueClassBlock* arrayClass, bool mustBeNonNull, int32_t lengthLow, int32_t lengthHigh, int32_t elementSize, TR::Compilation*comp, TR::Region& region, OMR::ValuePropagation* vp);
    
    static AbsValue* createStringConst(TR::SymbolReference* symRef, TR::Region& region, OMR::ValuePropagation* vp);
    static AbsValue* createIntConst(int32_t value, TR::Region& region, OMR::ValuePropagation* vp);
@@ -79,7 +79,7 @@ class AbsValue
     * When succeeding to merge, it returns self.
     * NULL denotes the merge fails (when merging with different dataTypes or merging with a Dummy AbsValue).
     */
-   AbsValue* merge(AbsValue *other,OMR::ValuePropagation *vp);
+   AbsValue* merge(AbsValue *other, OMR::ValuePropagation *vp);
 
    /**
     * @brief Check if the AbsValue is Top.
@@ -132,20 +132,33 @@ class AbsValue
     */
    bool isParameter() { return _paramPos >= 0; };
 
+   /**
+    * @brief Check if the AbsValue is 'this' (the implicit parameter.)
+    *
+    * @return bool
+    */   
+   bool isImplicitParam() { return _paramPos == 0 && _isImplicitParam; };
+
    /* Getter and setter methods */
 
    int getParamPosition() { return _paramPos; };
    void setParamPosition(int paramPos) { _paramPos = paramPos; };
 
-   TR::DataType getDataType() { return _dataType; };
-   void setDataType(TR::DataType dataType) { _dataType = dataType; };
+   void setImplicitParam() { TR_ASSERT_FATAL(_paramPos == 0, "Cannot set as implicit param"); _isImplicitParam = true; };
 
+   TR::DataType getDataType() { return _dataType; };
+   
    TR::VPConstraint* getConstraint() { return _constraint; };
-   void setConstraint(TR::VPConstraint *constraint) { _constraint = constraint; };
+
 
    void print(TR::Compilation* comp,OMR::ValuePropagation *vp);
 
    private:
+
+   void setDataType(TR::DataType dataType) { _dataType = dataType; };
+   void setConstraint(TR::VPConstraint *constraint) { _constraint = constraint; };
+
+   bool _isImplicitParam;
    bool _isDummy;
    int _paramPos; 
    TR::VPConstraint* _constraint;

@@ -34,26 +34,7 @@ class AbsInterpreter
    TR::Region& region() {  return _region;  };
    OMR::ValuePropagation *vp();
 
-   // AbsValue* createClassObjectAbsValue(TR_OpaqueClassBlock* opaqueClass, TR::VPClassPresence *presence = NULL, TR::VPArrayInfo *info = NULL);
-
-   // AbsValue* createNullObjectAbsValue() { return new (region()) AbsValue(TR::VPNullObject::create(vp()), TR::Address); };
-
-   // AbsValue* createIntConstAbsValue(int32_t value) { return new (region()) AbsValue(TR::VPIntConst::create(vp(), value), TR::Int32); };
-   // AbsValue* createIntRangeAbsValue(int32_t low, int32_t high) { return new (region()) AbsValue(TR::VPIntRange::create(vp(), low, high), TR::Int32); };
-
-   // AbsValue* createLongConstAbsValue(int64_t value) { return new (region()) AbsValue(TR::VPLongConst::create(vp(), value), TR::Int64); };
-   // AbsValue* createLongRangeAbsValue(int64_t low, int64_t high) { return new (region()) AbsValue(TR::VPLongRange::create(vp(), low, high), TR::Int64); };
-
-   // //used for types other than int, long, class objects
-   // AbsValue* createTOPAbsValue(TR::DataType dataType) { return new (region()) AbsValue(NULL, dataType, false, true); };
-
-   // AbsValue* createTOPIntAbsValue();
-   // AbsValue* createTOPLongTopAbsValue();
-   // AbsValue* createTOPClasObjectAbsValue();
-
-   // AbsValue* createDummyAbsValue(TR::DataType dataType) { return new (region()) AbsValue(NULL, dataType, true, false); };
-
-   AbsState* initializeAbsState(TR::ResolvedMethodSymbol* symbol);
+   AbsState* initializeAbsState();
 
    void transferAbsStates(TR::Block* block);
    AbsState* mergeAllPredecessors(TR::Block* block);
@@ -102,7 +83,7 @@ class AbsInterpreter
    AbsState* aload1(AbsState*);
    AbsState* aload2(AbsState*);
    AbsState* aload3(AbsState*);
-   AbsState* anewarray(AbsState*, int, TR_ResolvedMethod*);
+   AbsState* anewarray(AbsState*, int);
    AbsState* areturn(AbsState*);
    AbsState* arraylength(AbsState*);
    AbsState* astore(AbsState*, int);
@@ -116,7 +97,7 @@ class AbsInterpreter
    AbsState* bipush(AbsState*, int);
    AbsState* caload(AbsState*);
    AbsState* castore(AbsState*);
-   AbsState* checkcast(AbsState*, int, int, TR_ResolvedMethod*);
+   AbsState* checkcast(AbsState*, int, int);
    AbsState* d2f(AbsState*);
    AbsState* d2i(AbsState*);
    AbsState* d2l(AbsState*);
@@ -176,8 +157,8 @@ class AbsInterpreter
    AbsState* fstore2(AbsState*);
    AbsState* fstore3(AbsState*);
    AbsState* fsub(AbsState*);
-   AbsState* getfield(AbsState*, int, TR_ResolvedMethod*);
-   AbsState* getstatic(AbsState*, int, TR_ResolvedMethod*);
+   AbsState* getfield(AbsState*, int);
+   AbsState* getstatic(AbsState*, int);
    AbsState* _goto(AbsState*, int);
    AbsState* _gotow(AbsState*, int);
    AbsState* i2b(AbsState*);
@@ -222,12 +203,12 @@ class AbsInterpreter
    AbsState* iload3(AbsState*);
    AbsState* imul(AbsState*);
    AbsState* ineg(AbsState*);
-   AbsState* instanceof(AbsState*, int, int, TR_ResolvedMethod*);
-   AbsState* invokedynamic(AbsState*, int, int, TR_ResolvedMethod*, TR::Block*);
-   AbsState* invokeinterface(AbsState*, int, int, TR_ResolvedMethod*, TR::Block*);
-   AbsState* invokespecial(AbsState*, int, int, TR_ResolvedMethod*,TR::Block*);
-   AbsState* invokestatic(AbsState*, int, int, TR_ResolvedMethod*,TR::Block*);
-   AbsState* invokevirtual(AbsState*, int, int, TR_ResolvedMethod*,TR::Block*);
+   AbsState* instanceof(AbsState*, int, int);
+   AbsState* invokedynamic(AbsState*, int, int, TR::Block*);
+   AbsState* invokeinterface(AbsState*, int, int, TR::Block*);
+   AbsState* invokespecial(AbsState*, int, int, TR::Block*);
+   AbsState* invokestatic(AbsState*, int, int, TR::Block*);
+   AbsState* invokevirtual(AbsState*, int, int, TR::Block*);
    AbsState* ior(AbsState*);
    AbsState* irem(AbsState*);
 // AbsState* ireturn(AbsState*);
@@ -253,8 +234,8 @@ class AbsInterpreter
    AbsState* lcmp(AbsState*);
    AbsState* lconst0(AbsState*);
    AbsState* lconst1(AbsState*);
-   AbsState* ldc(AbsState*, int, TR_ResolvedMethod*);
-   AbsState* ldcw(AbsState*, int, TR_ResolvedMethod*);
+   AbsState* ldc(AbsState*, int);
+   AbsState* ldcw(AbsState*, int);
 // AbsState* ldc2w(AbsState*int);
    AbsState* ldiv(AbsState*);
    AbsState* lload(AbsState*, int);
@@ -281,14 +262,14 @@ class AbsInterpreter
    AbsState* lxor(AbsState*);
    AbsState* monitorenter(AbsState*);
    AbsState* monitorexit(AbsState*);
-   AbsState* multianewarray(AbsState*, int, int, TR_ResolvedMethod*);
-   AbsState* _new(AbsState*, int, TR_ResolvedMethod*);
-   AbsState* newarray(AbsState*, int, TR_ResolvedMethod*);
+   AbsState* multianewarray(AbsState*, int, int);
+   AbsState* _new(AbsState*, int);
+   AbsState* newarray(AbsState*, int);
    AbsState* nop(AbsState*);
    AbsState* pop(AbsState*);
    AbsState* pop2(AbsState*);
-   AbsState* putfield(AbsState*, int, TR_ResolvedMethod*);
-   AbsState* putstatic(AbsState*, int, TR_ResolvedMethod*);
+   AbsState* putfield(AbsState*, int);
+   AbsState* putstatic(AbsState*, int);
 // AbsState* ret(AbsState*);
 // AbsState* return(AbsState*);
    AbsState* saload(AbsState*);
@@ -299,12 +280,12 @@ class AbsInterpreter
 // AbsState* wide(AbsState*);
 
    //Interpreter helpers
-   void invoke(int, int, TR::MethodSymbol::Kinds, TR_ResolvedMethod* method, AbsState* absState, TR::Block* block);
+   void invoke(int, int, TR::MethodSymbol::Kinds, AbsState* absState, TR::Block* block);
    void iconst(AbsState* absState, int n);
-   void ldcString(int, TR_ResolvedMethod*, AbsState*);
-   void ldcAddress(int, TR_ResolvedMethod*, AbsState*); 
-   void ldcInt32(int, TR_ResolvedMethod*, AbsState*); 
-   void ldcInt64(int, TR_ResolvedMethod*, AbsState*); 
+   void ldcString(int, AbsState*);
+   void ldcAddress(int, AbsState*); 
+   void ldcInt32(int, AbsState*); 
+   void ldcInt64(int, AbsState*); 
    void ldcFloat(AbsState*);
    void ldcDouble(AbsState*);
 

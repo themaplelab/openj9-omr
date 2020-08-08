@@ -119,7 +119,7 @@ int MethodSummary::predicates(TR::VPConstraint *constraint, int paramPosition)
          opt->trace(_vp);
          traceMsg(TR::comp(), "CCC: argument position matches\n");
          int succuess =  opt->predicate(constraint, _vp);
-         i += succuess;
+         i += succuess * opt->getWeight();
          if (succuess)
             traceMsg(TR::comp(), "CCC: Predicate TRUE\n");
          else
