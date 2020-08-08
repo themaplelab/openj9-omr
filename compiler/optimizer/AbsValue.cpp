@@ -43,13 +43,13 @@ AbsValue* AbsValue::create(TR::VPConstraint *constraint, TR::DataType dataType, 
    }
 
 
-AbsValue* AbsValue::createClassObject(TR_OpaqueClassBlock* opaqueClass, bool mustBeNonNull, TR::Region& region, OMR::ValuePropagation* vp)
+AbsValue* AbsValue::createClassObject(TR_OpaqueClassBlock* opaqueClass, bool mustBeNonNull, TR::Compilation*comp, TR::Region& region, OMR::ValuePropagation* vp)
    { 
    TR::VPClassPresence *classPresence = mustBeNonNull? TR::VPNonNullObject::create(vp) : NULL;
 
    if (opaqueClass != NULL)
       {
-      TR::VPClassType *classType = TR::VPResolvedClass::create(vp, opaqueClass);
+      TR::VPClassType *classType = comp->fe()->getClassClassPointer(opaqueClass) ? TR::VPResolvedClass::create(vp, opaqueClass) : TR::VPFixedClass::create(vp, opaqueClass);
       return AbsValue::create(TR::VPClass::create(vp, classType, classPresence, NULL, NULL, NULL), TR::Address, region);
       }
 
@@ -66,14 +66,14 @@ AbsValue* AbsValue::createStringConst(TR::SymbolReference* symRef, TR::Region& r
    return AbsValue::create(TR::VPConstString::create(vp, symRef), TR::Address, region);
    }
 
-AbsValue* AbsValue::createArrayObject(TR_OpaqueClassBlock* arrayClass, bool mustBeNonNull, int32_t lengthLow, int32_t lengthHigh, int32_t elementSize, TR::Region& region, OMR::ValuePropagation* vp)
+AbsValue* AbsValue::createArrayObject(TR_OpaqueClassBlock* arrayClass, bool mustBeNonNull, int32_t lengthLow, int32_t lengthHigh, int32_t elementSize, TR::Compilation*comp, TR::Region& region, OMR::ValuePropagation* vp)
    {
    TR::VPClassPresence *classPresence = mustBeNonNull? TR::VPNonNullObject::create(vp) : NULL;;
    TR::VPArrayInfo *arrayInfo = TR::VPArrayInfo::create(vp, lengthLow, lengthHigh, elementSize);
 
    if (arrayClass)
       {
-      TR::VPClassType *arrayType = TR::VPResolvedClass::create(vp, arrayClass);
+      TR::VPClassType *arrayType = comp->fe()->getClassClassPointer(arrayClass) ? TR::VPResolvedClass::create(vp, arrayClass) : TR::VPFixedClass::create(vp, arrayClass);;
       return AbsValue::create(TR::VPClass::create(vp, arrayType, classPresence, NULL, arrayInfo, NULL), TR::Address, region);
       }
 

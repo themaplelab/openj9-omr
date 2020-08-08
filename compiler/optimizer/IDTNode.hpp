@@ -23,8 +23,8 @@ class IDTNode
    IDTNode(
       int idx,
       TR_CallTarget* callTarget,
+      TR::ResolvedMethodSymbol* symbol,
       int32_t callSiteBci, 
-      TR::ResolvedMethodSymbol*,
       float callRatio,
       IDTNode *parent,
       int budget);
@@ -32,8 +32,8 @@ class IDTNode
    IDTNode* addChild(
       int idx,
       TR_CallTarget* callTarget,
+      TR::ResolvedMethodSymbol* symbol,
       int32_t callSiteBci, 
-      TR::ResolvedMethodSymbol*,  
       float callRatio, 
       TR::Region& region);
 
@@ -43,8 +43,8 @@ class IDTNode
    unsigned int getNumDescendants();
    unsigned int getNumDescendantsIncludingMe() { return 1 + getNumDescendants(); };
 
-   const char* getName(TR_Memory* mem) { return _symbol->getResolvedMethod()->signature(mem); };
-   const char* getName() { return _symbol->getResolvedMethod()->signature(TR::comp()->trMemory()); };
+   const char* getName(TR_Memory* mem) { return _callTarget->getSymbol()->getResolvedMethod()->signature(mem); };
+   const char* getName() { return _callTarget->getSymbol()->getResolvedMethod()->signature(TR::comp()->trMemory()); };
 
    IDTNode *getParent() { return _parent; };
 
@@ -55,7 +55,7 @@ class IDTNode
    unsigned int getStaticBenefit() {  return _staticBenefit;  };
    void setStaticBenefit(unsigned int benefit) { _staticBenefit = benefit; };
    
-   unsigned int getCost() { return isRoot() ? 1 : getByteCodeSize(); };
+   unsigned int getCost() { return isRoot() ? 0 : getByteCodeSize(); };
    unsigned int getRecursiveCost();
 
    unsigned int getNumChildren();
@@ -63,7 +63,8 @@ class IDTNode
    bool isRoot()  { return _parent == NULL; };
    IDTNode* findChildWithBytecodeIndex(int bcIndex);
 
-   TR::ResolvedMethodSymbol* getResolvedMethodSymbol() { return !getCallTarget() ? _symbol : getCallTarget()->getSymbol(); };
+   TR::ResolvedMethodSymbol* getResolvedMethodSymbol() { return _symbol; };
+   TR_ResolvedMethod* getResolvedMethod() { return _callTarget->_calleeMethod; };
    
    int getBudget()  { return _budget; };
 
@@ -71,13 +72,14 @@ class IDTNode
 
    TR_CallTarget *getCallTarget() { return _callTarget; };
    unsigned int getByteCodeIndex() { return _callSiteBci; };
-   uint32_t getByteCodeSize() { return getCallTarget()->_calleeMethod->maxBytecodeIndex(); };
+   uint32_t getByteCodeSize() { return _callTarget->_calleeMethod->maxBytecodeIndex(); };
 
    float getCallRatio() { return _callRatio; };
    float getRootCallRatio() { return _rootCallRatio; };
 
    private:
-   TR_CallTarget *_callTarget;
+   TR_CallTarget* _callTarget;
+   TR::ResolvedMethodSymbol* _symbol;
    IDTNode *_parent;
 
    int _idx;
@@ -85,13 +87,13 @@ class IDTNode
    
    IDTNodeDeque* _children; // NULL if 0, (IDTNode* & 1) if 1, otherwise a deque*
    unsigned int _staticBenefit;
-   TR::ResolvedMethodSymbol* _symbol;
-   int _budget;
+
+   int32_t _budget;
+
    float _callRatio;
    float _rootCallRatio;
-   MethodSummary *_methodSummary;
 
-   bool isNodeSimilar(int32_t callSiteBci, TR::ResolvedMethodSymbol* rms);
+   MethodSummary *_methodSummary;
    
    IDTNode* getOnlyChild(); // Returns NULL if 0 or > 1 children
    void setOnlyChild(IDTNode* child);

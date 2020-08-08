@@ -12,7 +12,7 @@
 class IDT
    {
    public:
-   IDT(TR::Region& region, TR::ResolvedMethodSymbol*, TR_CallTarget*, int budget, TR::Compilation* comp);
+   IDT(TR::Region& region, TR_CallTarget*, TR::ResolvedMethodSymbol* symbol, int budget, TR::Compilation* comp);
 
    IDTNode* getRoot() { return _root; };
 
@@ -52,7 +52,7 @@ class IDTPreorderPriorityQueue
       bool operator()(IDTNode *left, IDTNode *right)
          {
          TR_ASSERT_FATAL(left && right, "Comparing against null");
-         return left->getCost() < right->getCost() || left->getBenefit() < right->getBenefit();
+         return left->getBenefit() < right->getBenefit();
          };
    };
 

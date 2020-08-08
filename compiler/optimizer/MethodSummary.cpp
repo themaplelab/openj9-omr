@@ -17,12 +17,9 @@ int BranchFolding::predicate(TR::VPConstraint *other, OMR::ValuePropagation *vp)
    other->print(vp);
    traceMsg(TR::comp(), "\n");
 
-   if (other->asIntConstraint() && _constraint->asIntConstraint())
-      {
-      if (_constraint->asIntConstraint()->getLowInt()<= other->asIntConstraint()->getLowInt() 
-         && _constraint->asIntConstraint()->getHigh() >= other->asIntConstraint()->getHigh())
-         return 1;
-      }
+   if (_constraint->getLowInt() <= other->getLowInt() && _constraint->getHighInt() >= other->getHighInt())
+      return 1;
+      
    return 0;
    }
 
@@ -34,11 +31,10 @@ int NullBranchFolding::predicate(TR::VPConstraint *other,OMR::ValuePropagation* 
    other->print(vp);
    traceMsg(TR::comp(), "\n");
 
-   if (other->asNullObject() && _constraint->asNullObject()) //both null
+   if (other->isNullObject() && _constraint->isNullObject()) //both null
       return 1; 
 
-   if (other->asClass() && other->asClass()->getClassPresence() && other->asClass()->getClassPresence()->asNonNullObject()
-       && _constraint->asNonNullObject() ) //both non null
+   if (other->isNonNullObject() && _constraint->isNonNullObject() ) //both non-null
       return 1;
 
    return 0;
@@ -53,11 +49,10 @@ int NullCheckFolding::predicate(TR::VPConstraint* other,OMR::ValuePropagation *v
    other->print(vp);
    traceMsg(TR::comp(), "\n");
 
-   if (other->asNullObject() && _constraint->asNullObject()) //both null
+   if (other->isNullObject() && _constraint->isNullObject()) //both null
       return 1; 
 
-   if (other->asClass() && other->asClass()->getClassPresence() && other->asClass()->getClassPresence()->asNonNullObject()
-       && _constraint->asNonNullObject() ) //both non null
+   if (other->isNonNullObject() && _constraint->isNonNullObject() ) //both non-null
       return 1;
       
    return 0;
@@ -76,12 +71,11 @@ int InstanceOfFolding::predicate(TR::VPConstraint* other,OMR::ValuePropagation *
    traceMsg(TR::comp(), "\n");
 
    //instance of null object
-   if (_constraint->asNullObject() && other->asNullObject())
+   if (_constraint->isNullObject() && other->isNullObject())
       return 1;
    
    //instance of non-null object. Have the exact same type
-   if (_constraint->asClassType() && other->asClass() && other->asClass()->getClassPresence() && other->asClass()->getClassPresence()->asNonNullObject()
-      && other->asClass()->getClass() == _constraint->asClassType()->getClass())
+   if (other->isNonNullObject() && _constraint->getClass() != NULL && other->getClass() == _constraint->getClass())
       return 1;
 
 
@@ -98,14 +92,13 @@ int CheckCastFolding::predicate(TR::VPConstraint* other,OMR::ValuePropagation *v
    traceMsg(TR::comp(), "\n");
 
    //Checkcast null object
-   if (_constraint->asNullObject() && other->asNullObject())
+   if (_constraint->isNullObject() && other->isNullObject())
       return 1;
-      
-   if (_constraint->asClassType() && other->asClass() && other->asClass()->getClassPresence() && other->asClass()->getClassPresence()->asNonNullObject()
-      && other->asClass()->getClass() == _constraint->asClassType()->getClass())
-      return 1;
-      
    
+   //Checkcast non-null object. Have the exact same type
+   if (other->isNonNullObject() && _constraint->getClass() != NULL && other->getClass() == _constraint->getClass())
+      return 1;
+      
    return 0;
    }
 
@@ -223,9 +216,9 @@ void CheckCastFolding::trace(OMR::ValuePropagation *vp)
 
 void MethodSummary::addIfEq(int paramPosition)
    {
-   BranchFolding* p1 = new (_region) BranchFolding(TR::VPIntConst::create(_vp, 0), paramPosition, BranchFolding::Kinds::IfEq);
-   BranchFolding* p2 = new (_region) BranchFolding(TR::VPIntRange::create(_vp, INT_MIN, -1), paramPosition, BranchFolding::Kinds::IfEq);
-   BranchFolding* p3 = new (_region) BranchFolding(TR::VPIntRange::create(_vp, 1, INT_MAX), paramPosition, BranchFolding::Kinds::IfEq);
+   BranchFolding* p1 = new (region()) BranchFolding(TR::VPIntConst::create(_vp, 0), paramPosition, BranchFolding::Kinds::IfEq);
+   BranchFolding* p2 = new (region()) BranchFolding(TR::VPIntRange::create(_vp, INT_MIN, -1), paramPosition, BranchFolding::Kinds::IfEq);
+   BranchFolding* p3 = new (region()) BranchFolding(TR::VPIntRange::create(_vp, 1, INT_MAX), paramPosition, BranchFolding::Kinds::IfEq);
 
    add(p1);
    add(p2);
@@ -234,9 +227,9 @@ void MethodSummary::addIfEq(int paramPosition)
 
 void MethodSummary::addIfNe(int paramPosition)
    {
-   BranchFolding* p1 = new (_region) BranchFolding(TR::VPIntConst::create(_vp, 0), paramPosition, BranchFolding::Kinds::IfNe);
-   BranchFolding* p2 = new (_region) BranchFolding(TR::VPIntRange::create(_vp, INT_MIN, -1), paramPosition, BranchFolding::Kinds::IfNe);
-   BranchFolding* p3 = new (_region) BranchFolding(TR::VPIntRange::create(_vp, 1, INT_MAX), paramPosition, BranchFolding::Kinds::IfNe);
+   BranchFolding* p1 = new (region()) BranchFolding(TR::VPIntConst::create(_vp, 0), paramPosition, BranchFolding::Kinds::IfNe);
+   BranchFolding* p2 = new (region()) BranchFolding(TR::VPIntRange::create(_vp, INT_MIN, -1), paramPosition, BranchFolding::Kinds::IfNe);
+   BranchFolding* p3 = new (region()) BranchFolding(TR::VPIntRange::create(_vp, 1, INT_MAX), paramPosition, BranchFolding::Kinds::IfNe);
 
    add(p1);
    add(p2);
@@ -245,8 +238,8 @@ void MethodSummary::addIfNe(int paramPosition)
 
 void MethodSummary::addIfLt(int paramPosition)
    {
-   BranchFolding* p1 = new (_region) BranchFolding(TR::VPIntRange::create(_vp, INT_MIN, -1), paramPosition, BranchFolding::Kinds::IfLt);
-   BranchFolding* p2 = new (_region) BranchFolding(TR::VPIntRange::create(_vp, 0, INT_MAX), paramPosition,  BranchFolding::Kinds::IfLt);
+   BranchFolding* p1 = new (region()) BranchFolding(TR::VPIntRange::create(_vp, INT_MIN, -1), paramPosition, BranchFolding::Kinds::IfLt);
+   BranchFolding* p2 = new (region()) BranchFolding(TR::VPIntRange::create(_vp, 0, INT_MAX), paramPosition,  BranchFolding::Kinds::IfLt);
 
    add(p1);
    add(p2);
@@ -254,8 +247,8 @@ void MethodSummary::addIfLt(int paramPosition)
 
 void MethodSummary::addIfLe(int paramPosition)
    {
-   BranchFolding* p1 = new (_region) BranchFolding(TR::VPIntRange::create(_vp, INT_MIN, 0), paramPosition, BranchFolding::Kinds::IfLe);
-   BranchFolding* p2 = new (_region) BranchFolding(TR::VPIntRange::create(_vp, 1, INT_MAX), paramPosition, BranchFolding::Kinds::IfLe);
+   BranchFolding* p1 = new (region()) BranchFolding(TR::VPIntRange::create(_vp, INT_MIN, 0), paramPosition, BranchFolding::Kinds::IfLe);
+   BranchFolding* p2 = new (region()) BranchFolding(TR::VPIntRange::create(_vp, 1, INT_MAX), paramPosition, BranchFolding::Kinds::IfLe);
 
    add(p1);
    add(p2);
@@ -263,8 +256,8 @@ void MethodSummary::addIfLe(int paramPosition)
 
 void MethodSummary::addIfGt(int paramPosition)
    {
-   BranchFolding* p1 = new (_region) BranchFolding(TR::VPIntRange::create(_vp, INT_MIN, 0), paramPosition, BranchFolding::Kinds::IfGt);
-   BranchFolding* p2 = new (_region) BranchFolding(TR::VPIntRange::create(_vp, 1, INT_MAX), paramPosition, BranchFolding::Kinds::IfGt);
+   BranchFolding* p1 = new (region()) BranchFolding(TR::VPIntRange::create(_vp, INT_MIN, 0), paramPosition, BranchFolding::Kinds::IfGt);
+   BranchFolding* p2 = new (region()) BranchFolding(TR::VPIntRange::create(_vp, 1, INT_MAX), paramPosition, BranchFolding::Kinds::IfGt);
 
    add(p1);
    add(p2);
@@ -272,8 +265,8 @@ void MethodSummary::addIfGt(int paramPosition)
 
 void MethodSummary::addIfGe(int paramPosition)
    {
-   BranchFolding* p1 = new (_region) BranchFolding(TR::VPIntRange::create(_vp, INT_MIN, -1), paramPosition, BranchFolding::Kinds::IfGe);
-   BranchFolding* p2 = new (_region) BranchFolding(TR::VPIntRange::create(_vp, 0, INT_MAX), paramPosition, BranchFolding::Kinds::IfGe);
+   BranchFolding* p1 = new (region()) BranchFolding(TR::VPIntRange::create(_vp, INT_MIN, -1), paramPosition, BranchFolding::Kinds::IfGe);
+   BranchFolding* p2 = new (region()) BranchFolding(TR::VPIntRange::create(_vp, 0, INT_MAX), paramPosition, BranchFolding::Kinds::IfGe);
 
    add(p1);
    add(p2);
@@ -281,8 +274,8 @@ void MethodSummary::addIfGe(int paramPosition)
 
 void MethodSummary::addIfNull(int paramPosition)
    {
-   NullBranchFolding* p1 = new (_region) NullBranchFolding(TR::VPNullObject::create(_vp), paramPosition, BranchFolding::Kinds::IfNull);
-   NullBranchFolding* p2 = new (_region) NullBranchFolding(TR::VPNonNullObject::create(_vp), paramPosition, BranchFolding::Kinds::IfNull);
+   NullBranchFolding* p1 = new (region()) NullBranchFolding(TR::VPNullObject::create(_vp), paramPosition, BranchFolding::Kinds::IfNull);
+   NullBranchFolding* p2 = new (region()) NullBranchFolding(TR::VPNonNullObject::create(_vp), paramPosition, BranchFolding::Kinds::IfNull);
 
    add(p1);
    add(p2);
@@ -290,8 +283,8 @@ void MethodSummary::addIfNull(int paramPosition)
 
 void MethodSummary::addIfNonNull(int paramPosition)
    {
-   NullBranchFolding* p1 = new (_region) NullBranchFolding(TR::VPNullObject::create(_vp), paramPosition, BranchFolding::Kinds::IfNonNull);
-   NullBranchFolding* p2 = new (_region) NullBranchFolding(TR::VPNonNullObject::create(_vp), paramPosition, BranchFolding::Kinds::IfNonNull);
+   NullBranchFolding* p1 = new (region()) NullBranchFolding(TR::VPNullObject::create(_vp), paramPosition, BranchFolding::Kinds::IfNonNull);
+   NullBranchFolding* p2 = new (region()) NullBranchFolding(TR::VPNonNullObject::create(_vp), paramPosition, BranchFolding::Kinds::IfNonNull);
 
    add(p1);
    add(p2);
@@ -299,8 +292,8 @@ void MethodSummary::addIfNonNull(int paramPosition)
 
 void MethodSummary::addNullCheck(int paramPosition)
    {
-   NullCheckFolding* p1 = new (_region) NullCheckFolding(TR::VPNullObject::create(_vp), paramPosition);
-   NullCheckFolding* p2 = new (_region) NullCheckFolding(TR::VPNonNullObject::create(_vp), paramPosition);
+   NullCheckFolding* p1 = new (region()) NullCheckFolding(TR::VPNullObject::create(_vp), paramPosition);
+   NullCheckFolding* p2 = new (region()) NullCheckFolding(TR::VPNonNullObject::create(_vp), paramPosition);
 
    add(p1);
    add(p2);
@@ -310,13 +303,13 @@ void MethodSummary::addInstanceOf(int paramPosition, TR_OpaqueClassBlock* classB
    {
    if (classBlock == NULL)
       {
-      InstanceOfFolding* p1 = new (_region) InstanceOfFolding(TR::VPNullObject::create(_vp), paramPosition);
+      InstanceOfFolding* p1 = new (region()) InstanceOfFolding(TR::VPNullObject::create(_vp), paramPosition);
       add(p1);
       }
    else
       {
-      InstanceOfFolding* p1 = new (_region) InstanceOfFolding(TR::VPNullObject::create(_vp), paramPosition);
-      InstanceOfFolding* p2 = new (_region) InstanceOfFolding(TR::VPFixedClass::create(_vp, classBlock), paramPosition);
+      InstanceOfFolding* p1 = new (region()) InstanceOfFolding(TR::VPNullObject::create(_vp), paramPosition);
+      InstanceOfFolding* p2 = new (region()) InstanceOfFolding(TR::VPFixedClass::create(_vp, classBlock), paramPosition);
       add(p1);
       add(p2);
       }
@@ -326,13 +319,13 @@ void MethodSummary::addCheckCast(int paramPosition, TR_OpaqueClassBlock* classBl
    {
    if (classBlock == NULL)
       {
-      CheckCastFolding* p1 = new (_region) CheckCastFolding(TR::VPNullObject::create(_vp), paramPosition);
+      CheckCastFolding* p1 = new (region()) CheckCastFolding(TR::VPNullObject::create(_vp), paramPosition);
       add(p1);
       }
    else
       {
-      CheckCastFolding* p1 = new (_region) CheckCastFolding(TR::VPNullObject::create(_vp), paramPosition);
-      CheckCastFolding* p2 = new (_region) CheckCastFolding(TR::VPFixedClass::create(_vp, classBlock), paramPosition);
+      CheckCastFolding* p1 = new (region()) CheckCastFolding(TR::VPNullObject::create(_vp), paramPosition);
+      CheckCastFolding* p2 = new (region()) CheckCastFolding(TR::VPFixedClass::create(_vp, classBlock), paramPosition);
       add(p1);
       add(p2);
       }

@@ -5,8 +5,8 @@
 IDTNode::IDTNode(
       int idx, 
       TR_CallTarget* callTarget,
-      int32_t callSiteBci, 
       TR::ResolvedMethodSymbol* symbol,
+      int32_t callSiteBci, 
       float callRatio, 
       IDTNode *parent, 
       int budget):
@@ -14,8 +14,8 @@ IDTNode::IDTNode(
    _callTarget(callTarget),
    _staticBenefit(0),
    _callSiteBci(callSiteBci),
-   _children(NULL),
    _symbol(symbol),
+   _children(NULL),
    _parent(parent),
    _budget(budget),
    _callRatio(callRatio),
@@ -27,16 +27,13 @@ IDTNode::IDTNode(
 IDTNode* IDTNode::addChild(
       int idx,
       TR_CallTarget* callTarget,
+      TR::ResolvedMethodSymbol* symbol,
       int32_t callSiteBci, 
-      TR::ResolvedMethodSymbol* symbol, 
       float callRatio,
       TR::Region& region)
    {
-   
-   if (_rootCallRatio * callRatio * 100 < 25) // do not add to the IDT if this node's root call ratio is less than 0.25
+   if (_rootCallRatio * callRatio * 100 < 25) // do not add to the IDT if the root call ratio is less than 0.25
       return NULL;
-
-   TR_ASSERT_FATAL(callTarget->_calleeMethod, "Callee method NULL");
 
    int budget =  getBudget() - callTarget->_calleeMethod->maxBytecodeIndex();
    
@@ -49,8 +46,8 @@ IDTNode* IDTNode::addChild(
       IDTNode* newNode = new (region) IDTNode(
                            idx, 
                            callTarget,
+                           symbol,
                            callSiteBci, 
-                           symbol, 
                            callRatio,
                            this,
                            budget);
@@ -63,18 +60,15 @@ IDTNode* IDTNode::addChild(
    if (getNumChildren() == 1)
       {
       IDTNode* onlyChild = getOnlyChild();
-      
-      _children = new (region) IDTNodeDeque(region);
-      TR_ASSERT_FATAL(!((uintptr_t)_children & SINGLE_CHILD_BIT), "Maligned memory address.\n");
- 
+      _children = new (region) IDTNodeDeque(region); 
       _children->push_back(onlyChild);
       }
 
    IDTNode *newChild = new (region) IDTNode(
                         idx, 
                         callTarget,
+                        symbol,
                         callSiteBci, 
-                        symbol, 
                         callRatio,
                         this, 
                         budget);
@@ -117,7 +111,6 @@ unsigned int IDTNode::getNumChildren()
       return 1;
    
    size_t num = _children->size();
-   TR_ASSERT_FATAL(num > 1, "num cannot be 1 or 0!\n");
    return num;
    }
 
@@ -164,13 +157,6 @@ void IDTNode::printTrace()
    {
    traceMsg(TR::comp(), "IDTNode: name = %s\n",getName());
    }
-
-// bool IDTNode::isNodeSimilar(int32_t callSiteBci, TR::ResolvedMethodSymbol* rms)
-//    {
-//    auto a = _symbol->getResolvedMethod()->maxBytecodeIndex();
-//    auto b = _symbol->getResolvedMethod()->maxBytecodeIndex();
-//    return a == b && _callSiteBci == callSiteBci;
-//    }
 
 IDTNode* IDTNode::getOnlyChild()
    {

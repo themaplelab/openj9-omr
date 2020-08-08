@@ -42,10 +42,10 @@ class AbsValue
     */
    static AbsValue* create(TR::VPConstraint *constraint, TR::DataType dataType, TR::Region& region);
    
-   static AbsValue* createClassObject(TR_OpaqueClassBlock* opaqueClass, bool mustBeNonNull, TR::Region& region, OMR::ValuePropagation* vp);
+   static AbsValue* createClassObject(TR_OpaqueClassBlock* opaqueClass, bool mustBeNonNull, TR::Compilation*comp, TR::Region& region, OMR::ValuePropagation* vp);
 
    static AbsValue* createNullObject(TR::Region& region, OMR::ValuePropagation* vp);
-   static AbsValue* createArrayObject(TR_OpaqueClassBlock* arrayClass, bool mustBeNonNull, int32_t lengthLow, int32_t lengthHigh, int32_t elementSize, TR::Region& region, OMR::ValuePropagation* vp);
+   static AbsValue* createArrayObject(TR_OpaqueClassBlock* arrayClass, bool mustBeNonNull, int32_t lengthLow, int32_t lengthHigh, int32_t elementSize,TR::Compilation*comp, TR::Region& region, OMR::ValuePropagation* vp);
    
    static AbsValue* createStringConst(TR::SymbolReference* symRef, TR::Region& region, OMR::ValuePropagation* vp);
    static AbsValue* createIntConst(int32_t value, TR::Region& region, OMR::ValuePropagation* vp);

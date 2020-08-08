@@ -1,10 +1,10 @@
 #include "optimizer/IDT.hpp"
 
-IDT::IDT(TR::Region& region, TR::ResolvedMethodSymbol* symbol, TR_CallTarget* callTarget, int budget, TR::Compilation* comp):
+IDT::IDT(TR::Region& region, TR_CallTarget* callTarget, TR::ResolvedMethodSymbol* symbol, int budget, TR::Compilation* comp):
       _region(region),
       _maxIdx(-1),
       _comp(comp),
-      _root(new (_region) IDTNode(getNextGlobalIDTNodeIndex(), callTarget, -1, symbol, 1, NULL, budget)),
+      _root(new (_region) IDTNode(getNextGlobalIDTNodeIndex(), callTarget, symbol, -1, 1, NULL, budget)),
       _indices(NULL)
    {   
    increaseGlobalIDTNodeIndex();
@@ -58,8 +58,8 @@ void IDT::printTrace()
             currentNode->getParentGloablIndex(),
             currentNode->getByteCodeIndex(),
             currentNode->getByteCodeSize(),
-            currentNode->getCallTarget()->_calleeSymbol ? currentNode->getCallTarget()->_calleeSymbol->signature(comp()->trMemory()) : "no callee symbol???",
-            currentNode->getName(),
+            currentNode->getResolvedMethodSymbol()->signature(comp()->trMemory()),
+            currentNode->getName(comp()->trMemory()),
             currentNode->getStaticBenefit(),
             currentNode->getBenefit(),
             currentNode->getCost(),
@@ -134,15 +134,14 @@ void IDT::copyDescendants(IDTNode* fromNode, IDTNode* toNode)
       IDTNode* child = fromNode->getChild(i);
 
       if (toNode->getBudget() - child->getCost() < 0)
-         {
          continue;
-         }
+         
 
       IDTNode* copiedChild = toNode->addChild(
                            getNextGlobalIDTNodeIndex(),
                            child->getCallTarget(),
-                           child->getByteCodeIndex(),
                            child->getResolvedMethodSymbol(),
+                           child->getByteCodeIndex(),
                            child->getCallRatio(),
                            getMemoryRegion()
                            );

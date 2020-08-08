@@ -69,8 +69,8 @@ void InliningProposal::print(TR::Compilation* comp)
             _nodes->isSet(index + 1) ? "inlined" : "not inlined",
             currentNode->getByteCodeIndex(),
             currentNode->getByteCodeSize(),
-            currentNode->getCallTarget()->_calleeSymbol ? currentNode->getCallTarget()->_calleeSymbol->signature(comp->trMemory()) : "no callee symbol???",
-            currentNode->getName(),
+            currentNode->getResolvedMethodSymbol()->signature(comp->trMemory()),
+            currentNode->getName(comp->trMemory()),
             currentNode->getBenefit(),
             currentNode->getCost(),
             currentNode->getBudget()

@@ -17,7 +17,11 @@ TR::CFG* IDTBuilder::generateFlowGraph(TR_CallTarget* callTarget, TR::Region& re
    {
    TR_J9EstimateCodeSize* cfgGen = (TR_J9EstimateCodeSize *)TR_EstimateCodeSize::get(getInliner(), getInliner()->tracer(), 0);   
    TR::CFG* cfg = cfgGen->generateCFG(callTarget, callStack, region);
-   callTarget->_calleeSymbol->setFlowGraph(cfg);
+   if (cfg)
+      {
+      cfg->setFrequencies();
+      cfg->setStartBlockFrequency();
+      }
    return cfg;
    }
 
@@ -41,7 +45,7 @@ IDT* IDTBuilder::buildIDT()
                                     NULL);
    
    //Initialize IDT
-   _idt = new (region()) IDT(region(), _rootSymbol, rootCallTarget, _rootBudget, comp());
+   _idt = new (region()) IDT(region(), rootCallTarget, _rootSymbol, _rootBudget, comp());
    
    IDTNode* root = _idt->getRoot();
 
@@ -51,8 +55,6 @@ IDT* IDTBuilder::buildIDT()
    if (!cfg) //Fail to generate a CFG
       return _idt;
 
-   cfg->setFrequencies();
-   cfg->setStartBlockFrequency();
    //setCFGBlockFrequency(rootCallTarget, true);
    
    //add the decendants
@@ -73,7 +75,7 @@ void IDTBuilder::buildIDTHelper(IDTNode* node, AbsParameterArray* parameterArray
 
    TR_CallStack* nextCallStack = new (region()) TR_CallStack(comp(), symbol, method, callStack, budget, true);
 
-   IDTNode* interpretedMethodIDTNode = getInterpretedMethod(node->getResolvedMethodSymbol());
+   IDTNode* interpretedMethodIDTNode = getInterpretedMethod(symbol);
    
    if (interpretedMethodIDTNode)//If this method has been already interpreted
       {
@@ -95,7 +97,7 @@ void IDTBuilder::buildIDTHelper(IDTNode* node, AbsParameterArray* parameterArray
          node->setStaticBenefit(staticBenefit); 
          }
       
-      addInterpretedMethod(node->getResolvedMethodSymbol(), node); //store this method to already interpreted method map
+      addInterpretedMethod(symbol, node); //store this method to already interpreted method map
       }
    
    return;
@@ -150,10 +152,11 @@ void IDTBuilder::addChild(IDTNode*node, int callerIndex, TR_CallSite* callSite, 
          traceMsg(comp(), "Cold block. Don't add\n");
       return;
       }
-      
-     
-   getInliner()->applyPolicyToTargets(callStack, callSite); // eliminate call targets that are not inlinable thus they won't be added to IDT 
 
+   
+   callSite->findCallSiteTarget(callStack, getInliner()); //Find all call targets
+
+   getInliner()->applyPolicyToTargets(callStack, callSite); // eliminate call targets that are not inlinable thus they won't be added to IDT 
 
    if (callSite->numTargets() == 0) 
       {
@@ -182,8 +185,8 @@ void IDTBuilder::addChild(IDTNode*node, int callerIndex, TR_CallSite* callSite, 
          continue;
          }
          
-      
-      TR::ResolvedMethodSymbol * calleeMethodSymbol = TR::ResolvedMethodSymbol::create(comp()->trHeapMemory(), callTarget->_calleeMethod, comp());
+      //The actual symbol for the callTarget->_calleeMethod.
+      TR::ResolvedMethodSymbol* calleeMethodSymbol = TR::ResolvedMethodSymbol::create(comp()->trHeapMemory(),callTarget->_calleeMethod, comp());
 
       //generate the CFG of this call target and set the block frequencies. 
       TR::CFG* cfg = generateFlowGraph(callTarget, region(), callStack);
@@ -195,8 +198,7 @@ void IDTBuilder::addChild(IDTNode*node, int callerIndex, TR_CallSite* callSite, 
          continue;
          }
          
-      cfg->setFrequencies();
-      cfg->setStartBlockFrequency();
+      
 
       if (traceBIIDTGen)
          traceMsg(comp(), "+ IDTBuilder: Adding a child Node: %s for IDTNode: %s\n", calleeMethodSymbol->signature(comp()->trMemory()), node->getName(comp()->trMemory()));
@@ -211,8 +213,8 @@ void IDTBuilder::addChild(IDTNode*node, int callerIndex, TR_CallSite* callSite, 
       IDTNode* child = node->addChild(
                               _idt->getNextGlobalIDTNodeIndex(),
                               callTarget,
-                              callSite->_byteCodeIndex,
                               calleeMethodSymbol,
+                              callSite->_byteCodeIndex,
                               callRatio,
                               _idt->getMemoryRegion()
                               );
@@ -227,7 +229,7 @@ void IDTBuilder::addChild(IDTNode*node, int callerIndex, TR_CallSite* callSite, 
 
       if (!comp()->incInlineDepth(calleeMethodSymbol, callSite->_bcInfo, callSite->_cpIndex, NULL, !callSite->isIndirectCall(), 0))
          continue;
-         
+      
       // Build the IDT recursively
       buildIDTHelper(child, parameterArray, callerIndex + 1, child->getBudget(), callStack);
 

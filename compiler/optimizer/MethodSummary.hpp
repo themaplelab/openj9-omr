@@ -97,48 +97,17 @@ class CheckCastFolding : public PotentialOptimization
    virtual void trace(OMR::ValuePropagation* vp);
    };
 
-//The followings are to be completed in the future.
-
-// class NullCheckFolding : public PotentialOptimization
-//    {
-//    public:
-//    NullCheckFolding(TR::VPConstraint *constraint, int paramPosition) :
-//       PotentialOptimization(constraint, paramPosition)
-//    {};
-
-//    virtual int test(TR::VPConstraint *constraint,OMR::ValuePropagation* vp);
-//    virtual void trace(OMR::ValuePropagation *vp); 
-//    };
-
-// class InstanceOfFolding : public PotentialOptimization
-//    {
-//    public:
-//    InstanceOfFolding(TR::VPConstraint *constraint, int paramPosition):
-//       PotentialOptimization(constraint, paramPosition)
-//    {};
-
-//    virtual void trace(OMR::ValuePropagation *vp); 
-//    };
-
-// class CheckCastFolding : public PotentialOptimization
-//    {
-//    public:
-//    CheckCastFolding(TR::VPConstraint *constraint, int paramPosition):
-//       PotentialOptimization(constraint, paramPosition)
-//    {};
-
-//    virtual void trace(OMR::ValuePropagation *vp); 
-//    };
 
 class MethodSummary
    {
    public:
    int predicates(TR::VPConstraint* constraint, int paramPosition);
 
-   MethodSummary(TR::Region& region,OMR::ValuePropagation* vp) :
+   MethodSummary(TR::Region& region,OMR::ValuePropagation* vp, TR::Compilation* comp) :
       _region(region),
       _potentialOpts(region),
-      _vp(vp)
+      _vp(vp),
+      _comp(comp)
    {};
 
    void addIfEq(int paramPosition);
@@ -159,9 +128,15 @@ class MethodSummary
    void trace();
    private:
    void add(PotentialOptimization*);
+
+   TR::Compilation* comp() { return _comp; };
+   TR::Region& region() { return _region; };
+
    List<PotentialOptimization> _potentialOpts;
    TR::Region &_region;
-  OMR::ValuePropagation *_vp;
+   OMR::ValuePropagation *_vp;
+   TR::Compilation* _comp;
+
    };
 
 
