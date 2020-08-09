@@ -31,7 +31,7 @@
 /**
  * For holding parameters passed from caller method to callee method during Abstract Interpretation.
  */
-typedef TR::deque<AbsValue*, TR::Region&> AbsParameterArray;
+typedef TR::deque<AbsValue*, TR::Region&> AbsParameters;
 
 class AbsState
     {

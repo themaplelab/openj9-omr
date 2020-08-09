@@ -20,7 +20,7 @@ class IDTBuilder
    IDT* buildIDT();
 
    private:
-   void buildIDTHelper(IDTNode* node, AbsParameterArray* parameterArray, int callerIndex, int32_t budget, TR_CallStack* callStack);
+   void buildIDTHelper(IDTNode* node, AbsParameters* parameters, int callerIndex, int32_t budget, TR_CallStack* callStack);
 
    TR::CFG* generateFlowGraph(TR_CallTarget* callTarget, TR_CallStack* callStack=NULL);
    
@@ -29,7 +29,7 @@ class IDTBuilder
    float computeCallRatio(TR::Block* block, TR::CFG* callerCfg );
 
    //call this after we have the method summary of the method / or pass method summary as NULL to clean the invoke state
-   int computeStaticBenefitWithMethodSummary(MethodSummary* methodSummary, IDTNodeDeque* parameterArray);
+   int computeStaticBenefitWithMethodSummary(MethodSummary* methodSummary, AbsParameters* parameters);
 
    TR::Compilation* comp() { return _comp; };
    TR::Region& region() { return _region; };
@@ -45,7 +45,7 @@ class IDTBuilder
    void addChild(IDTNode*node,
       int callerIndex,
       TR_CallSite* callSite,
-      AbsParameterArray* parameterArray,
+      AbsParameters* parameterArray,
       TR_CallStack* callStack,
       TR::Block* block);
 

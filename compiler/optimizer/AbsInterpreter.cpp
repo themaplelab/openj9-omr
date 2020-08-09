@@ -781,7 +781,7 @@ bool AbsInterpreter::interpretByteCode(AbsState* state, TR_J9ByteCode bc, TR_J9B
       case J9BCwide: /* does this need to be handled? */ break;
 
       //invoke_x
-      case J9BCinvokedynamic: return false; break; //Encounter an invokedynamic. 
+      case J9BCinvokedynamic: if (comp()->getOption(TR_TraceAbstractInterpretation)) traceMsg(comp(), "Encounter invokedynamic. Abort abstract interpreting this method.\n"); return false; break;
       case J9BCinvokeinterface: invokeinterface(state, bci.currentByteCodeIndex(), bci.next2Bytes(), block); break;
       case J9BCinvokeinterface2: /*how should we handle invokeinterface2? */ break;
       case J9BCinvokespecial: invokespecial(state, bci.currentByteCodeIndex(), bci.next2Bytes(),block); break;
@@ -798,14 +798,12 @@ bool AbsInterpreter::interpretByteCode(AbsState* state, TR_J9ByteCode bc, TR_J9B
       case J9BCgenericReturn: state->getStackSize() != 0 ? state->pop() && state->getStackSize() && state->pop() : 0; break; 
       
       default:
-      //printf("%s\n", J9_ByteCode_Strings[bc]);
       break;
       }
 
    return true;
    }
 
-//TODO: Add Type of the array to the contraint
 //-- Checked
 AbsState* AbsInterpreter::multianewarray(AbsState* absState, int cpIndex, int dimensions)
    {
@@ -1109,7 +1107,7 @@ AbsState* AbsInterpreter::checkcast(AbsState* absState, int cpIndex, int bytecod
    TR_OpaqueClassBlock* classBlock = _callerMethod->getClassFromConstantPool(comp(), cpIndex);
 
    //adding to method summary
-   if ( objRef->isParameter() )
+   if (objRef->isParameter() && !objRef->isImplicitParameter() )
       {
       _methodSummary->addCheckCast(objRef->getParamPosition(), classBlock);
       }
@@ -1292,7 +1290,7 @@ AbsState* AbsInterpreter::getstatic(AbsState* absState, int cpIndex)
 //-- Checked
 AbsState* AbsInterpreter::getfield(AbsState* absState, int cpIndex)
    {
-   if (absState->top()->isParameter() && !absState->top()->isImplicitParam()) //implict param won't be null checked.
+   if (absState->top()->isParameter() && !absState->top()->isImplicitParameter()) //implict param won't be null checked.
       {
       _methodSummary->addNullCheck(absState->top()->getParamPosition());
       }
@@ -1379,7 +1377,7 @@ AbsState* AbsInterpreter::instanceof(AbsState* absState, int cpIndex, int byteCo
    TR_OpaqueClassBlock *block = _callerMethod->getClassFromConstantPool(comp(), cpIndex); //The cast class to be compared with
    
    //Add to the inlining summary
-   if (objectRef->isParameter() )
+   if (objectRef->isParameter() && !objectRef->isImplicitParameter())
       {
       _methodSummary->addInstanceOf(objectRef->getParamPosition(), block);
       }
@@ -1772,7 +1770,7 @@ AbsState* AbsInterpreter::ifge(AbsState* absState, int branchOffset, int bytecod
 AbsState* AbsInterpreter::ifnull(AbsState* absState, int branchOffset, int bytecodeIndex) 
    {
    AbsValue* absValue = absState->top();
-   if (absValue->isParameter())
+   if (absValue->isParameter() && !absValue->isImplicitParameter())
       _methodSummary->addIfNull(absValue->getParamPosition());
 
    absState->pop();
@@ -1783,7 +1781,7 @@ AbsState* AbsInterpreter::ifnull(AbsState* absState, int branchOffset, int bytec
 AbsState* AbsInterpreter::ifnonnull(AbsState* absState, int branchOffset, int bytecodeIndex)
    {
    AbsValue* absValue = absState->top();
-   if (absValue->isParameter())
+   if (absValue->isParameter() && !absValue->isImplicitParameter())
       _methodSummary->addIfNonNull(absValue->getParamPosition());
 
    absState->pop();
@@ -3105,7 +3103,7 @@ AbsState* AbsInterpreter::iinc(AbsState* absState, int index, int incVal)
 //-- Checked
 AbsState* AbsInterpreter::putfield(AbsState* absState, int cpIndex)
    {
-   if (absState->top()->isParameter() && !absState->top()->isImplicitParam())
+   if (absState->top()->isParameter() && !absState->top()->isImplicitParameter())
       {
       _methodSummary->addNullCheck(absState->top()->getParamPosition());
       }
@@ -3317,7 +3315,7 @@ AbsState* AbsInterpreter::arraylength(AbsState* absState)
    {
    AbsValue* arrayRef = absState->pop();
 
-   if (arrayRef->isParameter() && !arrayRef->isImplicitParam())
+   if (arrayRef->isParameter() && !arrayRef->isImplicitParameter())
       _methodSummary->addNullCheck(arrayRef->getParamPosition());
 
    if (arrayRef->hasConstraint()&& arrayRef->getConstraint()->getArrayInfo())
@@ -3384,7 +3382,7 @@ AbsState* AbsInterpreter::invokevirtual(AbsState* absState, int bcIndex, int cpI
    {
    AbsValue* absValue = absState->top();
 
-   if (absValue->isParameter() && !absValue->isImplicitParam())
+   if (absValue->isParameter() && !absValue->isImplicitParameter())
       {
       _methodSummary->addNullCheck(absValue->getParamPosition());
       }
@@ -3402,7 +3400,7 @@ AbsState* AbsInterpreter::invokestatic(AbsState* absState, int bcIndex, int cpIn
 AbsState* AbsInterpreter::invokespecial(AbsState* absState, int bcIndex, int cpIndex,  TR::Block* block)
    {
    AbsValue* absValue = absState->top();
-   if (absValue->isParameter() && !absValue->isImplicitParam())
+   if (absValue->isParameter() && !absValue->isImplicitParameter())
       {
       _methodSummary->addNullCheck(absValue->getParamPosition());
       }
@@ -3419,7 +3417,7 @@ AbsState* AbsInterpreter::invokedynamic(AbsState* absState, int bcIndex, int cpI
 AbsState* AbsInterpreter::invokeinterface(AbsState* absState, int bcIndex, int cpIndex, TR::Block* block)
    {
    AbsValue* absValue = absState->top();
-   if (absValue->isParameter() && !absValue->isImplicitParam())
+   if (absValue->isParameter() && !absValue->isImplicitParameter())
       {
       _methodSummary->addNullCheck(absValue->getParamPosition());
       }
@@ -3436,7 +3434,7 @@ void AbsInterpreter::invoke(int bcIndex, int cpIndex, TR::MethodSymbol::Kinds ki
    uint32_t numExplicitParams = calleeMethod->numberOfExplicitParameters();
    uint32_t numImplicitParams = kind == TR::MethodSymbol::Kinds::Static ? 0 : 1; 
 
-   AbsParameterArray* paramArray = new (region()) AbsParameterArray(region());
+   AbsParameters* parameters = new (region()) AbsParameters(region());
 
    for (uint32_t i = 0 ; i < numExplicitParams; i ++)
       {
@@ -3453,13 +3451,13 @@ void AbsInterpreter::invoke(int bcIndex, int cpIndex, TR::MethodSymbol::Kinds ki
          absValue = absState->pop();
          }
 
-      paramArray->push_front(absValue);
+      parameters->push_front(absValue);
       }
    
    if (numImplicitParams == 1)
-      paramArray->push_front(absState->pop());
+      parameters->push_front(absState->pop());
 
-   _idtBuilder->addChild(_idtNode, _callerIndex, callsite, paramArray, _callStack ,block);
+   _idtBuilder->addChild(_idtNode, _callerIndex, callsite, parameters, _callStack ,block);
    
    //For the return values
    if (calleeMethod->returnTypeWidth() == 0)
