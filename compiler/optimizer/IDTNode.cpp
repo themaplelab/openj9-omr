@@ -153,10 +153,6 @@ IDTNode* IDTNode::findChildWithBytecodeIndex(int bcIndex)
    return NULL;
    }
 
-void IDTNode::printTrace()
-   {
-   traceMsg(TR::comp(), "IDTNode: name = %s\n",getName());
-   }
 
 IDTNode* IDTNode::getOnlyChild()
    {

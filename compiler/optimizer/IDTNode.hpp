@@ -44,14 +44,13 @@ class IDTNode
    unsigned int getNumDescendantsIncludingMe() { return 1 + getNumDescendants(); };
 
    const char* getName(TR_Memory* mem) { return _callTarget->getSymbol()->getResolvedMethod()->signature(mem); };
-   const char* getName() { return _callTarget->getSymbol()->getResolvedMethod()->signature(TR::comp()->trMemory()); };
 
    IDTNode *getParent() { return _parent; };
 
    int getGlobalIndex() { return _idx; };
    int getParentGloablIndex()  { return isRoot() ? -2 : getParent()->getGlobalIndex(); };
 
-   unsigned int getBenefit() { return _rootCallRatio * ( 1 + _staticBenefit); };
+   unsigned int getBenefit() { return _rootCallRatio  + _staticBenefit; };
    unsigned int getStaticBenefit() {  return _staticBenefit;  };
    void setStaticBenefit(unsigned int benefit) { _staticBenefit = benefit; };
    
@@ -67,8 +66,6 @@ class IDTNode
    TR_ResolvedMethod* getResolvedMethod() { return _callTarget->_calleeMethod; };
    
    int getBudget()  { return _budget; };
-
-   void printTrace();
 
    TR_CallTarget *getCallTarget() { return _callTarget; };
    unsigned int getByteCodeIndex() { return _callSiteBci; };

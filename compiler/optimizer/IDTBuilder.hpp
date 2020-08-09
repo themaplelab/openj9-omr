@@ -22,14 +22,14 @@ class IDTBuilder
    private:
    void buildIDTHelper(IDTNode* node, AbsParameterArray* parameterArray, int callerIndex, int32_t budget, TR_CallStack* callStack);
 
-   TR::CFG* generateFlowGraph(TR_CallTarget* callTarget, TR::Region& region, TR_CallStack* callStack=NULL);
+   TR::CFG* generateFlowGraph(TR_CallTarget* callTarget, TR_CallStack* callStack=NULL);
    
    void performAbstractInterpretation(IDTNode* node,  int callerIndex, TR_CallStack* callStack);
 
    float computeCallRatio(TR::Block* block, TR::CFG* callerCfg );
 
    //call this after we have the method summary of the method / or pass method summary as NULL to clean the invoke state
-   int computeStaticBenefitWithMethodSummary(MethodSummary* methodSummary, AbsParameterArray* parameterArray);
+   int computeStaticBenefitWithMethodSummary(MethodSummary* methodSummary, IDTNodeDeque* parameterArray);
 
    TR::Compilation* comp() { return _comp; };
    TR::Region& region() { return _region; };

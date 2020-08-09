@@ -137,14 +137,14 @@ class AbsValue
     *
     * @return bool
     */   
-   bool isImplicitParam() { return _paramPos == 0 && _isImplicitParam; };
+   bool isImplicitParameter() { return _paramPos == 0 && _isImplicitParameter; };
 
    /* Getter and setter methods */
 
    int getParamPosition() { return _paramPos; };
    void setParamPosition(int paramPos) { _paramPos = paramPos; };
 
-   void setImplicitParam() { TR_ASSERT_FATAL(_paramPos == 0, "Cannot set as implicit param"); _isImplicitParam = true; };
+   void setImplicitParam() { TR_ASSERT_FATAL(_paramPos == 0, "Cannot set as implicit param"); _isImplicitParameter = true; };
 
    TR::DataType getDataType() { return _dataType; };
    
@@ -158,7 +158,7 @@ class AbsValue
    void setDataType(TR::DataType dataType) { _dataType = dataType; };
    void setConstraint(TR::VPConstraint *constraint) { _constraint = constraint; };
 
-   bool _isImplicitParam;
+   bool _isImplicitParameter;
    bool _isDummy;
    int _paramPos; 
    TR::VPConstraint* _constraint;

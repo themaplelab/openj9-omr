@@ -26,7 +26,7 @@ AbsValue::AbsValue(TR::VPConstraint* constraint, TR::DataType dataType, bool isD
       _dataType(dataType),
       _paramPos(-1),
       _isDummy(isDummy),
-      _isImplicitParam(false)
+      _isImplicitParameter(false)
    {
    }
 
@@ -35,7 +35,7 @@ AbsValue::AbsValue(AbsValue* other):
       _dataType(other->_dataType),
       _paramPos(other->_paramPos),
       _isDummy(other->_isDummy),
-      _isImplicitParam(other->_isImplicitParam)
+      _isImplicitParameter(other->_isImplicitParameter)
    {
    }
 

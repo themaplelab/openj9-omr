@@ -43,7 +43,7 @@ void InliningProposal::print(TR::Compilation* comp)
    TR_ASSERT_FATAL(_idt, "Must have an IDT");
 
    char header[1024];
-   sprintf(header,"#Proposal: %d methods inlined into %s", numMethodsInlined, _idt->getRoot()->getName());
+   sprintf(header,"#Proposal: %d methods inlined into %s", numMethodsInlined, _idt->getRoot()->getName(comp->trMemory()));
 
    if (traceBIProposal)
       traceMsg(comp, "%s\n", header);
@@ -76,7 +76,7 @@ void InliningProposal::print(TR::Compilation* comp)
             currentNode->getBudget()
          );
 
-         if (traceBIProposal)
+         if (traceBIProposal)                                                                                                                                       
             traceMsg(comp, "%s\n",line);
          if (verboseInlining)
             TR_VerboseLog::writeLineLocked(TR_Vlog_SIP, line);

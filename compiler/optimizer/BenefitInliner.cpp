@@ -108,7 +108,7 @@ OMR::BenefitInlinerBase::inlineCallTargets(TR::ResolvedMethodSymbol *rms, TR_Cal
       return false;
    }
    ////printf("inlining into %s\n", this->_currentNode->getName());
-   traceMsg(TR::comp(), "inlining into %s\n", this->_currentNode->getName());
+   traceMsg(TR::comp(), "inlining into %s\n", this->_currentNode->getName(comp()->trMemory()));
    TR_ASSERT(!prevCallStack || prevCallStack->_methodSymbol->getFlowGraph(), "we have a null call graph");
 
    TR_CallStack callStack(comp(), rms, rms->getResolvedMethod(), prevCallStack, 1500, true);
@@ -177,7 +177,7 @@ OMR::BenefitInlinerBase::usedSavedInformation(TR::ResolvedMethodSymbol *rms, TR_
 
          if (TR::comp()->trace(OMR::benefitInliner))
              {
-             traceMsg(TR::comp(), "inlining node %d %s\n", child->getGlobalIndex(), child->getName());
+             traceMsg(TR::comp(), "inlining node %d %s\n", child->getGlobalIndex(), child->getName(comp()->trMemory()));
              }
 
          IDTNode *prevChild = this->_currentChild;

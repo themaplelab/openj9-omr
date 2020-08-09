@@ -13,10 +13,10 @@ IDTBuilder::IDTBuilder(TR::ResolvedMethodSymbol* symbol, int32_t budget, TR::Reg
    }
 
 //The CFG is generated from EstimateCodeSize. It is different from a normal CFG. 
-TR::CFG* IDTBuilder::generateFlowGraph(TR_CallTarget* callTarget, TR::Region& region, TR_CallStack* callStack)
+TR::CFG* IDTBuilder::generateFlowGraph(TR_CallTarget* callTarget, TR_CallStack* callStack)
    {
    TR_J9EstimateCodeSize* cfgGen = (TR_J9EstimateCodeSize *)TR_EstimateCodeSize::get(getInliner(), getInliner()->tracer(), 0);   
-   TR::CFG* cfg = cfgGen->generateCFG(callTarget, callStack, region);
+   TR::CFG* cfg = cfgGen->generateCFG(callTarget, callStack, region());
    if (cfg)
       {
       cfg->setFrequencies();
@@ -50,7 +50,7 @@ IDT* IDTBuilder::buildIDT()
    IDTNode* root = _idt->getRoot();
 
    //generate the CFG for root call target 
-   TR::CFG* cfg = generateFlowGraph(rootCallTarget, region());
+   TR::CFG* cfg = generateFlowGraph(rootCallTarget);
 
    if (!cfg) //Fail to generate a CFG
       return _idt;
@@ -111,7 +111,7 @@ void IDTBuilder::performAbstractInterpretation(IDTNode* node, int callerIndex, T
    if (!success)
       {
       if (comp()->getOption(TR_TraceAbstractInterpretation))
-         traceMsg(comp(), "Fail to interpret method: %s\n", node->getName());
+         traceMsg(comp(), "Fail to interpret method: %s\n", node->getName(comp()->trMemory()));
       }
    }
 
@@ -189,7 +189,7 @@ void IDTBuilder::addChild(IDTNode*node, int callerIndex, TR_CallSite* callSite, 
       TR::ResolvedMethodSymbol* calleeMethodSymbol = TR::ResolvedMethodSymbol::create(comp()->trHeapMemory(),callTarget->_calleeMethod, comp());
 
       //generate the CFG of this call target and set the block frequencies. 
-      TR::CFG* cfg = generateFlowGraph(callTarget, region(), callStack);
+      TR::CFG* cfg = generateFlowGraph(callTarget, callStack);
 
       if (!cfg)
          {
@@ -245,7 +245,7 @@ float IDTBuilder::computeCallRatio(TR::Block* block, TR::CFG* callerCfg)
    return callRatio;  
    }
 
-int IDTBuilder::computeStaticBenefitWithMethodSummary(MethodSummary* methodSummary, AbsParameterArray* parameterArray)
+int IDTBuilder::computeStaticBenefitWithMethodSummary(MethodSummary* methodSummary, IDTNodeDeque* parameterArray)
    {
    TR_ASSERT_FATAL(parameterArray, "parameter array is NULL");
 
