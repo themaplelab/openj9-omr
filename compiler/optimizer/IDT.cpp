@@ -1,6 +1,6 @@
 #include "optimizer/IDT.hpp"
 
-IDT::IDT(TR::Region& region, TR_CallTarget* callTarget, TR::ResolvedMethodSymbol* symbol, int budget, TR::Compilation* comp):
+IDT::IDT(TR::Region& region, TR_CallTarget* callTarget, TR::ResolvedMethodSymbol* symbol, int32_t budget, TR::Compilation* comp):
       _region(region),
       _maxIdx(-1),
       _comp(comp),

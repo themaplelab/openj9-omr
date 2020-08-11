@@ -35,6 +35,7 @@ namespace OMR {
             return "O^O Benefit Inliner Wrapper: ";
          }
       int32_t getBudget(TR::ResolvedMethodSymbol *resolvedMethodSymbol);
+      int32_t getInliningBudget(TR::ResolvedMethodSymbol* callerSymbol);
    };
 
 
@@ -51,7 +52,7 @@ class BenefitInlinerBase: public TR_InlinerBase
    public:
       int level = 0;
       virtual bool supportsMultipleTargetInlining () { return false; }
-      virtual void applyPolicyToTargets(TR_CallStack *, TR_CallSite *);
+      //virtual void applyPolicyToTargets(TR_CallStack *, TR_CallSite *);
       int _callerIndex;
       int _nodes;
       //std::deque<int> inlinedNodes;
@@ -81,12 +82,13 @@ class BenefitInliner: public BenefitInlinerBase
       
       
       TR::Region _holdingProposalRegion;
-      inline const uint32_t budget() const { return this->_budget; }
+      inline const int32_t budget() const { return this->_budget; }
    private:
+   int32_t getBudget(TR::ResolvedMethodSymbol* symbol);
       TR::Region _idtRegion;
       TR::CFG *_rootRms;
 
-      const uint32_t _budget;
+      const int32_t _budget;
 
      
    };

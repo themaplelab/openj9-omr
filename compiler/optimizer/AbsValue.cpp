@@ -51,7 +51,7 @@ AbsValue* AbsValue::createClassObject(TR_OpaqueClassBlock* opaqueClass, bool mus
 
    if (opaqueClass != NULL)
       {
-      TR::VPClassType *classType = comp->fe()->getClassClassPointer(opaqueClass) ? TR::VPResolvedClass::create(vp, opaqueClass) : TR::VPFixedClass::create(vp, opaqueClass);
+      TR::VPClassType *classType = comp->fe()->getClassClassPointer(opaqueClass) ? TR::VPFixedClass::create(vp, opaqueClass) : TR::VPFixedClass::create(vp, opaqueClass);
       return AbsValue::create(TR::VPClass::create(vp, classType, classPresence, NULL, NULL, NULL), TR::Address, region);
       }
 

@@ -12,7 +12,7 @@
 class IDT
    {
    public:
-   IDT(TR::Region& region, TR_CallTarget*, TR::ResolvedMethodSymbol* symbol, int budget, TR::Compilation* comp);
+   IDT(TR::Region& region, TR_CallTarget*, TR::ResolvedMethodSymbol* symbol, int32_t budget, TR::Compilation* comp);
 
    IDTNode* getRoot() { return _root; };
 

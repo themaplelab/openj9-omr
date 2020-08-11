@@ -48,7 +48,7 @@ class BranchFolding : public PotentialOptimization
 
    virtual int predicate(TR::VPConstraint *other,OMR::ValuePropagation* vp);
    virtual void trace(OMR::ValuePropagation *vp); 
-   virtual int getWeight() { return 3; };
+   virtual int getWeight() { return 1; }
 
    private:
    Kinds _kind;
@@ -63,7 +63,7 @@ class NullBranchFolding : public BranchFolding
    {};
 
    virtual int predicate(TR::VPConstraint* other,OMR::ValuePropagation* vp);
-   virtual int getWeight() { return 2; };
+   virtual int getWeight() { return 1; }
    };
 
 class NullCheckFolding : public PotentialOptimization
@@ -75,7 +75,7 @@ class NullCheckFolding : public PotentialOptimization
 
    virtual int predicate(TR::VPConstraint *other,OMR::ValuePropagation* vp);
    virtual void trace(OMR::ValuePropagation *vp);
-   virtual int getWeight() { return 1; };
+   virtual int getWeight() { return 1; }
 
    };
 
@@ -87,7 +87,7 @@ class InstanceOfFolding : public PotentialOptimization
    {};
 
    virtual int predicate(TR::VPConstraint* other,OMR::ValuePropagation* vp);
-   virtual int getWeight() { return 1; };
+   virtual int getWeight() { return 1; }
    virtual void trace(OMR::ValuePropagation* vp);
    };
 
@@ -99,7 +99,7 @@ class CheckCastFolding : public PotentialOptimization
    {};
 
    virtual int predicate(TR::VPConstraint* other,OMR::ValuePropagation* vp);
-   virtual int getWeight() { return 1; };
+   virtual int getWeight() { return 1; }
    virtual void trace(OMR::ValuePropagation* vp);
    };
 
@@ -135,8 +135,8 @@ class MethodSummary
    private:
    void add(PotentialOptimization*);
 
-   TR::Compilation* comp() { return _comp; };
-   TR::Region& region() { return _region; };
+   TR::Compilation* comp() { return _comp; }
+   TR::Region& region() { return _region; }
 
    List<PotentialOptimization> _potentialOpts;
    TR::Region &_region;

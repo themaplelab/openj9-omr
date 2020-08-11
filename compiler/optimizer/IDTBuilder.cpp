@@ -12,6 +12,11 @@ IDTBuilder::IDTBuilder(TR::ResolvedMethodSymbol* symbol, int32_t budget, TR::Reg
    {
    }
 
+void IDTBuilder::visit(TR_CallSite* callSite, AbsArguments* arguments)
+   {
+   printf("%s\n", callSite->signature(comp()->trMemory()));
+   }
+
 //The CFG is generated from EstimateCodeSize. It is different from a normal CFG. 
 TR::CFG* IDTBuilder::generateFlowGraph(TR_CallTarget* callTarget, TR_CallStack* callStack)
    {
@@ -66,7 +71,7 @@ IDT* IDTBuilder::buildIDT()
    return _idt;
    }
 
-void IDTBuilder::buildIDTHelper(IDTNode* node, AbsParameters* parameters, int callerIndex, int32_t budget, TR_CallStack* callStack)
+void IDTBuilder::buildIDTHelper(IDTNode* node, AbsArguments* parameters, int callerIndex, int32_t budget, TR_CallStack* callStack)
    {
    TR::ResolvedMethodSymbol* symbol = node->getResolvedMethodSymbol();
    TR_ResolvedMethod* method = symbol->getResolvedMethod();
@@ -106,7 +111,7 @@ void IDTBuilder::buildIDTHelper(IDTNode* node, AbsParameters* parameters, int ca
 //Abstract interpetation = Walk the bytecode + identifying invoke bytecode + update AbsState + generate method summary
 void IDTBuilder::performAbstractInterpretation(IDTNode* node, int callerIndex, TR_CallStack* callStack)
    {
-   AbsInterpreter interpreter(node, callerIndex, this, callStack, region(), comp());
+   AbsInterpreter interpreter(node->getResolvedMethodSymbol(), node->getCallTarget()->_cfg, region(), comp());
    bool success = interpreter.interpret();
    if (!success)
       {
@@ -135,11 +140,11 @@ void IDTBuilder::addInterpretedMethod(TR::ResolvedMethodSymbol* symbol, IDTNode*
    _interpretedMethodMap.insert(std::pair<TR_OpaqueMethodBlock *, IDTNode *>(persistentIdentifier,node));
    }
 
-void IDTBuilder::addChild(IDTNode*node, int callerIndex, TR_CallSite* callSite, AbsParameters* parameters, TR_CallStack* callStack, TR::Block* block)
+void IDTBuilder::addChild(IDTNode*node, int callerIndex, TR_CallSite* callSite, AbsArguments* parameters, TR_CallStack* callStack, TR::Block* block)
    {
    bool traceBIIDTGen = comp()->getOption(TR_TraceBIIDTGen);
 
-   if (callSite == NULL)
+   if (callSite == NULL || callSite->_initialCalleeMethod == NULL)
       {
       if (traceBIIDTGen)
          traceMsg(comp(), "Do not have a callsite. Don't add\n");
@@ -245,7 +250,7 @@ float IDTBuilder::computeCallRatio(TR::Block* block, TR::CFG* callerCfg)
    return callRatio;  
    }
 
-int IDTBuilder::computeStaticBenefitWithMethodSummary(MethodSummary* methodSummary, AbsParameters* parameterArray)
+int IDTBuilder::computeStaticBenefitWithMethodSummary(MethodSummary* methodSummary, AbsArguments* parameterArray)
    {
    TR_ASSERT_FATAL(parameterArray, "parameter array is NULL");
 
@@ -259,7 +264,8 @@ int IDTBuilder::computeStaticBenefitWithMethodSummary(MethodSummary* methodSumma
       AbsValue* param = parameterArray->at(i);
       benefit += methodSummary->predicates(param->getConstraint(), i);
       }
-
+   // if (benefit >0)
+   //    printf("%d\n",benefit);
    return benefit;
    }
 

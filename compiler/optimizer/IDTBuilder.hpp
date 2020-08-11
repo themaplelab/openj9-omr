@@ -10,8 +10,9 @@
 #include "optimizer/J9EstimateCodeSize.hpp"
 #include <map>
 #include "optimizer/AbsState.hpp"
+#include "optimizer/AbsVisitor.hpp"
 
-class IDTBuilder
+class IDTBuilder : public AbsVisitor
    {
    friend class AbsInterpreter;
 
@@ -19,8 +20,10 @@ class IDTBuilder
    IDTBuilder(TR::ResolvedMethodSymbol* symbol, int32_t budget, TR::Region& region, TR::Compilation* comp, OMR::BenefitInliner* inliner);
    IDT* buildIDT();
 
+   void visit(TR_CallSite* callSite, AbsArguments* arguments);
+
    private:
-   void buildIDTHelper(IDTNode* node, AbsParameters* parameters, int callerIndex, int32_t budget, TR_CallStack* callStack);
+   void buildIDTHelper(IDTNode* node, AbsArguments* parameters, int callerIndex, int32_t budget, TR_CallStack* callStack);
 
    TR::CFG* generateFlowGraph(TR_CallTarget* callTarget, TR_CallStack* callStack=NULL);
    
@@ -29,7 +32,7 @@ class IDTBuilder
    float computeCallRatio(TR::Block* block, TR::CFG* callerCfg );
 
    //call this after we have the method summary of the method / or pass method summary as NULL to clean the invoke state
-   int computeStaticBenefitWithMethodSummary(MethodSummary* methodSummary, AbsParameters* parameters);
+   int computeStaticBenefitWithMethodSummary(MethodSummary* methodSummary, AbsArguments* parameters);
 
    TR::Compilation* comp() { return _comp; };
    TR::Region& region() { return _region; };
@@ -45,7 +48,7 @@ class IDTBuilder
    void addChild(IDTNode*node,
       int callerIndex,
       TR_CallSite* callSite,
-      AbsParameters* parameterArray,
+      AbsArguments* parameterArray,
       TR_CallStack* callStack,
       TR::Block* block);
 

@@ -23,11 +23,13 @@ int32_t OMR::BenefitInlinerWrapper::perform()
    TR::ResolvedMethodSymbol * sym = comp()->getMethodSymbol();
    //printf("======= %s ======\n\n\n",sym->signature(comp()->trMemory()));
    TR::CFG *prevCFG = sym->getFlowGraph();
-   int32_t budget = getBudget(sym);
-   if (budget < 0)
-      return 1;
+   // int32_t budget = getBudget(sym);
+   // if (budget < 0)
+   //    return 1;
 
-   OMR::BenefitInliner inliner(optimizer(), this, budget);
+   OMR::BenefitInliner inliner(optimizer(), this, 0);
+   int32_t budget = inliner.budget();
+  
 
    inliner.buildIDT();
 
@@ -264,6 +266,49 @@ void OMR::BenefitInliner::inlinerPacking()
    _inliningProposal = result;
    }
 
+// int32_t OMR::BenefitInlinerWrapper::getInliningBudget(TR::ResolvedMethodSymbol* callerSymbol)
+//    {
+//    int32_t size = callerSymbol->getResolvedMethod()->maxBytecodeIndex();
+//    int32_t budget;
+
+//    if (comp()->getMethodHotness() >= scorching || ((comp()->getMethodHotness() >= veryHot) && comp()->isProfilingCompilation()))
+//       budget = std::max(1500, size * 2);
+//    else if (comp()->getMethodHotness() >= hot)
+//       budget = std::max(1500, size + (size >> 2));
+//    else if (size < 125)
+//       budget = 250;
+//    else if (size < 700)
+//       budget = std::max(700, size + (size >> 2));
+//    else
+//       budget = size + (size >> 3);
+   
+//    budget -= size;
+
+//    return budget;
+//    }
+
+int32_t OMR::BenefitInliner::getBudget(TR::ResolvedMethodSymbol* callerSymbol)
+   {
+   int32_t size = callerSymbol->getResolvedMethod()->maxBytecodeIndex();
+
+   int32_t budget;
+
+   if (comp()->getMethodHotness() >= scorching)
+      budget = std::max(1500, size * 2);
+   else if (comp()->getMethodHotness() >= hot)
+      budget = std::max(1500, size + (size >> 2));
+   else if (comp()->getMethodHotness() >= warm && size < 250)
+      budget = 250;
+   else if (comp()->getMethodHotness() >= warm && size < 700)
+      budget = std::max(700, size + (size >> 2));
+   else if (comp()->getMethodHotness() >= warm)
+      budget = size + (size >> 3);
+   else 
+      budget = 25;
+
+   return budget;
+   }
+
 int32_t
 OMR::BenefitInlinerWrapper::getBudget(TR::ResolvedMethodSymbol *resolvedMethodSymbol)
    {
@@ -301,209 +346,212 @@ OMR::BenefitInlinerWrapper::getBudget(TR::ResolvedMethodSymbol *resolvedMethodSy
 
 
 
-void
-OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSite *callsite)
-   {
-   if (!callsite->_initialCalleeSymbol)
-     {
-     TR_InlinerFailureReason isInlineable = InlineableTarget;
-     if ((isInlineable = static_cast<TR_InlinerFailureReason> (checkInlineableWithoutInitialCalleeSymbol (callsite, comp()))) != InlineableTarget)
-        {
-        callsite->_failureReason=isInlineable;
-        callsite->removeAllTargets(tracer(),isInlineable);
-        if (comp()->getOption(TR_TraceBIIDTGen))
-           {
-           traceMsg(comp(), "not considering inlineable target\n");
-           }
-        return;
-        }
-     }
+// void
+// OMR::BenefitInlinerBase::applyPolicyToTargets(TR_CallStack *callStack, TR_CallSite *callsite)
+//    {
+//    if (!callsite->_initialCalleeSymbol)
+//      {
+//      TR_InlinerFailureReason isInlineable = InlineableTarget;
+//      if ((isInlineable = static_cast<TR_InlinerFailureReason> (checkInlineableWithoutInitialCalleeSymbol (callsite, comp()))) != InlineableTarget)
+//         {
+//         callsite->_failureReason=isInlineable;
+//         callsite->removeAllTargets(tracer(),isInlineable);
+//         if (comp()->getOption(TR_TraceBIIDTGen))
+//            {
+//            traceMsg(comp(), "not considering inlineable target\n");
+//            }
+//         return;
+//         }
+//      }
      
-   for (int32_t i=0; i<callsite->numTargets(); i++)
-      {
-      TR_CallTarget *calltarget = callsite->getTarget(i);
+//    for (int32_t i=0; i<callsite->numTargets(); i++)
+//       {
+//       TR_CallTarget *calltarget = callsite->getTarget(i);
 
-      if (!calltarget->_calleeSymbol)
-            {
-            if (comp()->getOption(TR_TraceBIIDTGen))
-               {
-               traceMsg(comp(), "unresolved callee\n");
-               }
-            callsite->removecalltarget(i,tracer(),Unresolved_Callee);
-            i--;
-            continue;
-            }
+//       if (!calltarget->_calleeSymbol)
+//             {
+//             if (comp()->getOption(TR_TraceBIIDTGen))
+//                {
+//                traceMsg(comp(), "unresolved callee\n");
+//                }
+//             callsite->removecalltarget(i,tracer(),Unresolved_Callee);
+//             i--;
+//             continue;
+//             }
 
-      if (!supportsMultipleTargetInlining () && i > 0)
-         {
-         if (comp()->getOption(TR_TraceBIIDTGen))
-           {
-           traceMsg(TR::comp(), "not considering %s because exceeds byte code threshold\n", calltarget->_calleeMethod->signature(this->comp()->trMemory()));
-           }
-         callsite->removecalltarget(i,tracer(),Exceeds_ByteCode_Threshold);
-         i--;
-         continue;
-         }
-      TR_ASSERT(calltarget->_guard, "assertion failure");
-      if (!getPolicy()->canInlineMethodWhileInstrumenting(calltarget->_calleeMethod))
-         {
-         if (comp()->getOption(TR_TraceBIIDTGen))
-           {
-           traceMsg(TR::comp(), "not considering %s cannot inline while instrumenting\n", calltarget->_calleeMethod->signature(this->comp()->trMemory()));
-           }
-         callsite->removecalltarget(i,tracer(),Needs_Method_Tracing);
-         i--;
-         continue;
-         }
-      bool toInline = getPolicy()->tryToInline(calltarget, callStack, true);
-      if (toInline)
-         {
-         if (comp()->getOption(TR_TraceBIIDTGen))
-            {
-            traceMsg(comp(), "tryToInline pattern matched.  Skipping size check for %s\n", calltarget->_calleeMethod->signature(comp()->trMemory()));
-            }
-         callsite->tagcalltarget(i, tracer(), OverrideInlineTarget);
-         }
+//       if (!supportsMultipleTargetInlining () && i > 0)
+//          {
+//          if (comp()->getOption(TR_TraceBIIDTGen))
+//            {
+//            traceMsg(TR::comp(), "not considering %s because exceeds byte code threshold\n", calltarget->_calleeMethod->signature(this->comp()->trMemory()));
+//            }
+//          callsite->removecalltarget(i,tracer(),Exceeds_ByteCode_Threshold);
+//          i--;
+//          continue;
+//          }
 
-      // only inline recursive calls once
-      //
-      static char *selfInliningLimitStr = feGetEnv("TR_selfInliningLimit");
-      int32_t selfInliningLimit =
-           selfInliningLimitStr ? atoi(selfInliningLimitStr)
-         : comp()->getMethodSymbol()->doJSR292PerfTweaks()  ? 1 // JSR292 methods already do plenty of inlining
-         : 3;
-      if (callStack && callStack->isAnywhereOnTheStack(calltarget->_calleeMethod, selfInliningLimit))
-         {
-         if (comp()->getOption(TR_TraceBIIDTGen))
-           {
-           traceMsg(TR::comp(), "not considering %s recursive\n", calltarget->_calleeMethod->signature(this->comp()->trMemory()));
-           }
-         debugTrace(tracer(),"Don't inline recursive call %p %s\n", calltarget, tracer()->traceSignature(calltarget));
-         tracer()->insertCounter(Recursive_Callee,callsite->_callNodeTreeTop);
-         callsite->removecalltarget(i,tracer(),Recursive_Callee);
-         i--;
-         continue;
-         }
-      TR_InlinerFailureReason checkInlineableTarget = getPolicy()->checkIfTargetInlineable(calltarget, callsite, comp());
+//       TR_ASSERT(calltarget->_guard, "assertion failure");
 
-      if (checkInlineableTarget != InlineableTarget)
-         {
-         if (comp()->getOption(TR_TraceBIIDTGen))
-           {
-           traceMsg(TR::comp(), "not considering %s not inlineable\n", calltarget->_calleeMethod->signature(this->comp()->trMemory()));
-           }
-         tracer()->insertCounter(checkInlineableTarget,callsite->_callNodeTreeTop);
-         callsite->removecalltarget(i,tracer(),checkInlineableTarget);
-         i--;
-         continue;
-         }
+//       if (!getPolicy()->canInlineMethodWhileInstrumenting(calltarget->_calleeMethod))
+//          {
+//          if (comp()->getOption(TR_TraceBIIDTGen))
+//            {
+//            traceMsg(TR::comp(), "not considering %s cannot inline while instrumenting\n", calltarget->_calleeMethod->signature(this->comp()->trMemory()));
+//            }
+//          callsite->removecalltarget(i,tracer(),Needs_Method_Tracing);
+//          i--;
+//          continue;
+//          }
+//       bool toInline = getPolicy()->tryToInline(calltarget, callStack, true);
+//       if (toInline)
+//          {
+//          if (comp()->getOption(TR_TraceBIIDTGen))
+//             {
+//             traceMsg(comp(), "tryToInline pattern matched.  Skipping size check for %s\n", calltarget->_calleeMethod->signature(comp()->trMemory()));
+//             }
+//          callsite->tagcalltarget(i, tracer(), OverrideInlineTarget);
+//          }
 
-      bool realGuard = false;
-      if (comp()->getHCRMode() != TR::none)
-         {
-         if (calltarget->_guard->_kind != TR_HCRGuard)
-            {
-            if ((calltarget->_guard->_kind != TR_NoGuard) && (calltarget->_guard->_kind != TR_InnerGuard))
-               realGuard = true;
-            }
-         }
-      else
-         {
-         if ((calltarget->_guard->_kind != TR_NoGuard) && (calltarget->_guard->_kind != TR_InnerGuard))
-            realGuard = true;
-         }
-      if (realGuard && (!inlineVirtuals() || comp()->getOption(TR_DisableVirtualInlining)))
-         {
-         if (comp()->getOption(TR_TraceBIIDTGen))
-           {
-           traceMsg(TR::comp(), "not considering %s virtual inlining disabled\n", calltarget->_calleeMethod->signature(this->comp()->trMemory()));
-           }
-         tracer()->insertCounter(Virtual_Inlining_Disabled, callsite->_callNodeTreeTop);
-         callsite->removecalltarget(i, tracer(), Virtual_Inlining_Disabled);
-         i--;
-         continue;
-         }
+//       // only inline recursive calls once
+//       //
+//       static char *selfInliningLimitStr = feGetEnv("TR_selfInliningLimit");
+//       int32_t selfInliningLimit =
+//            selfInliningLimitStr ? atoi(selfInliningLimitStr)
+//          : comp()->getMethodSymbol()->doJSR292PerfTweaks()  ? 1 // JSR292 methods already do plenty of inlining
+//          : 3;
+//       if (callStack && callStack->isAnywhereOnTheStack(calltarget->_calleeMethod, selfInliningLimit))
+//          {
+//          if (comp()->getOption(TR_TraceBIIDTGen))
+//            {
+//            traceMsg(TR::comp(), "not considering %s recursive\n", calltarget->_calleeMethod->signature(this->comp()->trMemory()));
+//            }
+//          debugTrace(tracer(),"Don't inline recursive call %p %s\n", calltarget, tracer()->traceSignature(calltarget));
+//          tracer()->insertCounter(Recursive_Callee,callsite->_callNodeTreeTop);
+//          callsite->removecalltarget(i,tracer(),Recursive_Callee);
+//          i--;
+//          continue;
+//          }
+//       TR_InlinerFailureReason checkInlineableTarget = getPolicy()->checkIfTargetInlineable(calltarget, callsite, comp());
 
-      static const char * onlyVirtualInlining = feGetEnv("TR_OnlyVirtualInlining");
-      if (comp()->getOption(TR_DisableNonvirtualInlining) && !realGuard)
-         {
-         if (comp()->getOption(TR_TraceBIIDTGen))
-           {
-           traceMsg(TR::comp(), "not considering %s non virtual inlining disabled\n", calltarget->_calleeMethod->signature(this->comp()->trMemory()));
-           }
-         tracer()->insertCounter(NonVirtual_Inlining_Disabled,callsite->_callNodeTreeTop);
-         callsite->removecalltarget(i,tracer(),NonVirtual_Inlining_Disabled);
-         i--;
-         continue;
-         }
+//       if (checkInlineableTarget != InlineableTarget)
+//          {
+//          if (comp()->getOption(TR_TraceBIIDTGen))
+//            {
+//            traceMsg(TR::comp(), "not considering %s not inlineable\n", calltarget->_calleeMethod->signature(this->comp()->trMemory()));
+//            }
+//          tracer()->insertCounter(checkInlineableTarget,callsite->_callNodeTreeTop);
+//          callsite->removecalltarget(i,tracer(),checkInlineableTarget);
+//          i--;
+//          continue;
+//          }
 
-      static const char * dontInlineSyncMethods = feGetEnv("TR_DontInlineSyncMethods");
-      if (calltarget->_calleeMethod->isSynchronized() && (!inlineSynchronized() || comp()->getOption(TR_DisableSyncMethodInlining)))
-         {
-         if (comp()->getOption(TR_TraceBIIDTGen))
-           {
-           traceMsg(TR::comp(), "not considering %s dont inline sync methods\n", calltarget->_calleeMethod->signature(this->comp()->trMemory()));
-           }
-         tracer()->insertCounter(Sync_Method_Inlining_Disabled,callsite->_callNodeTreeTop);
-         callsite->removecalltarget(i,tracer(),Sync_Method_Inlining_Disabled);
-         i--;
-         continue;
-         }
+//       bool realGuard = false;
+//       if (comp()->getHCRMode() != TR::none)
+//          {
+//          if (calltarget->_guard->_kind != TR_HCRGuard)
+//             {
+//             if ((calltarget->_guard->_kind != TR_NoGuard) && (calltarget->_guard->_kind != TR_InnerGuard))
+//                realGuard = true;
+//             }
+//          }
+//       else
+//          {
+//          if ((calltarget->_guard->_kind != TR_NoGuard) && (calltarget->_guard->_kind != TR_InnerGuard))
+//             realGuard = true;
+//          }
 
-      if (debug("dontInlineEHAware") && calltarget->_calleeMethod->numberOfExceptionHandlers() > 0)
-         {
-         if (comp()->getOption(TR_TraceBIIDTGen))
-           {
-           traceMsg(TR::comp(), "not considering %s dont inline ehaware\n", calltarget->_calleeMethod->signature(this->comp()->trMemory()));
-           }
-         tracer()->insertCounter(EH_Aware_Callee,callsite->_callNodeTreeTop);
-         callsite->removecalltarget(i,tracer(),EH_Aware_Callee);
-         i--;
-         continue;
-         }
+//       if (realGuard && (!inlineVirtuals() || comp()->getOption(TR_DisableVirtualInlining)))
+//          {
+//          if (comp()->getOption(TR_TraceBIIDTGen))
+//            {
+//            traceMsg(TR::comp(), "not considering %s virtual inlining disabled\n", calltarget->_calleeMethod->signature(this->comp()->trMemory()));
+//            }
+//          tracer()->insertCounter(Virtual_Inlining_Disabled, callsite->_callNodeTreeTop);
+//          callsite->removecalltarget(i, tracer(), Virtual_Inlining_Disabled);
+//          i--;
+//          continue;
+//          }
 
-      if (!callsite->_callerResolvedMethod->isStrictFP() && calltarget->_calleeMethod->isStrictFP())
-         {
-         if (comp()->getOption(TR_TraceBIIDTGen))
-           {
-           traceMsg(TR::comp(), "not considering %s dont inline strictFP\n", calltarget->_calleeMethod->signature(this->comp()->trMemory()));
-           }
-         tracer()->insertCounter(StrictFP_Callee,callsite->_callNodeTreeTop);
-         callsite->removecalltarget(i,tracer(),StrictFP_Callee);
+//       static const char * onlyVirtualInlining = feGetEnv("TR_OnlyVirtualInlining");
+//       if (comp()->getOption(TR_DisableNonvirtualInlining) && !realGuard)
+//          {
+//          if (comp()->getOption(TR_TraceBIIDTGen))
+//            {
+//            traceMsg(TR::comp(), "not considering %s non virtual inlining disabled\n", calltarget->_calleeMethod->signature(this->comp()->trMemory()));
+//            }
+//          tracer()->insertCounter(NonVirtual_Inlining_Disabled,callsite->_callNodeTreeTop);
+//          callsite->removecalltarget(i,tracer(),NonVirtual_Inlining_Disabled);
+//          i--;
+//          continue;
+//          }
 
-         i--;
-         continue;
-         }
+//       static const char * dontInlineSyncMethods = feGetEnv("TR_DontInlineSyncMethods");
+//       if (calltarget->_calleeMethod->isSynchronized() && (!inlineSynchronized() || comp()->getOption(TR_DisableSyncMethodInlining)))
+//          {
+//          if (comp()->getOption(TR_TraceBIIDTGen))
+//            {
+//            traceMsg(TR::comp(), "not considering %s dont inline sync methods\n", calltarget->_calleeMethod->signature(this->comp()->trMemory()));
+//            }
+//          tracer()->insertCounter(Sync_Method_Inlining_Disabled,callsite->_callNodeTreeTop);
+//          callsite->removecalltarget(i,tracer(),Sync_Method_Inlining_Disabled);
+//          i--;
+//          continue;
+//          }
 
-      if (getPolicy()->tryToInline(calltarget, callStack, false))
-         {
-         if (comp()->getOption(TR_TraceBIIDTGen))
-           {
-           traceMsg(TR::comp(), "not considering %s dont inline\n", calltarget->_calleeMethod->signature(this->comp()->trMemory()));
-           }
-         tracer()->insertCounter(DontInline_Callee,callsite->_callNodeTreeTop);
-         callsite->removecalltarget(i,tracer(),DontInline_Callee);
-         i--;
-         continue;
-         }
+//       if (debug("dontInlineEHAware") && calltarget->_calleeMethod->numberOfExceptionHandlers() > 0)
+//          {
+//          if (comp()->getOption(TR_TraceBIIDTGen))
+//            {
+//            traceMsg(TR::comp(), "not considering %s dont inline ehaware\n", calltarget->_calleeMethod->signature(this->comp()->trMemory()));
+//            }
+//          tracer()->insertCounter(EH_Aware_Callee,callsite->_callNodeTreeTop);
+//          callsite->removecalltarget(i,tracer(),EH_Aware_Callee);
+//          i--;
+//          continue;
+//          }
 
-         {
-         TR::SimpleRegex * regex = comp()->getOptions()->getOnlyInline();
-         if (regex && !TR::SimpleRegex::match(regex, calltarget->_calleeMethod))
-            {
-            if (comp()->getOption(TR_TraceBIIDTGen))
-               {
-               traceMsg(TR::comp(), "not considering %s dont inline\n", calltarget->_calleeMethod->signature(this->comp()->trMemory()));
-               }
-            tracer()->insertCounter(Not_InlineOnly_Callee,callsite->_callNodeTreeTop);
-            callsite->removecalltarget(i,tracer(),Not_InlineOnly_Callee);
-            i--;
-            continue;
-            }
-         }
+//       if (!callsite->_callerResolvedMethod->isStrictFP() && calltarget->_calleeMethod->isStrictFP())
+//          {
+//          if (comp()->getOption(TR_TraceBIIDTGen))
+//            {
+//            traceMsg(TR::comp(), "not considering %s dont inline strictFP\n", calltarget->_calleeMethod->signature(this->comp()->trMemory()));
+//            }
+//          tracer()->insertCounter(StrictFP_Callee,callsite->_callNodeTreeTop);
+//          callsite->removecalltarget(i,tracer(),StrictFP_Callee);
 
-      }
-   }
+//          i--;
+//          continue;
+//          }
+
+//       if (getPolicy()->tryToInline(calltarget, callStack, false))
+//          {
+//          if (comp()->getOption(TR_TraceBIIDTGen))
+//            {
+//            traceMsg(TR::comp(), "not considering %s dont inline\n", calltarget->_calleeMethod->signature(this->comp()->trMemory()));
+//            }
+//          tracer()->insertCounter(DontInline_Callee,callsite->_callNodeTreeTop);
+//          callsite->removecalltarget(i,tracer(),DontInline_Callee);
+//          i--;
+//          continue;
+//          }
+
+//          {
+//          TR::SimpleRegex * regex = comp()->getOptions()->getOnlyInline();
+//          if (regex && !TR::SimpleRegex::match(regex, calltarget->_calleeMethod))
+//             {
+//             if (comp()->getOption(TR_TraceBIIDTGen))
+//                {
+//                traceMsg(TR::comp(), "not considering %s dont inline\n", calltarget->_calleeMethod->signature(this->comp()->trMemory()));
+//                }
+//             tracer()->insertCounter(Not_InlineOnly_Callee,callsite->_callNodeTreeTop);
+//             callsite->removecalltarget(i,tracer(),Not_InlineOnly_Callee);
+//             i--;
+//             continue;
+//             }
+//          }
+
+//       }
+//    }
 
 
 
@@ -525,7 +573,7 @@ OMR::BenefitInliner::BenefitInliner(TR::Optimizer *optimizer, TR::Optimization *
          _holdingProposalRegion(comp()->trMemory()->heapMemoryRegion()),
          _idtRegion(comp()->trMemory()->heapMemoryRegion()),
          _rootRms(NULL),
-         _budget(budget)
+         _budget(getBudget(comp()->getMethodSymbol()))
          {
          }
 

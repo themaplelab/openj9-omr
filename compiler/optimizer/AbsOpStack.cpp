@@ -62,26 +62,11 @@ void AbsOpStack::merge(AbsOpStack &other,OMR::ValuePropagation *vp)
    {
    TR_ASSERT_FATAL(other._stack.size() == _stack.size(), "Stacks have different sizes!");
 
-   int size = _stack.size();
+   size_t size = _stack.size();
 
-   AbsValue* selfArray[size];
-   AbsValue* otherArray[size];
-
-   for (int i = 0; i < size; i++)
+   for (size_t i = 0; i < size; i ++)
       {
-      selfArray[i] = pop();
-      otherArray[i] = other.pop();
-      }
-
-   for (int i = 0; i < size; i++)
-      {
-      AbsValue *valueSelf = selfArray[size-i-1];
-      AbsValue *valueOther = otherArray[size-i-1];
-      
-      valueSelf->merge(valueOther, vp);
-
-      push(valueSelf);
-      other.push(valueOther);
+      _stack.at(i)->merge(other._stack.at(i), vp);
       }
    }
 

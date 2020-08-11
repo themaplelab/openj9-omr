@@ -31,7 +31,7 @@
 /**
  * For holding parameters passed from caller method to callee method during Abstract Interpretation.
  */
-typedef TR::deque<AbsValue*, TR::Region&> AbsParameters;
+typedef TR::deque<AbsValue*, TR::Region&> AbsArguments;
 
 class AbsState
     {
@@ -85,12 +85,12 @@ class AbsState
      * @param vpOMR::ValuePropagation*
      * @return void
      */
-    void merge(AbsState* value,OMR::ValuePropagation* vp);
+    void merge(AbsState* value, OMR::ValuePropagation* vp);
 
-    size_t getStackSize() {   return _stack.size();  };
+    size_t getStackSize() {  return _stack.size();  };
     size_t getArraySize() {  return _array.size();  };
     
-    void print(TR::Compilation* comp,OMR::ValuePropagation*vp);
+    void print(TR::Compilation* comp, OMR::ValuePropagation*vp);
 
     private:
     AbsLocalVarArray _array;

@@ -50,7 +50,7 @@ class IDTNode
    int getGlobalIndex() { return _idx; };
    int getParentGloablIndex()  { return isRoot() ? -2 : getParent()->getGlobalIndex(); };
 
-   unsigned int getBenefit() { return _rootCallRatio  + _staticBenefit; };
+   unsigned int getBenefit() { return _rootCallRatio  * (1 + _staticBenefit); };
    unsigned int getStaticBenefit() {  return _staticBenefit;  };
    void setStaticBenefit(unsigned int benefit) { _staticBenefit = benefit; };
    
