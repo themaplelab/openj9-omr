@@ -20,6 +20,36 @@ class AbsInterpreter : public TR_J9ByteCodeIterator, public TR::ReversePostorder
    void setCallerIndex(int32_t callerIndex) { _callerIndex = callerIndex; }
    
    private:
+   enum BinaryOperator
+      {
+      plus, minus, mul, div, rem,
+      and_, or_, xor_
+      };
+
+   enum UnaryOperator
+      {
+      neg
+      };
+
+   enum ShiftOperator
+      {
+      shl,
+      shr,
+      ushr
+      };
+
+   enum ConditionalBranchOperator
+      {
+      eq, ge, gt, le, lt, ne,
+      null, nonnull,
+      cmpeq, cmpge, cmpgt, cmple, cmplt, cmpne
+      };
+
+   enum ComparisonOperator //fcmpl, fcmpg, dcmpl, dcmpg. The 'g' and 'l' here are ommitted since float and double are not being modeled. 
+      {
+      cmp
+      };
+
    TR::Compilation* comp() {  return _comp; }
    TR::Region& region() {  return _region;  }
 
@@ -35,15 +65,62 @@ class AbsInterpreter : public TR_J9ByteCodeIterator, public TR::ReversePostorder
    // bool interpretByteCode();
       
    //For interpreting bytecode and updating AbsState
-   void constant(int32_t i);
-   void constant(int64 l);
-   void constant(double d);
-   void constant(float f);
-   void constantNull();
 
+   void constant(int32_t i);
+   
+   void constant(int64_t l);
+ 
+   void constant(float f);
+
+   void constant(double d);
+
+   void constantNull();
+   
    void load(TR::DataType type, int32_t index);
 
    void store(TR::DataType type, int32_t index);
+
+   void arrayLoad(TR::DataType type);
+
+   void arrayStore(TR::DataType type);
+
+   void ldc(int32_t cpIndex);
+
+   void binaryOperation(TR::DataType type, BinaryOperator op);
+
+   void unaryOperation(TR::DataType type, UnaryOperator op);
+
+   void pop(int32_t size);
+
+   void dup(int32_t size, int32_t delta);
+
+   void nop();
+
+   void shift(TR::DataType type, ShiftOperator op);
+
+   void conversion(TR::DataType fromType, TR::DataType toType);
+
+   void comparison(TR::DataType type, ComparisonOperator op);
+
+   void goto_(int32_t label);
+
+   void conditionalBranch(TR::DataType type, int32_t label, ConditionalBranchOperator op);
+
+   void return_(TR::DataType type);
+
+   void new_();
+
+   void newarray();
+
+   void anewarray();
+
+   void multianewarray();
+
+   void arraylength();
+
+   void instanceof();
+
+   void checkcast();
 
    void aaload();
    void aastore();

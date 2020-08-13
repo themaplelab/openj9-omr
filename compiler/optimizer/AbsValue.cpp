@@ -44,6 +44,10 @@ AbsValue* AbsValue::create(TR::VPConstraint *constraint, TR::DataType dataType, 
    return new (region) AbsValue(constraint, dataType);
    }
 
+AbsValue* AbsValue::create(AbsValue* other, TR::Region& region)
+   {
+   return new (region) AbsValue(other);
+   }
 
 AbsValue* AbsValue::createClassObject(TR_OpaqueClassBlock* opaqueClass, bool mustBeNonNull, TR::Compilation*comp, TR::Region& region, OMR::ValuePropagation* vp)
    { 
@@ -173,7 +177,7 @@ AbsValue* AbsValue::merge(AbsValue *other,OMR::ValuePropagation *vp)
    return this;
    }
 
-void AbsValue::print(TR::Compilation* comp,OMR::ValuePropagation *vp)    
+void AbsValue::print(TR::Compilation* comp, OMR::ValuePropagation *vp)    
    {
    traceMsg(comp, "AbsValue: Type: %s ", TR::DataType::getName(_dataType));
 
@@ -181,15 +185,15 @@ void AbsValue::print(TR::Compilation* comp,OMR::ValuePropagation *vp)
       {
       traceMsg(comp, "DUMMY");
       }
-   else if (isTop())
-      {
-      traceMsg(comp, "TOP");  
-      }
    
    if (hasConstraint())
       {
       traceMsg(comp, "Constraint: ");
       _constraint->print(vp);
+      }
+   else 
+      {
+      traceMsg(comp, "TOP (unknown) ");
       }
 
    traceMsg(comp, " param position: %d", _paramPos);

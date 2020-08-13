@@ -199,44 +199,48 @@ void AbsInterpreter::setStartBlockState()
       TR::DataType dataType = parameterIterator->getDataType();
       AbsValue* paramValue = NULL;
 
-      if (dataType.isInt8() || dataType.isInt16() || dataType.isInt32())
+      switch (dataType)
          {
-         paramValue = AbsValue::createTopInt(region());
-         paramValue->setParamPosition(paramPos);
-         state->set(localVarArraySlot, paramValue);
-         }
-      else if (dataType.isInt64())
-         {
-         paramValue = AbsValue::createTopLong(region());
-         paramValue->setParamPosition(paramPos);
-         state->set(localVarArraySlot, paramValue);
-         localVarArraySlot++;
-         state->set(localVarArraySlot, AbsValue::createDummyLong(region()));
-         }
-      else if (dataType.isDouble())
-         {
-         paramValue = AbsValue::createTopDouble(region());
-         paramValue->setParamPosition(paramPos);
-         state->set(localVarArraySlot, paramValue);
-         localVarArraySlot++;
-         state->set(localVarArraySlot, AbsValue::createDummyDouble(region()));
-         }
-      else if (dataType.isFloatingPoint()) //Can only be Float
-         {
-         paramValue = AbsValue::createTopFloat(region());
-         paramValue->setParamPosition(paramPos);
-         state->set(localVarArraySlot, paramValue);
-         }
-      else if (dataType.isAggregate())
-         {
-         TR_OpaqueClassBlock *classBlock = paramIterator->getOpaqueClass();
+         case TR::Int8:
+         case TR::Int16:
+         case TR::Int32:
+            paramValue = AbsValue::createTopInt(region());
+            paramValue->setParamPosition(paramPos);
+            state->set(localVarArraySlot, paramValue);
+            break;
+         
+         case TR::Int64:
+            paramValue = AbsValue::createTopLong(region());
+            paramValue->setParamPosition(paramPos);
+            state->set(localVarArraySlot, paramValue);
+            localVarArraySlot++;
+            state->set(localVarArraySlot, AbsValue::createDummyLong(region()));
+            break;
+         
+         case TR::Double:
+            paramValue = AbsValue::createTopDouble(region());
+            paramValue->setParamPosition(paramPos);
+            state->set(localVarArraySlot, paramValue);
+            localVarArraySlot++;
+            state->set(localVarArraySlot, AbsValue::createDummyDouble(region()));
+            break;
+         
+         case TR::Float:
+            paramValue = AbsValue::createTopFloat(region());
+            paramValue->setParamPosition(paramPos);
+            state->set(localVarArraySlot, paramValue);
+            break;
+         
+         case TR::Aggregate:
+            {
+            TR_OpaqueClassBlock *classBlock = paramIterator->getOpaqueClass();
             if (paramIterator->isArray())
                {
                int32_t arrayType = comp()->fe()->getNewArrayTypeFromClass(classBlock);
                int32_t elemetSize = arrayType == 7 || arrayType == 11 ? 8 : 4; //7: double, 11: long
                paramValue = AbsValue::createArrayObject(classBlock, false, 0, INT_MAX, elemetSize, comp(), region(), vp());
                paramValue->setParamPosition(paramPos);
-               state->set(localVarArraySlot,paramValue);
+               state->set(localVarArraySlot, paramValue);
                }
             else
                {
@@ -244,12 +248,14 @@ void AbsInterpreter::setStartBlockState()
                paramValue->setParamPosition(paramPos);
                state->set(localVarArraySlot, paramValue);
                }
-         }
-      else 
-         {
-         TR_ASSERT_FATAL(false, "Uncatched type");
+            }
+
+         default:
+            TR_ASSERT_FATAL(false, "Uncatched type");
+            break;
          }
       }
+
    _cfg->getStart()->asBlock()->setAbsState(state);
    }
 
@@ -838,8 +844,8 @@ void AbsInterpreter::setStartBlockState()
 void AbsInterpreter::constant(int32_t i)
    {
    AbsState* state = currentBlock()->getAbsState();
-   AbsValue* intConst = AbsValue::createIntConst(i, comp(), vp());
-   state->push(intConst);
+   AbsValue* value = AbsValue::createIntConst(i, comp(), vp());
+   state->push(value);
    }
 
 void AbsInterpreter::constant(int64_t l)
@@ -867,125 +873,1220 @@ void AbsInterpreter::constant(double d)
    state->push(value2);
    }
 
-void AbsInterpreter::ldc(bool wide)
+void AbsInterpreter::constantNull()
+   {
+   AbsState* state = currentBlock()->getAbsState();
+   AbsValue* value = AbsValue::createNullObject(reigon(), vp());
+   state->push(value);
+   }
+
+void AbsInterpreter::ldc(int32_t cpIndex)
    {
    AbsState* state = currentBlock()->getAbsState();
 
-   int32_t cpIndex = wide ? next2Bytes() : nextByte();
+   TR::DataType type = _callerMethod->getLDCType(cpIndex);
 
-   TR::DataType dataType = _callerMethod->getLDCType(cpIndex);
-
-   if (dataType.isInt32())
+   switch (type)
       {
-      int32_t intVal = _callerMethod->intConstant(cpIndex);
-      constant((int32_t)intVal);
-      }
-   else if (dataType.isInt64())
-      {
-      int64_t longVal = _callerMethod->longConstant(cpIndex);
-      constant((int64_t)longVal);
-      }
-   else if (dataType.isDouble())
-      {
-      constant((double)0); //the value does not matter here since doubles are modeled as TOP
-      }
-   else if (dataType.isFloatingPoint())
-      {
-      constant((float)0); //same for float
-      }
-   else if (dataType.isAddress())
-      {
-      bool isString = _callerMethod->isStringConstant(cpIndex);
-      if (isString) 
+      case TR::Int32:
          {
-         TR::SymbolReference *symRef = comp()->getSymRefTab()->findOrCreateStringSymbol(_callerMethodSymbol, cpIndex);
-         if (symRef->isUnresolved())
-            {
-            state->push(AbsValue::createTopObject(region()));
-            }
-         else  //Resolved
-            {
-            AbsValue *stringVal = AbsValue::createStringConst(symRef, region(), vp());
-            state->push(stringVal);
-            }
+         int32_t intVal = _callerMethod->intConstant(cpIndex);
+         constant((int32_t)intVal);
+         break;
          }
-      else  //Class
+      case TR::Int64:
          {
-         TR_OpaqueClassBlock* classBlock = _callerMethod->getClassFromConstantPool(comp(), cpIndex);
-         AbsValue* value = AbsValue::createClassObject(classBlock, false, comp(), region(), vp());
-         state->push(value);
+         int64_t longVal = _callerMethod->longConstant(cpIndex);
+         constant((int64_t)longVal);
+         break;
          }
+      case TR::Double:
+         {
+         constant((double)0); //the value does not matter here since doubles are modeled as TOP
+         break;
+         }
+      case TR::Float:
+         {
+         constant((float)0); //same for float
+         break;
+         }
+      case TR::Address:
+         {
+         bool isString = _callerMethod->isStringConstant(cpIndex);
+         if (isString) 
+            {
+            TR::SymbolReference *symRef = comp()->getSymRefTab()->findOrCreateStringSymbol(_callerMethodSymbol, cpIndex);
+            if (symRef->isUnresolved())
+               {
+               state->push(AbsValue::createTopObject(region()));
+               }
+            else  //Resolved
+               {
+               AbsValue *stringVal = AbsValue::createStringConst(symRef, region(), vp());
+               state->push(stringVal);
+               }
+            }
+         else  //Class
+            {
+            TR_OpaqueClassBlock* classBlock = _callerMethod->getClassFromConstantPool(comp(), cpIndex);
+            AbsValue* value = AbsValue::createClassObject(classBlock, false, comp(), region(), vp());
+            state->push(value);
+            }
+         break;
+         }
+      default:
+         TR_ASSERT_FATAL(false, "Invalid type");   
+         break
       }
-   else 
-      {
-      TR_ASSERT_FATAL(false, "uncatched type");
-      }
-   
    }
 
 void AbsInterpreter::load(TR::DataType type, int32_t index)
    {
    AbsState* state = currentBlock()->getAbsState();
-
-   if (type.isInt32() || (type.isFloatingPoint() && !type.isDouble()) || type.isAddress()) //32-bit types
+   
+   switch (type)
       {
-      AbsValue *value = state->at(index);
-      state->push(value);
-      }
-   else if (type.isInt64() || type.isDouble()) //64-bit types
-      {
-      AbsValue *value1 = state->at(index);
-      AbsValue *value2 = state->at(index + 1);
-      state->push(value1);
-      state->push(value2);
-      }
-   else 
-      {
-      TR_ASSERT_FATAL(false, "uncatched type");
+      case TR::Int32:
+      case TR::Float:
+      case TR::Address:
+         {
+         AbsValue *value = state->at(index);
+         state->push(value);
+         break;
+         }
+      case TR::Int64:
+      case TR::Double:
+         {
+         AbsValue *value1 = state->at(index);
+         AbsValue *value2 = state->at(index + 1);
+         state->push(value1);
+         state->push(value2);
+         break;
+         }
+      default:
+         TR_ASSERT_FATAL(false, "Invalid type");
+         break;
       }
    }
 
 void AbsInterpreter::store(TR::DataType type, int32_t index)
    {
+   AbsState* state = currentBlock()->getAbsState();
+
+   switch (type)
+      {
+      case TR::Int32:
+      case TR::Float:
+      case TR::Address:
+         {
+         AbsValue* value = state->pop();
+         state->set(index, value);
+         break;
+         }
+      case TR::Int64:
+      case TR::Double:
+         {
+         AbsValue* value2 = state->pop();
+         AbsValue* value1 = state->pop();
+         state->set(index, value1);
+         state->set(index+1, value2);
+         break;
+         }
+      default:
+         TR_ASSERT_FATAL(false, "Invalid type");
+         break;
+      }
+   }
+
+void AbsInterpreter::arrayLoad(TR::DataType type)
+   {
+   AbsState* state = currentBlock()->getAbsState();
+
+   AbsValue *index = state->pop();
+   AbsValue *arrayRef = state->pop();
+
+   switch (type)
+      {
+      case TR::Double:
+         {
+         AbsValue *value1 = AbsValue::createTopDouble(region());
+         AbsValue *value2 = AbsValue::createDummyDouble(region());
+         state->push(value1);
+         state->push(value2);
+         break;
+         }
+      case TR::Float:
+         {
+         AbsValue* value = AbsValue::createTopFloat(region());
+         state->push(value);
+         break;
+         }
+      case TR::Int8:
+      case TR::Int16:
+      case TR::Int32:
+         {
+         AbsValue *value = AbsValue::createTopInt(region());
+         state->push(value);
+         break;
+         }
+      case TR::Int64:
+         {
+         AbsValue *value1 = AbsValue::createTopLong(region());
+         AbsValue *value2 = AbsValue::createDummyLong(region());
+         state->push(value1);
+         state->push(value2);
+         break;
+         }
+      case TR::Address:
+         {
+         AbsValue* value = AbsValue::createTopObject(region());
+         state->push(value);
+         break;
+         }
+      default:
+         TR_ASSERT_FATAL(false, "Invalid type");  
+         break;
+      }
+   }
+
+void AbsInterpreter::arrayStore(TR::DataType type)
+   {
+   AbsState* state = currentBlock()->getAbsState();
+
+   if (type.isDouble() || type.isInt64())
+      state->pop(); //dummy
+
+   AbsValue* value = state->pop();
+   AbsValue *index = state->pop();
+   AbsValue *arrayRef = state->pop();
+
+   //heap is being not modeled
+   switch (type)
+      {
+      case TR::Double:
+      case TR::Float:
+      case TR::Int8:
+      case TR::Int16:
+      case TR::Int32:
+      case TR::Int64:
+      case TR::Address:
+         break;
+      default:
+         TR_ASSERT_FATAL(false, "Invalid type");  
+         break;
+      }
+   }
+
+void AbsInterpreter::binaryOperation(TR::DataType type, BinaryOperator op)
+   {
+   AbsState* state = currentBlock()->getAbsState();
+
+   if (type.isDouble() || type.isInt64())
+      state->pop(); //dummy
+      
+   AbsValue* value2 = state->pop();
+
+   if (type.isDouble() || type.isInt64())
+      state->pop(); //dummy
+      
+   AbsValue* value1 = state->pop();
+
+   switch (type)
+      {
+      // float and double are not modeled
+      case TR::Float:
+         {
+         AbsValue *result = AbsValue::createTopFloat(region());
+         state->push(result);
+         break;
+         }
+
+      case TR::Double:
+         {
+         AbsValue *result1 = AbsValue::createTopDouble(region());
+         AbsValue *result2 = AbsValue::createDummyDouble(region());
+         state->push(result1);
+         state->push(result2);
+         break;
+         }
+
+      //The following types are modeled
+      case TR::Int32:
+         {
+         if (value1->isIntConst() && value2->isIntConst()) //both int const
+            {
+            int32_t intVal1 = value1->getConstraint()->asIntConst()->getInt();
+            int32_t intVal2 = value2->getConstraint()->asIntConst()->getInt();
+
+            if (intVal2 == 0 && op == BinaryOperator::div) //divide by zero exception
+               {
+               state->push(AbsValue::createTopInt(region()));
+               break;
+               }
+
+            int32_t resultVal;
+
+            switch (op)
+               {
+               case BinaryOperator::plus: 
+                  resultVal = intVal1 + intVal2;
+                  break;
+               case BinaryOperator::minus: 
+                  resultVal = intVal1 - intVal2;
+                  break;
+
+               case BinaryOperator::mul:
+                  resultVal = intVal1 * intVal2;
+                  break;
+
+               case BinaryOperator::div:
+                  resultVal = intVal1 / intVal2;
+                  break;
+
+               case BinaryOperator::rem:
+                  resultVal = intVal1 % intVal2;
+                  break;
+
+               case BinaryOperator::and_:
+                  resultVal = intVal1 & intVal2;
+                  break;
+
+               case BinaryOperator::or_:
+                  resultVal = intVal1 | intVal2;
+                  break;
+
+               case BinaryOperator::xor_:
+                  resultVal = intVal1 ^ intVal2;
+                  break;
+
+               default:
+                  TR_ASSERT_FATAL(false, "Invalid binary op type");
+                  break;
+               }
+
+            AbsValue* result = AbsValue::createIntConst(resultVal, region(), vp());
+            state->push(result);
+            break;
+            }
+         else  //not const
+            {
+            state->push(AbsValue::createTopInt(region()));
+            break;
+            }
+         }
+
+      case TR::Int64:
+         {
+         if (value1->isLongConst() && value2->isLongConst()) //both long const
+            {
+            int64_t longVal1 = value1->getConstraint()->asLongConst()->getLong();
+            int64_t longVal2 = value2->getConstraint()->asLongConst()->getLong();
+
+            if (longVal2 == 0 && op == BinaryOperator::div) //divide by zero exception
+               {
+               AbsValue* result1 = AbsValue::createTopLong(region());
+               AbsValue* result2 = AbsValue::createDummyLong(region());
+               state->push(result1);
+               state->push(result2);
+               break;
+               }
+
+            int64_t resultVal;
+            switch (op)
+               {
+               case BinaryOperator::plus: 
+                  resultVal = longVal1 + longVal2;
+                  break;
+               case BinaryOperator::minus: 
+                  resultVal = longVal1 - longVal2;
+                  break;
+
+               case BinaryOperator::mul:
+                  resultVal = longVal1 * longVal2;
+                  break;
+
+               case BinaryOperator::div:
+                  resultVal = longVal1 / longVal2;
+                  break;
+
+               case BinaryOperator::rem:
+                  resultVal = longVal1 % longVal2;
+                  break;
+
+               case BinaryOperator::and_:
+                  resultVal = longVal1 & longVal2;
+                  break;
+
+               case BinaryOperator::or_:
+                  resultVal = longVal1 | longVal2;
+                  break;
+
+               case BinaryOperator::xor_:
+                  resultVal = longVal1 ^ longVal2;
+                  break;
+
+               default:
+                  TR_ASSERT_FATAL(false, "Invalid binary op type");
+                  break;
+               }
+            
+            AbsValue* result1 = AbsValue::createLongConst(resultVal, region(), vp());
+            AbsValue* result2 = AbsValue::createDummyLong(region());
+            state->push(result1);
+            state->push(result2);
+            break;
+            }
+         else  //not const
+            {
+            AbsValue* result1 = AbsValue::createTopLong(region());
+            AbsValue* result2 = AbsValue::createDummyLong(region());
+            state->push(result1);
+            state->push(result2);
+            break;
+            }
+         }
+      default:
+         TR_ASSERT_FATAL(false, "Invalid type");
+         break;
+      }
+   }
+
+void AbsInterpreter::unaryOperation(TR::DataType type, UnaryOperator op)
+   {
+   AbsState* state = currentBlock()->getAbsState();
+   if (type.isDouble() || type.isInt32())
+      state->pop();
    
+   AbsValue* value = state->pop();
+
+   switch (type)
+      {
+      case TR::Float:
+         {
+         AbsValue* result = AbsValue::createTopFloat(region());
+         state->push(result);
+         break;
+         }
+
+      case TR::Double:
+         {
+         AbsValue* result1 = AbsValue::createTopDouble(region());
+         AbsValue* result2 = AbsValue::createDummyDouble(region());
+         state->push(result1);
+         state->push(result2);
+         break;
+         }
+
+      case TR::Int32:
+         {
+         if (value->isIntConst()) //const int
+            {
+            int32_t intVal = value->getConstraint()->asIntConst()->getInt();
+            AbsValue* result = AbsValue::createIntConst(-intVal, region(), vp());
+            state->push(result);
+            break;
+            }
+         else if (value->isIntRange()) //range int
+            {
+            int32_t intValLow = value->getConstraint()->asIntRange()->getLowInt();
+            int32_t intValHigh = value->getConstraint()->asIntRange()->getHighInt();
+            AbsValue* result = AbsValue::createIntRange(-intValHigh, -intValLow, region(), vp());
+            state->push(result);
+            break;
+            }
+         else  //other cases
+            {
+            AbsValue* result = AbsValue::createTopInt(region());
+            state->push(result);
+            break;
+            }
+         break;
+         }
+
+      case TR::Int64:
+         {
+         if (value->isLongConst())
+            {
+            int64_t longVal = value->getConstraint()->asLongConst()->getLong();
+            AbsValue* result1 = AbsValue::createLongConst(-longVal, region(), vp());
+            AbsValue* result2 = AbsValue::createDummyLong(region());
+            state->push(result1);
+            state->push(result2);
+            break;
+            }
+         else if (value->isLongRange())
+            {
+            int64_t longValLow = value->getConstraint()->asLongRange()->getLowLong();
+            int64_t longValHigh = value->getConstraint()->asLongRange()->getHighLong();
+            AbsValue* result1 = AbsValue::createLongRange(-longValHigh, -longValLow, region(), vp());
+            AbsValue* result2 = AbsValue::createDummyLong(region());
+            state->push(result1);
+            state->push(result2);
+            break;
+            }
+         else 
+            {
+            AbsValue* result1 = AbsValue::createTopLong(region());
+            AbsValue* result2 = AbsValue::createDummyLong(region());
+            state->push(result1);
+            state->push(result2);
+            break;
+            }
+         break;
+         }
+      
+      default:
+         TR_ASSERT_FATAL(false, "Invalid data type");
+         break;
+      }
    }
 
-void AbsInterpreter::iload(bool wide)
+void AbsInterpreter::pop(int32_t size)
    {
-   AbsValue *value = absState->at(n);
-   absState->push(value);
-   return absState;
+   TR_ASSERT_FATAL(size >0 && size <= 2, "Invalid pop size");
+   for (int32_t i = 0; i < size; i ++)
+      {
+      currentBlock()->getAbsState()->pop();
+      }
    }
 
-//-- Checked
-void AbsInterpreter::iload0() 
+void AbsInterpreter::nop()
    {
-   iload(absState, 0);
-   return absState;
    }
 
-//-- Checked
-void AbsInterpreter::iload1()
+
+void AbsInterpreter::dup(int32_t size, int32_t delta)  
    {
-   iload(absState, 1);
-   return absState;
+   TR_ASSERT_FATAL(size > 0 && size <= 2, "Invalid dup size");
+   TR_ASSERT_FATAL(delta >= 0 && size <=2, "Invalid dup delta");
+
+   AbsState* state = currentBlock()->getAbsState();
+
+   switch (size)
+      {
+      case 1:
+         {
+         switch (delta)
+            {
+            case 0: //dup
+               {
+               AbsValue* value = state->pop();
+               state->push(value);
+               state->push(AbsValue::create(value, region()));
+               break;
+               }
+            case 1: //dupx1
+               {
+               AbsValue* value1 = state->pop();
+               AbsValue* value2 = state->pop();
+               state->push(value1);
+               state->push(value2);
+               state->push(AbsValue::create(value1, region()));
+               break;
+               }
+            case 2: //dupx2
+               {
+               AbsValue *value1 = state->pop();
+               AbsValue *value2 = state->pop();
+               AbsValue *value3 = state->pop();
+               state->push(value1);
+               state->push(value3);
+               state->push(value2);
+               state->push(AbsValue::create(value1, region()));
+               break;
+               }
+            default:
+               TR_ASSERT_FATAL(false, "Invalid delta");
+               break;
+            }
+         }
+
+      case 2:
+         {
+         switch (delta)
+            {
+            case 0: //dup2
+               {
+               AbsValue *value1 = state->pop();
+               AbsValue *value2 = state->pop();
+               state->push(value2);
+               state->push(value1);
+               state->push(AbsValue::create(value2, region()));
+               state->push(AbsValue::create(value1, region()));
+               break;
+               }
+            case 1: //dup2x1
+               {
+               AbsValue *value1 = state->pop();
+               AbsValue *value2 = state->pop();
+               AbsValue *value3 = state->pop();
+               state->push(value2);
+               state->push(value1);
+               state->push(value3);
+               state->push(AbsValue::create(value2, region()));
+               state->push(AbsValue::create(value1, region()));
+               break;
+               }
+            case 2: //dup2x2
+               {
+               AbsValue *value1 = state->pop();
+               AbsValue *value2 = state->pop();
+               AbsValue *value3 = state->pop();
+               AbsValue *value4 = state->pop();
+               state->push(value2);
+               state->push(value1);
+               state->push(value4);
+               state->push(value3);
+               state->push(AbsValue::create(value2, region()));
+               state->push(AbsValue::create(value1, region()));
+               break;
+               }
+            default:
+               TR_ASSERT_FATAL(false, "Invalid delta");
+               break;
+            }
+         }
+      default:
+         TR_ASSERT_FATAL(false, "Invalid size");
+         break;
+         
+
+      }
    }
 
-//-- Checked
-void AbsInterpreter::iload2()
+void AbsInterpreter::shift(TR::DataType type, ShiftOperator op)
    {
-   iload(absState, 2);
-   return absState;
+   AbsState* state = currentBlock()->getAbsState();
+
+   AbsValue* shiftAmount = state->pop();
+
+   if (type.isInt64())
+      state->pop();
+   AbsValue* value = state->pop();
+
+   switch (type)
+      {
+      case TR::Int32:
+         {
+         if (value->isIntConst() && shiftAmount->isIntConst())
+            {
+            int32_t intVal = value->getConstraint()->asIntConst()->getInt();
+            int32_t shiftAmountVal = value->getConstraint()->asIntConst()->getInt();
+            int32_t resultVal;
+            switch (op)
+               {
+               case: ShiftOperator::shl:
+                  resultVal = intVal << shiftAmountVal;
+                  break;
+               case: ShiftOperator::shr:
+                  resultVal = intVal >> shiftAmountVal;
+                  break;
+               case: ShiftOperator::ushr:
+                  resultVal = (uint32_t)intVal >> shiftAmountVal; 
+                  break;
+               default:
+                  TR_ASSERT_FATAL(false, "Invalid shift operator");
+                  break;
+               }
+            AbsValue* result = AbsValue::createIntConst(resultVal, region(), vp());
+            state->push(result);
+            break;
+            }
+         else 
+            {
+            AbsValue* result = AbsValue::createTopInt(region());
+            state->push(result);
+            break;  
+            }
+         break;
+         }
+         
+      case TR::Int64:
+         {
+         if (value->isLongConst() && shiftAmount->isIntConst())
+            {
+            int64_t longVal = value->getConstraint()->asLongConst()->getLong();
+            int32_t shiftAmountVal = value->getConstraint()->asIntConst()->getInt();
+            int64_t resultVal;
+            switch (op)
+               {
+               case: ShiftOperator::shl:
+                  resultVal = intVal << shiftAmountVal;
+                  break;
+               case: ShiftOperator::shr:
+                  resultVal = intVal >> shiftAmountVal;
+                  break;
+               case: ShiftOperator::ushr:
+                  resultVal = (uint64_t)intVal >> shiftAmountVal; 
+                  break;
+               default:
+                  TR_ASSERT_FATAL(false, "Invalid shift operator");
+                  break;
+               }
+            AbsValue* result = AbsValue::createLongConst(resultVal, region(), vp());
+            state->push(result);
+            break;
+            }
+         else 
+            {
+            AbsValue* result = AbsValue::createTopLong(region());
+            state->push(result);
+            break;
+            }
+         break;
+         }
+      default:
+         TR_ASSERT_FATAL(false, "Invalid type");
+         break;
+      }
    }
 
-//-- Checked
-void AbsInterpreter::iload3()
+void AbsInterpreter::conversion(TR::DataType fromType, TR::DataType toType)
    {
-   iload(absState, 3);
-   return absState;
+   AbsState* state = currentBlock()->getAbsState();
+
+   if (fromType.isDouble() || fromType.isLong())
+      state->pop(); //dummy
+      
+   AbsValue* value = state->pop();
+
+   switch (fromType)
+      {
+      /*** Convert from int to X ***/
+      case TR::Int32:
+         {
+         switch (toType)
+            {
+            case TR::Int8: //i2b
+               {
+               AbsValue* result = value->isIntConst() ? 
+                  AbsValue::createIntConst((int8_t)value->getConstraint()->asIntConst()->getInt(), region(), vp())
+                  :
+                  AbsValue::createTopInt(region());
+               
+               state->push(result);
+               break;
+               }
+
+            case TR::Int16: //i2c or i2s
+               {
+               AbsValue* result = value->isIntConst() ? 
+                  AbsValue::createIntConst((int16_t)value->getConstraint()->asIntConst()->getInt(), region(), vp())
+                  :
+                  AbsValue::createTopInt(region());
+               
+               state->push(result);
+               break;
+               }
+            
+            case TR::Int64: //i2l
+               {
+               AbsValue* result1 = value->isIntConst() ?
+                  AbsValue::createLongConst(value->getConstraint()->asIntConst()->getInt(), region(), vp())
+                  :
+                  AbsValue::createTopLong(region());
+               
+               AbsValue* result2 = AbsValue::createDummyLong(region());
+               state->push(result1);
+               state->push(result2);
+               break;
+               }
+
+            case TR::Float: //i2f
+               {
+               AbsValue* result = AbsValue::createTopFloat(region());
+               state->push(result);
+               break;
+               }
+
+            case TR::Double: //i2d
+               {
+               AbsValue* result1 = AbsValue::createTopDouble(region());
+               AbsValue* result2 = AbsValue::createDummyDouble(region());
+               state->push(result1);
+               state->push(result2)
+               break;
+               }
+            
+            default:
+               TR_ASSERT_FATAL(false, "Invalid toType");
+               break;
+            }
+         break;
+         }
+
+      /*** Convert from long to X ***/
+      case TR::Int64:
+         {
+         switch (toType)
+            {            
+            case TR::Int32: //l2i
+               {
+               AbsValue* result = value->isLongConst() ?
+                  AbsValue::createIntConst((int32_t)value->getConstraint()->asLongConst()->getLong(), region(), vp())
+                  :
+                  AbsValue::createTopInt(region());
+
+               state->push(result);
+               break;
+               }
+
+            case TR::Float: //l2f
+               {
+               AbsValue* result = AbsValue::createTopFloat(region());
+               state->push(result);
+               break;
+               }
+
+            case TR::Double: //l2d
+               {
+               AbsValue* result1 = AbsValue::createTopDouble(region());
+               AbsValue* result2 = AbsValue::createDummyDouble(region());
+               state->push(result1);
+               state->push(result2)
+               break;
+               }
+            
+            default:
+               TR_ASSERT_FATAL(false, "Invalid toType");
+               break;
+            }
+         break;
+         }
+
+      /*** Convert from double to X ***/
+      case TR::Double:
+         {
+         switch (toType)
+            {            
+            case TR::Int32: //d2i
+               {
+               AbsValue* result = AbsValue::createTopInt(region());
+               state->push(result);
+               break;
+               }
+
+            case TR::Float: //d2f
+               {
+               AbsValue* result = AbsValue::createTopFloat(region());
+               state->push(result);
+               break;
+               }
+
+            case TR::Int64: //d2l
+               {
+               AbsValue* result1 = AbsValue::createTopLong(region());
+               AbsValue* result2 = AbsValue::createDummyLong(region());
+               state->push(result1);
+               state->push(result2);
+               break;
+               }
+            
+            default:
+               TR_ASSERT_FATAL(false, "Invalid toType");
+               break;
+            }
+         break;
+         }
+
+         /*** Convert from float to X ***/
+         case TR::Double:
+            {
+            switch (toType)
+               {            
+               case TR::Int32: //f2i
+                  {
+                  AbsValue* result = AbsValue::createTopInt(region());
+                  state->push(result);
+                  break;
+                  }
+
+               case TR::Double: //f2d
+                  {
+                  AbsValue* result1 = AbsValue::createTopDouble(region());
+                  AbsValue* result2 = AbsValue::createDummyDouble(region());
+                  state->push(result1);
+                  state->push(result2)
+                  }
+
+               case TR::Int64: //f2l
+                  {
+                  AbsValue* result1 = AbsValue::createTopLong(region());
+                  AbsValue* result2 = AbsValue::createDummyLong(region());
+                  state->push(result1);
+                  state->push(result2);
+                  break;
+                  }
+               
+               default:
+                  TR_ASSERT_FATAL(false, "Invalid toType");
+                  break;
+               }
+            break;
+            }
+
+         default:
+            TR_ASSERT_FATAL(false, "Invalid fromType");
+            break;
+      }
+   }
+   
+
+void AbsInterpreter::comparison(TR::DataType type, ComparisonOperator op)
+   {
+   AbsState* state = currentBlock()->getAbsState();
+
+   if (type.isDouble() || type.isInt64())
+      state->pop();
+
+   AbsValue* value2 = state->pop();
+
+   if (type.isDouble() || type.isInt64())
+      state->pop();
+
+   AbsValue* value1 = state->pop();
+
+   switch(type)
+      {
+      case TR::Float:
+      case TR::Double:
+         {
+         AbsValue* result = AbsValue::createIntRange(-1,1,region(), vp());
+         state->push(result);
+         break;
+         }
+      case TR::Int64:
+         {
+         if (value1->isLong() && value2->isLong()) //long
+            {
+            if (value1->isLongConst() && value2->isLongConst() // ==
+               && value1->getConstraint()->asLongConst()->getLong() == value2->getConstraint()->asLongConst()->getLong()) 
+               {
+               AbsValue* result = AbsValue::createIntConst(0, region(), vp());
+               state->push(result);
+               break;
+               }
+            else if (value1->getConstraint()->asLongConstraint()->getLowLong() > value2->getConstraint()->asLongConstraint()->getHighLong()) // >
+               {
+               AbsValue* result = AbsValue::createIntConst(1, region(), vp());
+               state->push(result);
+               break;
+               }
+            else if (value1->getConstraint()->asLongConstraint()->getHighLong() < value2->getConstraint()->asLongConstraint()->getLowLong()) // <
+               {
+               AbsValue* result = AbsValue::createIntConst(-1, region(), vp());
+               state->push(result);
+               break;
+               }
+            }
+         else 
+            {
+            AbsValue* result = AbsValue::createIntRange(-1,1,region(), vp());
+            state->push(result);
+            break;
+            }
+         }
+
+      default:
+         TR_ASSERT_FATAL(false, "Invalid type");
+         break;
+      }
    }
 
-//-- Checked
+void AbsInterpreter::goto_(int32_t label)
+   {
+   }
+
+void AbsInterpreter::conditionalBranch(TR::DataType type, int32_t label, ConditionalBranchOperator op)
+   {
+   AbsState* state = currentBlock()->getAbsState();
+
+   switch(op)
+      {
+      /*** ifnull ***/
+      case ConditionalBranchOperator::null:
+         {
+         AbsValue* value = state->pop();
+         
+         if (value->isParameter() && !value->isImplicitParameter())
+            {
+            _methodSummary->addIfNull(value->getParamPosition());
+            }
+         
+         switch (type)
+            {
+            case TR::Address:
+               break;
+            default:
+               TR_ASSERT_FATAL(false, "Invalid type");
+               break;
+            }
+
+         break;
+         }
+      
+      /*** ifnonnull ***/
+      case ConditionalBranchOperator::nonnull:
+         {
+         AbsValue* value = state->pop();
+
+         if (value->isParameter() && !value->isImplicitParameter())
+            {
+            _methodSummary->addIfNonNull(value->getParamPosition());
+            }
+
+         switch (type)
+            {
+            case TR::Address:
+               break;
+            default:
+               TR_ASSERT_FATAL(false, "Invalid type");
+               break;
+            }
+
+         break;
+         }
+
+      /*** ifeq ***/
+      case ConditionalBranchOperator::eq:
+         {
+         AbsValue* value = state->pop();
+         if (value->isParameter())
+            {
+            _methodSummary->addIfEq(value->getParamPosition());
+            }
+
+         switch (type)
+            {
+            case TR::Int32:
+               break;
+            default:
+               TR_ASSERT_FATAL(false, "Invalid type");
+               break;
+            }
+         break;
+         }
+
+      /*** ifne ***/
+      case ConditionalBranchOperator::ne:
+         {
+         AbsValue* value = state->pop();
+         if (value->isParameter())
+            {
+            _methodSummary->addIfNe(value->getParamPosition());
+            }
+
+         switch (type)
+            {
+            case TR::Int32:
+               break;
+            default:
+               TR_ASSERT_FATAL(false, "Invalid type");
+               break;
+            }
+         break;
+         }
+
+      /*** ifge ***/
+      case ConditionalBranchOperator::ge:
+         {
+         AbsValue* value = state->pop();
+         if (value->isParameter())
+            {
+            _methodSummary->addIfGe(value->getParamPosition());
+            }
+
+         switch (type)
+            {
+            case TR::Int32:
+               break;
+            default:
+               TR_ASSERT_FATAL(false, "Invalid type");
+               break;
+            }
+         break;
+         }
+
+      /*** ifgt ***/
+      case ConditionalBranchOperator::gt:
+         {
+         AbsValue* value = state->pop();
+         if (value->isParameter())
+            {
+            _methodSummary->addIfGt(value->getParamPosition());
+            }
+
+         switch (type)
+            {
+            case TR::Int32:
+               break;
+            default:
+               TR_ASSERT_FATAL(false, "Invalid type");
+               break;
+            }
+         break;
+         }
+
+      /*** ifle ***/
+      case ConditionalBranchOperator::le:
+         {
+         AbsValue* value = state->pop();
+         if (value->isParameter())
+            {
+            _methodSummary->addIfLe(value->getParamPosition());
+            }
+
+         switch (type)
+            {
+            case TR::Int32:
+               break;
+            default:
+               TR_ASSERT_FATAL(false, "Invalid type");
+               break;
+            }
+         break;
+         }
+
+      /*** iflt ***/
+      case ConditionalBranchOperator::lt:
+         {
+         AbsValue* value = state->pop();
+         if (value->isParameter())
+            {
+            _methodSummary->addIfLt(value->getParamPosition());
+            }
+
+         switch (type)
+            {
+            case TR::Int32:
+               break;
+            default:
+               TR_ASSERT_FATAL(false, "Invalid type");
+               break;
+            }
+         break;
+         }
+      
+      /*** if_cmpeq ***/
+      case ConditionalBranchOperator::cmpeq:
+         {
+         AbsValue* value2 = state->pop();
+         AbsValue* value1 = state->pop();
+   
+         switch (type)
+            {
+            case TR::Int32:
+            case TR::Address:
+               break;
+            default:
+               TR_ASSERT_FATAL(false, "Invalid type");
+               break;
+            }
+         break;
+         }
+
+      /*** if_cmpne ***/
+      case ConditionalBranchOperator::cmpne:
+         {
+         AbsValue* value2 = state->pop();
+         AbsValue* value1 = state->pop();
+   
+         switch (type)
+            {
+            case TR::Int32:
+            case TR::Address:
+               break;
+            default:
+               TR_ASSERT_FATAL(false, "Invalid type");
+               break;
+            }
+         break;
+         }
+
+      /*** if_cmpge ***/
+      case ConditionalBranchOperator::cmpge:
+         {
+         AbsValue* value2 = state->pop();
+         AbsValue* value1 = state->pop();
+   
+         switch (type)
+            {
+            case TR::Int32:
+               break;
+            default:
+               TR_ASSERT_FATAL(false, "Invalid type");
+               break;
+            }
+         break;
+         }
+
+      /*** if_cmpgt ***/
+      case ConditionalBranchOperator::cmpgt:
+         {
+         AbsValue* value2 = state->pop();
+         AbsValue* value1 = state->pop();
+   
+         switch (type)
+            {
+            case TR::Int32:
+               break;
+            default:
+               TR_ASSERT_FATAL(false, "Invalid type");
+               break;
+            }
+         break;
+         }
+
+      /*** if_cmple ***/
+      case ConditionalBranchOperator::cmple:
+         {
+         AbsValue* value2 = state->pop();
+         AbsValue* value1 = state->pop();
+   
+         switch (type)
+            {
+            case TR::Int32:
+               break;
+            default:
+               TR_ASSERT_FATAL(false, "Invalid type");
+               break;
+            }
+         break;
+         }
+
+      /*** if_cmplt ***/
+      case ConditionalBranchOperator::cmplt:
+         {
+         AbsValue* value2 = state->pop();
+         AbsValue* value1 = state->pop();
+   
+         switch (type)
+            {
+            case TR::Int32:
+               break;
+            default:
+               TR_ASSERT_FATAL(false, "Invalid type");
+               break;
+            }
+         break;
+         }
+
+      default:
+         TR_ASSERT_FATAL(false, "Invalid conditional branch operator");
+         break;
+      }
+   }
+
+void AbsInterpreter::new_()
+   {
+   AbsState* state = currentBlock()->getAbsState();
+
+   int32_t cpIndex = next2Bytes();
+   TR_OpaqueClassBlock* type = _callerMethod->getClassFromConstantPool(comp(), cpIndex);
+   AbsValue* value = AbsValue::createClassObject(type, true, comp(), region(), vp());
+   state->push(value);
+   }
+
 void AbsInterpreter::multianewarray()
    {
    AbsState* state = currentBlock()->getAbsState();
@@ -1003,22 +2104,19 @@ void AbsInterpreter::multianewarray()
 
    AbsValue* length = state->pop(); 
 
-   if (length->hasConstraint())
+   if (length->isInt())
       {
-      if (length->getConstraint()->asIntConstraint())
-         {
-         AbsValue* array = AbsValue::createArrayObject(
-                              arrayType,
-                              true,
-                              length->getConstraint()->asIntConstraint()->getLowInt(),
-                              length->getConstraint()->asIntConstraint()->getHighInt(),
-                              4,
-                              comp(),
-                              region(),
-                              vp());
-         state->push(array);
-         return;
-         }
+      AbsValue* array = AbsValue::createArrayObject(
+                           arrayType,
+                           true,
+                           length->getConstraint()->asIntConstraint()->getLowInt(),
+                           length->getConstraint()->asIntConstraint()->getHighInt(),
+                           4,
+                           comp(),
+                           region(),
+                           vp());
+      state->push(array);
+      return;
       }
 
    AbsValue* array = AbsValue::createArrayObject(
@@ -1033,246 +2131,110 @@ void AbsInterpreter::multianewarray()
    state->push(array);
    }
 
-//-- Checked
-void AbsInterpreter::caload()
+void AbsInterpreter::newarray()
    {
-   AbsValue *index = absState->pop();
-   AbsValue *arrayRef = absState->pop();
-   AbsValue *value = AbsValue::createTopInt(region());
-   absState->push(value);
-   return absState;
-   }
+   AbsState *state = currentBlock()->getAbsState();
 
-//-- Checked
-void AbsInterpreter::faload()
-   {
-   AbsValue *index = absState->pop();
-   AbsValue *arrayRef = absState->pop();
-   AbsValue *value = AbsValue::createTopFloat(region());
-   absState->push(value);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::iaload()
-   {
-   AbsValue *index = absState->pop();
-   AbsValue *arrayRef = absState->pop();
-   AbsValue *value = AbsValue::createTopInt(region());
-   absState->push(value);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::saload()
-   {
-   AbsValue *index = absState->pop();
-   AbsValue *arrayRef = absState->pop();
-   AbsValue *value = AbsValue::createTopInt(region());
-   absState->push(value);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::aaload()
-   {
-   AbsValue *index = absState->pop();
-   AbsValue *ref = absState->pop();
-   AbsValue *value = AbsValue::createTopObject(region());
-   absState->push(value);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::laload()
-   {
-   AbsValue *index = absState->pop();
-   AbsValue *ref = absState->pop();
-   AbsValue *value1 = AbsValue::createTopLong(region());
-   AbsValue *value2 = AbsValue::createDummyLong(region());
-   absState->push(value1);
-   absState->push(value2);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::daload()
-   {
-   AbsValue *index = absState->pop();
-   AbsValue *ref = absState->pop();
-   AbsValue *value1 = AbsValue::createTopDouble(region());
-   AbsValue *value2 = AbsValue::createDummyDouble(region());
-   absState->push(value1);
-   absState->push(value2);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::castore()
-   {
-   AbsValue *value = absState->pop();
-   AbsValue *index = absState->pop();
-   AbsValue *arrayRef = absState->pop();
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::dastore()
-   {
-   AbsValue *value1 = absState->pop();
-   AbsValue *value2 = absState->pop();
-   AbsValue *index = absState->pop();
-   AbsValue *ref = absState->pop();
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::fastore()
-   {
-   //TODO:
-   AbsValue *value = absState->pop();
-   AbsValue *index = absState->pop();
-   AbsValue *ref = absState->pop();
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::iastore()
-   {
+   /**
+    * aType
+    * 4: boolean
+    * 5: char
+    * 6: float
+    * 7: double
+    * 8: byte
+    * 9: short
+    * 10: int
+    * 11: long
+    */
+   int32_t aType = nextByte();
+   int32_t elementSize = aType == 7 || aType == 11 ? 8 : 4;
    
-   AbsValue *value = absState->pop();
-   AbsValue *index = absState->pop();
-   AbsValue *ref = absState->pop();
-   return absState;
+   TR_OpaqueClassBlock* arrayType = comp()->fe()->getClassFromNewArrayType(aType);
+
+   AbsValue *length = absState->pop();
+
+   if (length->isInt())
+      {
+      AbsValue* value = AbsValue::createArrayObject(arrayType, 
+                                                      true, 
+                                                      length->getConstraint()->getLowInt(), 
+                                                      length->getConstraint()->getHighInt(), 
+                                                      elementSize, 
+                                                      comp(), 
+                                                      region(), 
+                                                      vp());
+      state->push(value);
+      return;
+      }
+
+   AbsValue* value = AbsValue::createArrayObject(arrayType, 
+                                                   true, 
+                                                   0, 
+                                                   INT32_MAX, 
+                                                   elementSize, 
+                                                   comp(), 
+                                                   region(), 
+                                                   vp());
+   state->push(value);
    }
 
-//-- Checked
-void AbsInterpreter::lastore()
+void AbsInterpreter::anewarray()
    {
-   AbsValue *value = absState->pop();
-   AbsValue *value2 = absState->pop();
-   AbsValue *index = absState->pop();
-   AbsValue *ref = absState->pop();
-   return absState;
+   AbsState* state = currentBlock()->getAbsState();
+
+   int32_t cpIndex = next2Bytes();
+
+   TR_OpaqueClassBlock* arrayType = _callerMethod->getClassFromConstantPool(comp(), cpIndex);
+
+   AbsValue *length = state->pop();
+
+   if (length->isInt())
+      {
+      AbsValue* value = AbsValue::createArrayObject(arrayType, 
+                                                      true, 
+                                                      length->getConstraint()->asIntConstraint()->getLowInt(), 
+                                                      length->getConstraint()->asIntConstraint()->getHighInt(),
+                                                      4, 
+                                                      comp(), 
+                                                      region(), 
+                                                      vp());
+      state->push(value);
+      return;
+      }
+
+   AbsValue* value = AbsValue::createArrayObject(arrayType, true, 0, INT32_MAX ,4, comp(), region(), vp());
+   state->push(value);
    }
 
-//-- Checked
-void AbsInterpreter::sastore()
+void AbsInterpreter::arraylength()
    {
-   AbsValue *value = absState->pop();
-   AbsValue *index = absState->pop();
-   AbsValue *ref = absState->pop();
-   return absState;
-   }
+   AbsState* state = currentBlock()->getAbsState();
 
-//-- Checked
-void AbsInterpreter::aastore()
-   {
-   AbsValue *value = absState->pop();
-   AbsValue *index = absState->pop();
-   AbsValue *ref = absState->pop();
-   return absState;
-   }
+   AbsValue* arrayRef = state->pop();
 
-//-- Checked
-void AbsInterpreter::aconstnull() 
-   {
-   AbsValue *value = AbsValue::createNullObject(region(), vp());
-   absState->push(value);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::aload()
-   {
-   AbsValue *value = absState->at(n);
-   absState->push(value);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::aload0() 
-   {
-   aload(absState, 0);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::aload1() 
-   {
-   aload(absState, 1);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::aload2() 
-   {
-   aload(absState, 2);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::aload3() 
-   {
-   aload(absState, 3);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::astore()
-   {
-   AbsValue* value = absState->pop();
-   absState->set(index, value);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::astore0() 
-   {
-   astore(absState, 0);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::astore1()
-   {
-   astore(absState, 1);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::astore2() 
-   {
-   astore(absState, 2);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::astore3() 
-   {
-   astore(absState, 3);
-   return absState;
-   }
-
-
-
-//-- Checked
-void AbsInterpreter::bastore() 
-   {
-   AbsValue *value = absState->pop();
-   AbsValue *index = absState->pop();
-   AbsValue *ref = absState->pop();
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::baload()
-   {
-   AbsValue *index = absState->pop();
-   AbsValue *ref = absState->pop();
-   AbsValue *value = AbsValue::createTopInt(region());
-   absState->push(value);
-   return absState;
+   if (arrayRef->isParameter() && !arrayRef->isImplicitParameter())
+      {
+      _methodSummary->addNullCheck(arrayRef->getParamPosition());
+      }
+     
+   if (arrayRef->isArrayObject())
+      {
+      TR::VPArrayInfo* info = arrayRef->getConstraint()->getArrayInfo();
+      AbsValue* result = NULL;
+      if (info->lowBound() == info->highBound())
+         {
+         result = AbsValue::createIntConst(info->lowBound(), region(), vp());
+         }
+      else
+         {
+         result = AbsValue::createIntRange(info->lowBound(), info->highBound(), region(), vp());
+         }
+      state->push(result);
+      return;
+      }
+   
+   AbsValue *result = AbsValue::createIntRange(0, INT32_MAX, region(), vp());
+   state->push(result);
    }
 
 //TODO: checkcast array types, primitive arrays
@@ -1325,92 +2287,6 @@ void AbsInterpreter::checkcast()
    return absState;
    }
 
-//-- Checked
-void AbsInterpreter::dup() 
-   {
-   AbsValue *value = absState->pop();
-   absState->push(value);
-   absState->push(new (region()) AbsValue(value)); 
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::dupx1() 
-   {
-   AbsValue *value1 = absState->pop();
-   AbsValue *value2 = absState->pop();
-   absState->push(value1);
-   absState->push(value2);
-   absState->push(new (region()) AbsValue(value1));
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::dupx2() 
-   {
-   AbsValue *value1 = absState->pop();
-   AbsValue *value2 = absState->pop();
-   AbsValue *value3 = absState->pop();
-   absState->push(value1);
-   absState->push(value3);
-   absState->push(value2);
-   absState->push(new (region()) AbsValue(value1));
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::dup2() 
-   {
-   AbsValue *value1 = absState->pop();
-   AbsValue *value2 = absState->pop();
-   absState->push(value2);
-   absState->push(value1);
-   absState->push(new (region()) AbsValue(value2));
-   absState->push(new (region()) AbsValue(value1));
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::dup2x1() 
-   {
-   AbsValue *value1 = absState->pop();
-   AbsValue *value2 = absState->pop();
-   AbsValue *value3 = absState->pop();
-   absState->push(value2);
-   absState->push(value1);
-   absState->push(value3);
-   absState->push(new (region()) AbsValue(value2));
-   absState->push(new (region()) AbsValue(value1));
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::dup2x2()
-   {
-   AbsValue *value1 = absState->pop();
-   AbsValue *value2 = absState->pop();
-   AbsValue *value3 = absState->pop();
-   AbsValue *value4 = absState->pop();
-   absState->push(value2);
-   absState->push(value1);
-   absState->push(value4);
-   absState->push(value3);
-   absState->push(new (region()) AbsValue(value2));
-   absState->push(new (region()) AbsValue(value1));
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::goto_()
-   {
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::gotow()
-   {
-   return absState;
-   }
 
 //TODO: get object with actual type (Not just TR::Address)
 //-- Checked
@@ -1520,29 +2396,6 @@ void AbsInterpreter::getfield()
    return absState;
    }
 
-//-- Checked
-void AbsInterpreter::iand()
-   {
-   AbsValue* value1 = absState->pop();
-   AbsValue* value2 = absState->pop();
-
-   bool hasConstraint = value1->hasConstraint() && value2->hasConstraint();
-
-   if (hasConstraint)
-      {
-      if (value1->getConstraint()->asIntConst() && value2->getConstraint()->asIntConst()) //int consts
-         {
-         int32_t resultVal = value1->getConstraint()->asIntConst()->getInt() & value2->getConstraint()->asIntConst()->getInt();
-         AbsValue* value = AbsValue::createIntConst(resultVal, region(), vp());
-         absState->push(value);
-         return absState;
-         }
-      }
-
-   AbsValue *result = AbsValue::createTopInt(region());
-   absState->push(result);
-   return absState;
-   }
 
 
 //TODO: instanceof <interface>. Current implementation does not support intereface. And instanceof array types
@@ -1588,234 +2441,6 @@ void AbsInterpreter::instanceof()
       }
 
    absState->push(AbsValue::createIntRange(0,1,region(),vp()));
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::ior()
-   {
-   AbsValue *value2 = absState->pop();
-   AbsValue* value1 = absState->pop();
-
-   bool hasConstraint = value1->hasConstraint() && value2->hasConstraint();
-   if (hasConstraint)
-      {
-      if (value1->getConstraint()->asIntConst() && value2->getConstraint()->asIntConst()) //both int consts
-         {
-         int32_t resultVal = value1->getConstraint()->asIntConst()->getInt() | value2->getConstraint()->asIntConst()->getInt();
-         AbsValue* result = AbsValue::createIntConst(resultVal, region(), vp());
-         absState->push(result);
-         return absState;
-         }
-      }
-
-   AbsValue *result = AbsValue::createTopInt(region());
-   absState->push(result);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::ixor() 
-   {
-   AbsValue *value2 = absState->pop();
-   AbsValue* value1 = absState->pop();
-   bool hasConstraint = value1->hasConstraint() && value2->hasConstraint();
-
-   if (hasConstraint)
-      {
-      if (value1->getConstraint()->asIntConst() && value2->getConstraint()->asIntConst())
-         {
-         int32_t resultVal = value1->getConstraint()->asIntConst()->getInt() ^ value2->getConstraint()->asIntConst()->getInt();
-         absState->push(AbsValue::createIntConst(resultVal, region(), vp()));
-         return absState;
-         }
-      }
-
-   AbsValue *result = AbsValue::createTopInt(region());
-   absState->push(result);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::irem()
-   {
-   AbsValue *value2 = absState->pop();
-   AbsValue* value1 = absState->pop();
-   bool hasConstraint = value1->hasConstraint() && value2->hasConstraint();
-
-   if (hasConstraint)
-      {
-      if ( value1->getConstraint()->asIntConst() && value2->getConstraint()->asIntConst())
-         {
-         int32_t int1 = value1->getConstraint()->asIntConst()->getInt();
-         int32_t int2 = value2->getConstraint()->asIntConst()->getInt();
-         int32_t resultVal = int1 % int2;
-         absState->push(AbsValue::createIntConst(resultVal, region(), vp()));
-         return absState;
-         }
-      }
-
-   AbsValue *result = AbsValue::createTopInt(region());
-   absState->push(result);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::ishl()
-   {
-   AbsValue* length = absState->pop();
-   AbsValue* value = absState->pop();
-
-   bool hasConstraint = length->hasConstraint() && value->hasConstraint();
-
-   if (hasConstraint)
-      {
-      if (length->getConstraint()->asIntConst() && value->getConstraint()->asIntConst()) //Int consts
-         {
-         int32_t lengthVal = length->getConstraint()->asIntConst()->getInt(); 
-         int32_t valueVal = value->getConstraint()->asIntConst()->getInt();
-         int32_t resultVal = valueVal << lengthVal;
-         AbsValue* result = AbsValue::createIntConst(resultVal, region(), vp());
-         absState->push(result);
-         return absState;
-         }
-      }
-
-   AbsValue *result = AbsValue::createTopInt(region());
-   absState->push(result);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::ishr()
-   {
-   AbsValue* length = absState->pop();
-   AbsValue* value = absState->pop();
-
-   bool hasConstraint = value->hasConstraint() && length->hasConstraint();
-   if (hasConstraint)
-      {
-      if (length->getConstraint()->asIntConst() && value->getConstraint()->asIntConst()) //Int consts
-         {
-         int32_t lengthVal = length->getConstraint()->asIntConst()->getInt(); 
-         int32_t valueVal = value->getConstraint()->asIntConst()->getInt();
-         int32_t resultVal = valueVal >> lengthVal;
-         AbsValue* result = AbsValue::createIntConst(resultVal, region(), vp());
-         absState->push(result);
-         return absState;
-         }
-      }
-
-   AbsValue *result = AbsValue::createTopInt(region());
-   absState->push(result);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::iushr()
-   {
-   AbsValue* length = absState->pop();
-   AbsValue* value = absState->pop();
-
-   bool hasConstraint = length->hasConstraint() && value->hasConstraint();
-   if (hasConstraint)
-      {
-      if (length->getConstraint()->asIntConst() && value->getConstraint()->asIntConst()) //Int consts
-         {
-         int32_t lengthVal = length->getConstraint()->asIntConst()->getInt(); //can be greater than 32
-         int32_t valueVal = value->getConstraint()->asIntConst()->getInt();
-         int32_t resultVal = (uint32_t) valueVal >> lengthVal;
-         AbsValue* result = AbsValue::createIntConst(resultVal, region(), vp());
-         absState->push(result);
-         return absState;
-         }
-      }
-
-   AbsValue *result = AbsValue::createTopInt(region());
-   absState->push(result);
-   return absState;
-   }
-
-//-- Checked
-//TODO: range div
-void AbsInterpreter::idiv()
-   {
-   AbsValue* value2 = absState->pop();
-   AbsValue* value1 = absState->pop();
-   bool hasConstraint = value1->hasConstraint() && value2->hasConstraint();
-   if (hasConstraint)
-      {
-      if (value1->getConstraint()->asIntConst() && value2->getConstraint()->asIntConst())
-         {
-         int32_t int1 = value1->getConstraint()->asIntConst()->getInt();
-         int32_t int2 = value2->getConstraint()->asIntConst()->getInt();
-         if (int2 == 0) //throw exception
-            {
-            AbsValue *result = AbsValue::createTopInt(region());
-            absState->push(result);
-            return absState;
-            }
-         
-         int32_t resultVal = int1/int2;
-         absState->push(AbsValue::createIntConst(resultVal, region(), vp()));
-         return absState;
-         }
-      }
-
-   AbsValue *result = AbsValue::createTopInt(region());
-   absState->push(result);
-   return absState;
-   }
-
-//-- Checked
-//TODO: range mul
-void AbsInterpreter::imul()
-   {
-   AbsValue* value2 = absState->pop();
-   AbsValue* value1 = absState->pop();
-   bool hasConstraint = value1->hasConstraint() && value2->hasConstraint();
-   if (hasConstraint)
-      {
-      if (value1->getConstraint()->asIntConst() && value2->getConstraint()->asIntConst())
-         {
-         int32_t int1 = value1->getConstraint()->asIntConst()->getInt();
-         int32_t int2 = value2->getConstraint()->asIntConst()->getInt();
-         
-         int32_t resultVal = int1 * int2;
-         absState->push(AbsValue::createIntConst(resultVal, region(), vp()));
-         return absState;
-         }
-      }
-
-   AbsValue *result = AbsValue::createTopInt(region());
-   absState->push(result);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::ineg()
-   {
-   AbsValue *value = absState->pop();
-
-   if (value->hasConstraint())
-      {
-      if (value->getConstraint()->asIntConst()) //const
-         {
-         AbsValue* result = AbsValue::createIntConst( -value->getConstraint()->asIntConst()->getInt(), region(), vp());
-         absState->push(result);
-         return absState;
-         }
-
-      if (value->getConstraint()->asIntRange()) //range
-         {
-         AbsValue* result = AbsValue::createIntRange(-value->getConstraint()->getHighInt(), -value->getConstraint()->getLowInt(), region(), vp());
-         absState->push(result);
-         return absState;
-         }
-      }
-
-   AbsValue *result = AbsValue::createTopInt(region());
-   absState->push(result);
    return absState;
    }
 
@@ -1978,388 +2603,7 @@ void AbsInterpreter::ifacmpne()
 
 
 
-//-- Checked
-void AbsInterpreter::istore()
-   {
-   absState->set(n, absState->pop());
-   return absState;
-   }
 
-//-- Checked
-void AbsInterpreter::istore0()
-   {
-   istore(absState,0);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::istore1()
-   {
-   istore(absState,1);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::istore2()
-   {
-   istore(absState,2);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::istore3()
-   {
-   istore(absState,3);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::isub()
-   {
-   AbsValue *value2 = absState->pop();
-   AbsValue *value1 = absState->pop();
-
-   bool hasConstraint = value1->hasConstraint() && value2->hasConstraint();
-   if (hasConstraint)
-      {
-      if (value1->getConstraint()->asIntConstraint() && value2->getConstraint()->asIntConstraint()) 
-         {
-         AbsValue* result = AbsValue::create(value1->getConstraint()->subtract(value2->getConstraint(), TR::Int32, vp()), TR::Int32, region());
-         absState->push(result);
-         return absState;
-         }
-      }
-
-   AbsValue* result = AbsValue::createTopInt(region());
-   absState->push(result);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::iadd()
-   {
-   AbsValue *value2 = absState->pop();
-   AbsValue *value1 = absState->pop();
-
-   bool hasConstraint = value1->hasConstraint() && value2->hasConstraint();
-   if (hasConstraint)
-      {
-      if (value1->getConstraint()->asIntConstraint() && value2->getConstraint()->asIntConstraint())
-         {
-         AbsValue* result =  AbsValue::create(value1->getConstraint()->add(value2->getConstraint(), TR::Int32, vp()), TR::Int32, region());
-         absState->push(result);
-         return absState;
-         }
-      }
-
-   AbsValue* result = AbsValue::createTopInt(region());
-   absState->push(result);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::i2d()
-   {
-   AbsValue *value = absState->pop();
-   AbsValue *result1 = AbsValue::createTopDouble(region());
-   AbsValue *result2 = AbsValue::createDummyDouble(region());
-   absState->push(result1);
-   absState->push(result2);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::i2f()
-   {
-   AbsValue *value = absState->pop();
-   AbsValue *result = AbsValue::createTopFloat(region());
-   absState->push(result);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::i2l() 
-   {
-   AbsValue *value = absState->pop();
-
-   if (value->hasConstraint())
-      {
-      if (value->getConstraint()->asIntConst()) //int const
-         {
-         AbsValue *result1 = AbsValue::createLongConst((int64_t)value->getConstraint()->asIntConst()->getInt(), region(), vp());
-         AbsValue *result2 = AbsValue::createDummyLong(region());
-         absState->push(result1);
-         absState->push(result2);
-         return absState;
-         }
-
-      if (value->getConstraint()->asIntRange()) //int range
-         {
-         int64_t low = (int64_t) value->getConstraint()->getLowInt();
-         int64_t high = (int64_t) value->getConstraint()->getHighInt(); 
-         AbsValue* result1 = AbsValue::createLongRange(low, high, region(), vp());
-         AbsValue* result2 = AbsValue::createDummyLong(region());
-         absState->push(result1);
-         absState->push(result2);
-         return absState;
-         }
-      }
-
-   AbsValue *result1 = AbsValue::createTopLong(region());
-   AbsValue *result2 = AbsValue::createDummyLong(region());
-   absState->push(result1);
-   absState->push(result2);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::i2s()
-   {
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::i2c()
-   {
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::i2b()
-   {
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::dadd()
-   {
-   absState->pop();
-   AbsValue *value2 = absState->pop();
-   absState->pop();
-   AbsValue *value1 = absState->pop();
-   AbsValue *result1 = AbsValue::createTopDouble(region());
-   AbsValue *result2 = AbsValue::createDummyDouble(region());
-   absState->push(result1);
-   absState->push(result2);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::dsub()
-   {
-   absState->pop();
-   AbsValue *value2 = absState->pop();
-   absState->pop();
-   AbsValue *value1 = absState->pop();
-   AbsValue *result1 = AbsValue::createTopDouble(region());
-   AbsValue *result2 = AbsValue::createDummyDouble(region());
-   absState->push(result1);
-   absState->push(result2);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::fsub()
-   {
-   AbsValue *value2 = absState->pop();
-   AbsValue *value1 = absState->pop();
-   AbsValue *result = AbsValue::createTopFloat(region());
-   absState->push(result);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::fadd()
-   {
-   AbsValue *value2 = absState->pop();
-   AbsValue *value1 = absState->pop();
-   AbsValue *result = AbsValue::createTopFloat(region());
-   absState->push(result);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::ladd()
-   {
-   absState->pop();
-   AbsValue *value2 = absState->pop();
-   absState->pop();
-   AbsValue *value1 = absState->pop();
-   bool hasConstraint = value1->hasConstraint() && value2->hasConstraint();
-   if (hasConstraint)
-      {
-      if (value1->getConstraint()->asLongConstraint() && value2->getConstraint()->asLongConstraint())
-         {
-         AbsValue* result1 = AbsValue::create(value1->getConstraint()->add(value2->getConstraint(), TR::Int64, vp()), TR::Int64, region());
-         AbsValue* result2 = AbsValue::createDummyLong(region());
-         absState->push(result1);
-         absState->push(result2);
-         return absState;
-         }
-      }
-
-   AbsValue* result1 = AbsValue::createTopLong(region());
-   AbsValue* result2 = AbsValue::createDummyLong(region());
-   absState->push(result1);
-   absState->push(result2);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::lsub()
-   {
-   absState->pop();
-   AbsValue *value2 = absState->pop();
-   absState->pop();
-   AbsValue *value1 = absState->pop();
-   bool hasConstraint = value1->hasConstraint() && value2->hasConstraint();
-
-   if (hasConstraint)
-      {
-      if (value1->getConstraint()->asLongConstraint() && value2->getConstraint()->asLongConstraint())
-         {
-         AbsValue* result1 = AbsValue::create(value1->getConstraint()->subtract(value2->getConstraint(), TR::Int64, vp()), TR::Int64, region());
-         AbsValue* result2 = AbsValue::createDummyLong(region());
-         absState->push(result1);
-         absState->push(result2);
-         return absState;
-         }
-      }
-
-   AbsValue* result1 = AbsValue::createTopLong(region());
-   AbsValue* result2 = AbsValue::createDummyLong(region());
-   absState->push(result1);
-   absState->push(result2);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::l2i() 
-   {
-   absState->pop();
-   AbsValue *value = absState->pop();
-
-   bool hasConstraint = value->hasConstraint();
-   if (hasConstraint)
-      {
-      if (value->getConstraint()->asLongConst()) //long const
-         {
-         int64_t longVal = value->getConstraint()->asLongConst()->getLong();
-         AbsValue* result = AbsValue::createIntConst((int32_t)longVal, region(), vp());
-         absState->push(result);
-         return absState;
-         }
-
-      if (value->getConstraint()->asLongRange()) //long ranges
-         {
-         int64_t longValLow = value->getConstraint()->getLowLong();
-         int64_t longValHigh = value->getConstraint()->getHighLong();
-         AbsValue* result = AbsValue::createLongRange((int32_t)longValLow, (int32_t)longValHigh, region(), vp());
-         absState->push(result);
-         return absState;
-         }
-      }
-
-   AbsValue *result = AbsValue::createTopInt(region());
-   absState->push(result);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::land()
-   {
-   absState->pop();
-   AbsValue* value2 = absState->pop();
-   absState->pop();
-   AbsValue *value1 = absState->pop();
-
-   bool hasConstraint = value1->hasConstraint() && value2->hasConstraint();
-
-   if (hasConstraint)
-      {
-      if (value1->getConstraint()->asLongConst() && value2->getConstraint()->asLongConst()) //long consts
-         {
-         int64_t longVal1 = value1->getConstraint()->asLongConst()->getLong();
-         int64_t longVal2 = value2->getConstraint()->asLongConst()->getLong();
-         int64_t resultVal = longVal1 & longVal2;
-         AbsValue* result1 = AbsValue::createLongConst(resultVal, region(), vp());
-         AbsValue* result2 = AbsValue::createDummyLong(region());
-         absState->push(result1);
-         absState->push(result2);
-         return absState;
-         }
-      }
-
-   AbsValue *result1 = AbsValue::createTopLong(region());
-   AbsValue *result2 = AbsValue::createDummyLong(region());
-   absState->push(result1);
-   absState->push(result2);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::ldiv()
-   {
-   absState->pop();
-   AbsValue* value2 = absState->pop();
-   absState->pop();
-   AbsValue *value1 = absState->pop();
-
-   bool hasConstraint = value1->hasConstraint() && value2->hasConstraint();
-
-   if (hasConstraint)
-      {
-      if (value1->getConstraint()->asLongConst() && value2->getConstraint()->asLongConst()) //long consts
-         {
-         int64_t longVal1 = value1->getConstraint()->asLongConst()->getLong();
-         int64_t longVal2 = value2->getConstraint()->asLongConst()->getLong();
-         int64_t resultVal = longVal1 / longVal2;
-         AbsValue* result1 = AbsValue::createLongConst(resultVal, region(), vp());
-         AbsValue* result2 = AbsValue::createDummyLong(region());
-         absState->push(result1);
-         absState->push(result2);
-         return absState;
-         }
-      }
-
-   AbsValue *result1 = AbsValue::createTopLong(region());
-   AbsValue *result2 = AbsValue::createDummyLong(region());
-   absState->push(result1);
-   absState->push(result2);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::lmul()
-   {
-   absState->pop();
-   AbsValue* value2 = absState->pop();
-   absState->pop();
-   AbsValue *value1 = absState->pop();
-
-   bool hasConstraint = value1->hasConstraint() && value2->hasConstraint();
-
-   if (hasConstraint)
-      {
-      if (value1->getConstraint()->asLongConst() && value2->getConstraint()->asLongConst()) //long consts
-         {
-         int64_t longVal1 = value1->getConstraint()->asLongConst()->getLong();
-         int64_t longVal2 = value2->getConstraint()->asLongConst()->getLong();
-         int64_t resultVal = longVal1 * longVal2;
-         AbsValue* result1 = AbsValue::createLongConst(resultVal, region(), vp());
-         AbsValue* result2 = AbsValue::createDummyLong(region());
-         absState->push(result1);
-         absState->push(result2);
-         return absState;
-         }
-      }
-
-   AbsValue *result1 = AbsValue::createTopLong(region());
-   AbsValue *result2 = AbsValue::createDummyLong(region());
-   absState->push(result1);
-   absState->push(result2);
-   return absState;
-   }
 
 //-- Checked
 void AbsInterpreter::lookupswitch()
@@ -2374,728 +2618,6 @@ void AbsInterpreter::tableswitch()
    absState->pop();
    return absState;
    }
-
-//-- Checked
-void AbsInterpreter::lneg()
-   {
-   absState->pop();
-   AbsValue *value = absState->pop();
-   
-   if (value->hasConstraint())
-      {
-      if (value->getConstraint()->asLongConst()) //long const
-         {
-         int64_t longVal = value->getConstraint()->asLongConst()->getLong();
-         AbsValue* result1 = AbsValue::createLongConst(-longVal, region(), vp());
-         AbsValue* result2 = AbsValue::createDummyLong(region());
-         absState->push(result1);
-         absState->push(result2);
-         return absState;
-         }
-
-      if (value->getConstraint()->asLongRange()) //long range
-         {
-         int64_t longValLow = value->getConstraint()->getLowLong();
-         int64_t longValHigh = value->getConstraint()->getHighLong();
-         AbsValue* result1 = AbsValue::createLongRange(-longValHigh, -longValLow, region(), vp());
-         AbsValue* result2 = AbsValue::createDummyLong(region());
-         absState->push(result1);
-         absState->push(result2);
-         return absState;
-         }
-      }
-
-   AbsValue *result1 = AbsValue::createTopLong(region());
-   AbsValue *result2 = AbsValue::createDummyLong(region());
-   absState->push(result1);
-   absState->push(result2);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::lor()
-   {
-   absState->pop();
-   AbsValue* value2 = absState->pop();
-   absState->pop();
-   AbsValue *value1 = absState->pop();
-
-   bool hasConstraint = value1->hasConstraint() && value2->hasConstraint();
-
-   if (hasConstraint)
-      {
-      if (value1->getConstraint()->asLongConst() && value2->getConstraint()->asLongConst()) //long consts
-         {
-         int64_t longVal1 = value1->getConstraint()->asLongConst()->getLong();
-         int64_t longVal2 = value2->getConstraint()->asLongConst()->getLong();
-         int64_t resultVal = longVal1 | longVal2;
-         AbsValue* result1 = AbsValue::createLongConst(resultVal, region(), vp());
-         AbsValue* result2 = AbsValue::createDummyLong(region());
-         absState->push(result1);
-         absState->push(result2);
-         return absState;
-         }
-      }
-
-   AbsValue *result1 = AbsValue::createTopLong(region());
-   AbsValue *result2 = AbsValue::createDummyLong(region());
-   absState->push(result1);
-   absState->push(result2);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::lrem()
-   {
-   absState->pop();
-   AbsValue* value2 = absState->pop();
-   absState->pop();
-   AbsValue *value1 = absState->pop();
-
-   bool hasConstraint = value1->hasConstraint() && value2->hasConstraint();
-
-   if (hasConstraint)
-      {
-      if (value1->getConstraint()->asLongConst() && value2->getConstraint()->asLongConst()) //long consts
-         {
-         int64_t longVal1 = value1->getConstraint()->asLongConst()->getLong();
-         int64_t longVal2 = value2->getConstraint()->asLongConst()->getLong();
-         int64_t resultVal = longVal1 % longVal2;
-         AbsValue* result1 = AbsValue::createLongConst(resultVal, region(), vp());
-         AbsValue* result2 = AbsValue::createDummyLong(region());
-         absState->push(result1);
-         absState->push(result2);
-         return absState;
-         }
-      }
-
-   AbsValue *result1 = AbsValue::createTopLong(region());
-   AbsValue *result2 = AbsValue::createDummyLong(region());
-   absState->push(result1);
-   absState->push(result2);
-   return absState;
-   }
-
-
-//-- Checked
-void AbsInterpreter::lshl()
-   {
-   AbsValue* length = absState->pop(); 
-   absState->pop();
-   AbsValue* value = absState->pop();
-
-   bool hasConstraint = length->hasConstraint() && value->hasConstraint();
-   
-   if (hasConstraint)
-      {
-      if (length->getConstraint()->asIntConst() && value->getConstraint()->asLongConst()) //Long const
-         {
-         int32_t lengthVal = length->getConstraint()->asIntConst()->getInt(); 
-         int64_t valueVal = value->getConstraint()->asLongConst()->getLong();
-         int64_t resultVal = valueVal << lengthVal;
-         AbsValue* result1 = AbsValue::createLongConst(resultVal, region(), vp());
-         AbsValue* result2 = AbsValue::createDummyLong(region());
-         absState->push(result1);
-         absState->push(result2);
-         return absState;
-         }
-      }
-
-   AbsValue *result1 = AbsValue::createTopLong(region());
-   AbsValue *result2 = AbsValue::createDummyLong(region());
-   absState->push(result1);
-   absState->push(result2);
-   return absState;
-   }
-
-
-//-- Checked
-void AbsInterpreter::lshr()
-   {
-   AbsValue* length = absState->pop(); 
-   absState->pop();
-   AbsValue* value = absState->pop();
-
-   bool hasConstraint = length->hasConstraint() && value->hasConstraint();
-   
-   if (hasConstraint)
-      {
-      if (length->getConstraint()->asIntConst() && value->getConstraint()->asLongConst()) //Long const
-         {
-         int32_t lengthVal = length->getConstraint()->asIntConst()->getInt(); 
-         int64_t valueVal = value->getConstraint()->asLongConst()->getLong();
-         int64_t resultVal = valueVal >> lengthVal;
-         AbsValue* result1 = AbsValue::createLongConst(resultVal, region(), vp());
-         AbsValue* result2 = AbsValue::createDummyLong(region());
-         absState->push(result1);
-         absState->push(result2);
-         return absState;
-         }
-      }
-
-   AbsValue *result1 = AbsValue::createTopLong(region());
-   AbsValue *result2 = AbsValue::createDummyLong(region());
-   absState->push(result1);
-   absState->push(result2);
-   return absState;
-   }
-
-
-//-- Checked
-void AbsInterpreter::lushr()
-   {
-   AbsValue* length = absState->pop(); 
-   absState->pop();
-   AbsValue* value = absState->pop();
-
-   bool hasConstraint = length->hasConstraint() && value->hasConstraint();
-   
-   if (hasConstraint)
-      {
-      if (length->getConstraint()->asIntConst() && value->getConstraint()->asLongConst()) //Long const
-         {
-         int32_t lengthVal = length->getConstraint()->asIntConst()->getInt(); 
-         int64_t valueVal = value->getConstraint()->asLongConst()->getLong();
-         int64_t resultVal = (uint64_t)valueVal >> lengthVal;
-         AbsValue* result1 = AbsValue::createLongConst(resultVal, region(), vp());
-         AbsValue* result2 = AbsValue::createDummyLong(region());
-         absState->push(result1);
-         absState->push(result2);
-         return absState;
-         }
-      }
-
-   AbsValue *result1 = AbsValue::createTopLong(region());
-   AbsValue *result2 = AbsValue::createDummyLong(region());
-   absState->push(result1);
-   absState->push(result2);
-   return absState;
-   }
-
-
-//-- Checked
-void AbsInterpreter::lxor()
-   {
-   absState->pop();
-   AbsValue* value2 = absState->pop();
-   absState->pop();
-   AbsValue *value1 = absState->pop();
-
-   bool hasConstraint = value1->hasConstraint() && value2->hasConstraint();
-
-   if (hasConstraint)
-      {
-      if (value1->getConstraint()->asLongConst() && value2->getConstraint()->asLongConst()) //long consts
-         {
-         int64_t longVal1 = value1->getConstraint()->asLongConst()->getLong();
-         int64_t longVal2 = value2->getConstraint()->asLongConst()->getLong();
-         int64_t resultVal = longVal1 ^ longVal2;
-         AbsValue* result1 =  AbsValue::createLongConst(resultVal, region(), vp());
-         AbsValue* result2 = AbsValue::createDummyLong(region());
-         absState->push(result1);
-         absState->push(result2);
-         return absState;
-         }
-      }
-
-   AbsValue *result1 = AbsValue::createTopLong(region());
-   AbsValue *result2 = AbsValue::createDummyLong(region());
-   absState->push(result1);
-   absState->push(result2);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::l2d()
-   {
-   absState->pop();
-   absState->pop();
-   AbsValue *result1 = AbsValue::createTopDouble(region());
-   AbsValue *result2 = AbsValue::createDummyDouble(region());
-   absState->push(result1);
-   absState->push(result2);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::l2f()
-   {
-   absState->pop();
-   absState->pop();
-   AbsValue *result = AbsValue::createTopFloat(region());
-   absState->push(result);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::d2f()
-   {
-   absState->pop();
-   absState->pop();
-   AbsValue *result = AbsValue::createTopFloat(region());
-   absState->push(result);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::f2d()
-   {
-   absState->pop();
-   AbsValue *result1 = AbsValue::createTopDouble(region());
-   AbsValue *result2 = AbsValue::createDummyDouble(region());
-   absState->push(result1);
-   absState->push(result2);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::f2i()
-   {
-   absState->pop();
-   AbsValue *result1 = AbsValue::createTopInt(region());
-   absState->push(result1);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::f2l()
-   {
-   absState->pop();
-   AbsValue *result1 = AbsValue::createTopLong(region());
-   AbsValue *result2 = AbsValue::createDummyLong(region());
-   absState->push(result1);
-   absState->push(result2);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::d2i()
-   {
-   absState->pop();
-   absState->pop();
-   AbsValue *result = AbsValue::createTopInt(region());
-   absState->push(result);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::d2l()
-   {
-   absState->pop();
-   absState->pop();
-   AbsValue *result1 = AbsValue::createTopLong(region());
-   AbsValue *result2 = AbsValue::createDummyLong(region());
-   absState->push(result1);
-   absState->push(result2);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::lload()
-   {
-   AbsValue *value1 = absState->at(n);
-   AbsValue *value2 = absState->at(n+1);
-   absState->push(value1);
-   absState->push(value2);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::lload0()
-   {
-   lload(absState, 0);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::lload1()
-   {
-   lload(absState, 1);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::lload2()
-   {
-   lload(absState, 2);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::lload3()
-   {
-   lload(absState, 3);
-   return absState;
-   }
-
-
-
-
-//-- Checked
-void AbsInterpreter::dload()
-   {
-   
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::dload0()
-   {
-   dload(absState, 0);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::dload1()
-   {
-   dload(absState, 1);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::dload2()
-   {
-   dload(absState, 2);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::dload3()
-   {
-   dload(absState, 3);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::lstorew()
-   {
-   lstore(absState, n);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::lstore0()
-   {
-   lstore(absState, 0);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::lstore1()
-   {
-   lstore(absState, 1);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::lstore2()
-   {
-   lstore(absState, 2);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::lstore3()
-   {
-   lstore(absState, 3);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::lstore()
-   {
-   AbsValue *value2 = absState->pop();
-   AbsValue *value1 = absState->pop();
-   absState->set(n, value1);
-   absState->set(n + 1, value2);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::dstore()
-   {
-   AbsValue *value2 = absState->pop();
-   AbsValue *value1 = absState->pop();
-   absState->set(n, value1);
-   absState->set(n + 1, value2);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::dstore0()
-   {
-   dstore(absState, 0);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::dstore1()
-   {
-   dstore(absState, 1);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::dstore2()
-   {
-   dstore(absState, 2);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::dstore3()
-   {
-   dstore(absState, 3);
-   return absState;
-   }
-
-
-
-//-- Checked
-void AbsInterpreter::lcmp()
-   {
-   absState->pop();
-   AbsValue* value2 = absState->pop();
-   absState->pop();
-   AbsValue* value1 = absState->pop();
-
-   bool hasConstraint = value1->hasConstraint() && value2->hasConstraint();
-
-   if (hasConstraint)
-      {
-      if (value1->getConstraint()->asLongConstraint() && value2->getConstraint()->asLongConstraint())
-         {
-         if (value1->getConstraint()->mustBeEqual(value2->getConstraint(), vp()))
-            {
-            AbsValue* result = AbsValue::createIntConst(0, region(), vp());
-            absState->push(result);
-            return absState;
-            }
-
-         if (value2->getConstraint()->mustBeLessThan(value1->getConstraint(), vp()))
-            {
-            AbsValue* result = AbsValue::createIntConst(1, region(), vp());
-            absState->push(result);
-            return absState;
-            }
-
-         if (value1->getConstraint()->mustBeLessThan(value2->getConstraint(),vp()))
-            {
-            AbsValue* result = AbsValue::createIntConst(-1, region(), vp());
-            absState->push(result);
-            return absState;
-            }
-         }
-      }
-   
-   AbsValue *result =  AbsValue::createIntRange(-1,1, region(), vp());
-   absState->push(result);
-   return absState;
-   }
-
-void AbsInterpreter::pop()
-   {
-   absState->pop();
-   return absState;
-   }
-
-void AbsInterpreter::nop()
-   {
-   return absState;
-   }
-//-- Checked
-void AbsInterpreter::pop2()
-   {
-   absState->pop();
-   absState->pop();
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::fload()
-   {
-   AbsValue *value = absState->at(n);
-   absState->push(value);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::fload0()
-   {
-   fload(absState, 0);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::fload1()
-   {
-   fload(absState, 1);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::fload2()
-   {
-   fload(absState, 2);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::fload3()
-   {
-   fload(absState, 3);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::swap()
-   {
-   AbsValue *value1 = absState->pop();
-   AbsValue *value2 = absState->pop();
-   absState->push(value1);
-   absState->push(value2);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::fstore()
-   {
-   absState->set(n, absState->pop());
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::fstore0()
-   {
-   fstore(absState, 0);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::fstore1()
-   {
-   fstore(absState, 1);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::fstore2()
-   {
-   fstore(absState, 2);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::fstore3()
-   {
-   fstore(absState, 3);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::fmul()
-   {
-   absState->pop();
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::dmul()
-   {
-   absState->pop();
-   absState->pop();
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::dneg()
-   {
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::dcmpl()
-   {
-   absState->pop();
-   absState->pop();
-   absState->pop();
-   absState->pop();
-   AbsValue *result = AbsValue::createTopInt(region());
-   absState->push(result);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::dcmpg()
-   {
-   absState->pop();
-   absState->pop();
-   absState->pop();
-   absState->pop();
-   AbsValue* result = AbsValue::createTopInt(region());
-   absState->push(result);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::fcmpg()
-   {
-   absState->pop();
-   absState->pop();
-   AbsValue *result = AbsValue::createTopInt(region());
-   absState->push(result);
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::fcmpl()
-   {
-   absState->pop();
-   absState->pop();
-   AbsValue *result = AbsValue::createTopInt(region());
-   absState->push(result);
-   return absState;
-   }
-
-void AbsInterpreter::ddiv()
-   {
-   absState->pop();
-   absState->pop();
-   return absState;
-   }
-
-void AbsInterpreter::fdiv()
-   {
-   absState->pop();
-   return absState;
-   }
-
-void AbsInterpreter::drem()
-   {
-   absState->pop();
-   absState->pop();
-   return absState;
-   }
-
-void AbsInterpreter::fneg()
-   {
-   return absState;
-   }
-
-void AbsInterpreter::freturn()
-   {
-   absState->pop();
-   return absState;
-   }
-
-void AbsInterpreter::frem()
-   {
-   absState->pop();
-   return absState;
-   }
-
-
-
 
 //-- Checked
 void AbsInterpreter::iinc()
@@ -3200,50 +2722,6 @@ void AbsInterpreter::putstatic()
    return absState;
    }
 
-// void AbsInterpreter::ldcInt32()
-//    {
-//    auto value = _callerMethod->intConstant(cpIndex);
-//    AbsValue *result = AbsValue::createIntConst(value, region(), vp());
-//    absState->push(result);
-//    }
-
-// void AbsInterpreter::ldcInt64()
-//    {
-
-//    }
-
-// void AbsInterpreter::ldcFloat()
-//    {
-//    AbsValue *result = AbsValue::createTopFloat(region());
-//    absState->push(result);
-//    }
-
-// void AbsInterpreter::ldcDouble()
-//    {
-//    AbsValue *result1 = AbsValue::createTopDouble(region());
-//    AbsValue *result2 = AbsValue::createDummyDouble(region());
-//    absState->push(result1);
-//    absState->push(result2);
-//    }
-
-// void AbsInterpreter::ldcAddress() 
-//    {
-
-//    }
-
-// void AbsInterpreter::ldcString()
-//    {   
-
-//    }
-
-void AbsInterpreter::ldcw()
-   {
-   ldc(absState, cpIndex);
-   return absState;
-   }
-
-
-
 void AbsInterpreter::monitorenter()
    {
    // TODO: possible optimization
@@ -3276,51 +2754,9 @@ void AbsInterpreter::athrow()
    return absState;
    }
 
-void AbsInterpreter::anewarray()
-   {
-   TR_OpaqueClassBlock* type = _callerMethod->getClassFromConstantPool(comp(), cpIndex);
 
-   AbsValue *length = absState->pop();
 
-   if (length->getConstraint() && length->getConstraint()->asIntConstraint())
-      {
-      AbsValue* value = AbsValue::createArrayObject(type, true, length->getConstraint()->asIntConstraint()->getLowInt(), length->getConstraint()->asIntConstraint()->getHighInt(),4, comp(), region(), vp());
-      absState->push(value);
-      return absState;
-      }
 
-   AbsValue* value = AbsValue::createArrayObject(type, true, 0, INT32_MAX ,4, comp(), region(), vp());
-   absState->push(value);
-   return absState;
-   }
-
-void AbsInterpreter::arraylength()
-   {
-   AbsValue* arrayRef = absState->pop();
-
-   if (arrayRef->isParameter() && !arrayRef->isImplicitParameter())
-      _methodSummary->addNullCheck(arrayRef->getParamPosition());
-
-   if (arrayRef->hasConstraint()&& arrayRef->getConstraint()->getArrayInfo())
-      {
-      TR::VPArrayInfo* info = arrayRef->getConstraint()->getArrayInfo();
-      AbsValue* result;
-      if (info->lowBound() == info->highBound())
-         {
-         result = AbsValue::createIntConst(info->lowBound(), region(), vp());
-         }
-      else
-         {
-         result = AbsValue::createIntRange(info->lowBound(), info->highBound(), region(), vp());
-         }
-      absState->push(result);
-      return absState;
-      }
-   
-   AbsValue *result = AbsValue::createIntRange(0, INT32_MAX, region(), vp());
-   absState->push(result);
-   return absState;
-   }
 
 void AbsInterpreter::_new()
    {
@@ -3330,36 +2766,7 @@ void AbsInterpreter::_new()
    return absState;
    }
 
-void AbsInterpreter::newarray()
-   {
-   /**
-    * atype
-    * 4: boolean
-    * 5: char
-    * 6: float
-    * 7: double
-    * 8: byte
-    * 9: short
-    * 10: int
-    * 11: long
-    */
-   int32_t elementSize = atype == 7 || atype == 11 ? 8 : 4;
-   
-   TR_OpaqueClassBlock* arrayType = comp()->fe()->getClassFromNewArrayType(atype);
 
-   AbsValue *length = absState->pop();
-
-   if (length->getConstraint() && length->getConstraint()->asIntConstraint())
-      {
-      AbsValue* value = AbsValue::createArrayObject(arrayType, true, length->getConstraint()->getLowInt(), length->getConstraint()->getHighInt(), elementSize, comp(), region(), vp());
-      absState->push(value);
-      return absState;
-      }
-
-   AbsValue* value = AbsValue::createArrayObject(arrayType, true, 0, INT32_MAX, elementSize, comp(), region(), vp());
-   absState->push(value);
-   return absState;
-   }
 
 void AbsInterpreter::invokevirtual()
    {

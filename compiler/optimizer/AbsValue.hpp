@@ -41,6 +41,8 @@ class AbsValue
     * Though it has nothing to do with the Value Propagation optimization.
     */
    static AbsValue* create(TR::VPConstraint *constraint, TR::DataType dataType, TR::Region& region);
+
+   static AbsValue* create(AbsValue* other, TR::Region& region);
    
    static AbsValue* createClassObject(TR_OpaqueClassBlock* opaqueClass, bool mustBeNonNull, TR::Compilation*comp, TR::Region& region, OMR::ValuePropagation* vp);
 
@@ -64,7 +66,22 @@ class AbsValue
    static AbsValue* createDummyDouble(TR::Region& region);
    static AbsValue* createDummyLong(TR::Region& region);
 
-   
+   bool isNullObject() { return _constraint && _constraint->isNullObject(); }
+   bool isNonNullObject() { return _constraint && _constraint->isNonNullObject(); }
+
+   bool isArrayObject() { return _constraint && _constraint->asClass() && _constraint->getArrayInfo(); }
+   bool isClassObject() { return _constraint && _constraint->asClass() && !_constraint->getArrayInfo(); }
+   bool isStringConst() { return _constraint && _constraint->asConstString(); }
+   bool isObject() { return _constraint && (_constraint->asClass() || _constraint->asConstString()); }
+
+   bool isIntConst() { return _constraint && _constraint->asIntConst(); }
+   bool isIntRange() { return _constraint && _constraint->asIntRange(); }
+   bool isInt() { return _constraint && _constraint->asIntConstraint(); }
+
+   bool isLongConst() { return _constraint && _constraint->asLongConst(); }
+   bool isLongRange() { return _constraint && _constraint->asLongRange(); }
+   bool isLong() { return _constraint && _constraint->asLongConstraint(); }
+
    /**
     * @brief Merge with another AbsValue. 
     * Note: This is in-place merge. 
@@ -82,27 +99,11 @@ class AbsValue
    AbsValue* merge(AbsValue *other, OMR::ValuePropagation *vp);
 
    /**
-    * @brief Check if the AbsValue is Top.
-    * 
-    * Top is a notion in lattice theory, denoting the 'maximum'.
-    * Though this method seems doing the same thing as hasConstriant().
-    * 
-    * A Top value, theoretically, can still have a constraint.
-    * For example, a Top Int has the constraint <INT_MIN, INT_MAX>
-    * However, by the implementation of TR::VPConstaint, we are not allowed to create an Int constraint <INT_MIN, INT_MAX>.
-    * 
-    * This method should be re-implmented in the future in case we are not using TR::VPConstaint as the constraint.
+    * @brief Check whehter the AbsValue does not have a constraint
     *
     * @return bool
     */
    bool isTop() { return _constraint == NULL; };
-
-   /**
-    * @brief Check if the AbsValue has a constraint
-    *
-    * @return bool
-    */
-   bool hasConstraint() { return _constraint != NULL; };
 
    /**
     * @brief Set the constriant to unknown.
