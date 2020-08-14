@@ -39,18 +39,18 @@ bool AbsInterpreter::interpret()
          {
          moveToNextBasicBlock(); //We may move to the end (currentBlock() -> NULL)
          }
-
+      
       if (currentBlock()) 
          {
          if (currentBlock()->getAbsState())
             {
-            // bool success = interpretByteCode();
-            // if (!success)
-            //    return false;
+            bool success = interpretByteCode();
+            if (!success)
+               return false;
             }
          else 
             {
-            //dead code block, does not have a absState
+            //dead code block, does not have an absState
             }
 
          next(); //move to next bytecode
@@ -73,7 +73,8 @@ void AbsInterpreter::moveToNextBasicBlock()
 
    if (currentBlock())
       {
-      //transferAbsStates(); //transfer CFG abstract states to the current basic block
+      printf("----- Interpreter Block # %d\n", currentBlock()->getNumber());
+      transferBlockStatesFromPredeccesors(); //transfer CFG abstract states to the current basic block
       setIndex(currentBlock()->getBlockBCIndex()); //set the start index of the bytecode iterator
       }
    }
@@ -122,7 +123,7 @@ void AbsInterpreter::moveToNextBasicBlock()
 //       if (traceAbstractInterpretation) 
 //          traceMsg(comp(), "-3. Abstract Interpreter: Transfer abstract states\n");
 
-//       transferAbsStates(block);
+//       transferBlockStatesFromPredeccesors(block);
 
 //       int32_t start = block->getBlockBCIndex();
 //       int32_t end = start + block->getBlockSize();
@@ -196,7 +197,7 @@ void AbsInterpreter::setStartBlockState()
    //set the explicit parameters
    for (TR_MethodParameterIterator *paramIterator = _callerMethod->getParameterIterator(*comp()); !paramIterator->atEnd(); paramIterator->advanceCursor(), localVarArraySlot++, paramPos++)
       {
-      TR::DataType dataType = parameterIterator->getDataType();
+      TR::DataType dataType = paramIterator->getDataType();
       AbsValue* paramValue = NULL;
 
       switch (dataType)
@@ -248,6 +249,7 @@ void AbsInterpreter::setStartBlockState()
                paramValue->setParamPosition(paramPos);
                state->set(localVarArraySlot, paramValue);
                }
+            break;
             }
 
          default:
@@ -259,592 +261,620 @@ void AbsInterpreter::setStartBlockState()
    _cfg->getStart()->asBlock()->setAbsState(state);
    }
 
-// void AbsInterpreter::mergeAllPredecessorsAbsStates()
-//    {
-//    //printf("Merge all predecesor of block %d\n", block->getNumber());
-//    TR::Block* block = currentBlock();
-//    TR::CFGEdgeList &predecessors = block->getPredecessors();
-//     = NULL;
+void AbsInterpreter::mergePredecessorsAbsStates()
+   {
+   //printf("Merge all predecesor of block %d\n", block->getNumber());
+   TR::Block* block = currentBlock();
+   TR::CFGEdgeList &predecessors = block->getPredecessors();
 
-//    bool first = true;
+   AbsState* mergedState = NULL;
 
-//    for (auto i = predecessors.begin(), e = predecessors.end(); i != e; ++i)
-//       {
-//       auto *edge = *i;
-//       TR::Block *aBlock = edge->getFrom()->asBlock();
-//       TR::Block *check = edge->getTo()->asBlock();
-//       if (check != block)
-//          continue;
+   bool first = true;
 
-//       if (comp()->trace(OMR::benefitInliner))
-//          {
-//          traceMsg(comp(), "Merge Abstract State Predecessor: #%d\n", aBlock->getNumber());
-//          //absState->trace(vp());
-//          }
-//       //printf("Merge Abstract State Predecessor: #%d\n", aBlock->getNumber());
+   for (auto i = predecessors.begin(), e = predecessors.end(); i != e; ++i)
+      {
+      auto *edge = *i;
+      TR::Block *aBlock = edge->getFrom()->asBlock();
+      TR::Block *check = edge->getTo()->asBlock();
+      if (check != block)
+         continue;
 
-//       if (first) 
-//          {
-//          first = false;
-//          absState = new (region()) AbsState(aBlock->getAbsState(), region());
+      if (comp()->trace(OMR::benefitInliner))
+         {
+         //traceMsg(comp(), "@@@@@@Merge Abstract State Predecessor: #%d\n", aBlock->getNumber());
+         //absState->trace(vp());
+         }
+      printf("@@@@@@@Merge Abstract State Predecessor: #%d\n", aBlock->getNumber());
 
-//          continue;
-//          }
+      if (first) 
+         {
+         first = false;
+         mergedState = new (region()) AbsState(aBlock->getAbsState(), region());
 
-//       // merge with the rest;
-//       absState->merge(aBlock->getAbsState(), vp());
-//       }
+         continue;
+         }
 
-//       traceMsg(comp(), "Merged Abstract State:\n");
-//       absState->print(comp(), vp());
-//       block->setAbsState(absState);
-//    }
+      // merge with the rest;
+      mergedState->merge(aBlock->getAbsState(), vp());
+      }
 
-// void AbsInterpreter::transferAbsStates()
-//    {
-//    TR::Block* block = currentBlock();
-//    bool traceAbstractInterpretation = comp()->getOption(TR_TraceAbstractInterpretation);
-//    //printf("-    4. Abstract Interpreter: Transfer abstract states\n");
+      traceMsg(comp(), "Merged Abstract State:\n");
+      mergedState->print(comp(), vp());
+      block->setAbsState(mergedState);
+   }
 
-//    if (block->getPredecessors().size() == 0) //has no predecessors
-//       {
-//       if (traceAbstractInterpretation)
-//          traceMsg(comp(), "No predecessors. Stop.\n");
-//       //printf("No predecessors. Stop.\n");
-//       return;
-//       }
+void AbsInterpreter::transferBlockStatesFromPredeccesors()
+   {
+   TR::Block* block = currentBlock();
+   bool traceAbstractInterpretation = comp()->getOption(TR_TraceAbstractInterpretation);
+   //printf("-    4. Abstract Interpreter: Transfer abstract states\n");
+
+   if (block->getPredecessors().size() == 0) //has no predecessors
+      {
+      if (traceAbstractInterpretation)
+         traceMsg(comp(), "No predecessors. Stop.\n");
+      printf("@@@No predecessors. Stop.\n");
+      return;
+      }
       
-//    //Case 1:
-//    // A loop in dead code area
-//    if (block->hasOnlyOnePredecessor() && !block->getPredecessors().front()->getFrom()->asBlock()->getAbsState())
-//       {
-//       //printf("      There is a loop. Stop.\n");
-//       if (traceAbstractInterpretation) 
-//          traceMsg(comp(), "Loop in dead code area. Stop.\n");
-//       return;
-//       }
+   //Case 1:
+   // A loop in dead code area
+   if (block->hasOnlyOnePredecessor() && !block->getPredecessors().front()->getFrom()->asBlock()->getAbsState())
+      {
+      printf("@@@There is a loop. Stop.\n");
+      if (traceAbstractInterpretation) 
+         traceMsg(comp(), "Loop in dead code area. Stop.\n");
+      return;
+      }
       
-//    //Case: 2
-//    // If we only have one interpreted predecessor.
-//    if (block->hasOnlyOnePredecessor() && block->getPredecessors().front()->getFrom()->asBlock()->getAbsState()) 
-//       {
-//       AbsState *absState = new (region()) AbsState(block->getPredecessors().front()->getFrom()->asBlock()->getAbsState(), region());
-//       block->setAbsState(absState);
-//       if (traceAbstractInterpretation) 
-//          {
-//          traceMsg(comp(), "There is only one predecessor: #%d and interpreted. Pass this abstract state.\n",block->getPredecessors().front()->getFrom()->asBlock()->getNumber() );
-//          //absState->trace(vp());
-//          }
-//       //printf("      There is only one predecessor: #%d and interpreted. Pass this abstract state.\n",block->getPredecessors().front()->getFrom()->asBlock()->getNumber());
+   //Case: 2
+   // If we only have one interpreted predecessor.
+   if (block->hasOnlyOnePredecessor() && block->getPredecessors().front()->getFrom()->asBlock()->getAbsState()) 
+      {
+      AbsState *absState = new (region()) AbsState(block->getPredecessors().front()->getFrom()->asBlock()->getAbsState(), region());
+      block->setAbsState(absState);
+      if (traceAbstractInterpretation) 
+         {
+         traceMsg(comp(), "There is only one predecessor: #%d and interpreted. Pass this abstract state.\n",block->getPredecessors().front()->getFrom()->asBlock()->getNumber() );
+         //absState->trace(vp());
+         }
+      printf("@@@There is only one predecessor: #%d and interpreted. Pass this abstract state.\n",block->getPredecessors().front()->getFrom()->asBlock()->getNumber());
         
-//       return;
-//       }
+      return;
+      }
 
-//    //Case: 3
-//    // multiple predecessors...all interpreted
-//    if (block->hasAbstractInterpretedAllPredecessors()) 
-//       {
-//       //printf("      There are multiple predecessors and all interpreted. Merge their abstract states.\n");
-//       if (traceAbstractInterpretation) 
-//          traceMsg(comp(), "There are multiple predecessors and all interpreted. Merge their abstract states.\n");
+   //Case: 3
+   // multiple predecessors...all interpreted
+   if (block->hasAbstractInterpretedAllPredecessors()) 
+      {
+      printf("@@@There are multiple predecessors and all interpreted. Merge their abstract states.\n");
+      if (traceAbstractInterpretation) 
+         traceMsg(comp(), "There are multiple predecessors and all interpreted. Merge their abstract states.\n");
 
-//       mergeAllPredecessors();
-//       return;
-//       }
+      mergePredecessorsAbsStates();
+      return;
+      }
 
-//    //Case: 4
-//    // we have not interpreted all predecessors...
-//    // look for a predecessor that has been interpreted
-//    //printf("      Not all predecessors are interpreted. Finding one interpretd...\n");
-//    if (traceAbstractInterpretation) 
-//       traceMsg(comp(), "Not all predecessors are interpreted. Finding one interpretd...\n");
+   //Case: 4
+   // we have not interpreted all predecessors...
+   // look for a predecessor that has been interpreted
+   //printf("      Not all predecessors are interpreted. Finding one interpretd...\n");
+   if (traceAbstractInterpretation) 
+      traceMsg(comp(), "Not all predecessors are interpreted. Finding one interpretd...\n");
   
-//    TR::CFGEdgeList &predecessors = block->getPredecessors();
-//    for (auto i = predecessors.begin(), e = predecessors.end(); i != e; ++i)
-//       {
-//       auto *edge = *i;
-//       TR::Block *parentBlock = edge->getFrom()->asBlock();
-//       TR::Block *check = edge->getTo()->asBlock();
-//       if (check != block)
-//          {
-//          if (traceAbstractInterpretation)
-//             traceMsg(comp(), "fail check\n");
-//          continue;
-//          }
+   TR::CFGEdgeList &predecessors = block->getPredecessors();
+   for (auto i = predecessors.begin(), e = predecessors.end(); i != e; ++i)
+      {
+      auto *edge = *i;
+      TR::Block *parentBlock = edge->getFrom()->asBlock();
+      TR::Block *check = edge->getTo()->asBlock();
+      if (check != block)
+         {
+         if (traceAbstractInterpretation)
+            traceMsg(comp(), "fail check\n");
+         continue;
+         }
 
-//       if (!parentBlock->getAbsState())
-//          continue;
+      if (!parentBlock->getAbsState())
+         continue;
          
 
-//       if (traceAbstractInterpretation)
-//          traceMsg(comp(), "Find a predecessor: Block:#%d interpreted. Use its type info and setting all abstract values to be TOP\n", parentBlock->getNumber());
+      if (traceAbstractInterpretation)
+         traceMsg(comp(), "Find a predecessor: Block:#%d interpreted. Use its type info and setting all abstract values to be TOP\n", parentBlock->getNumber());
    
-//       //printf("      Find a predecessor: #%d interpreted. Use its type info and setting all abstract values to be TOP\n", parentBlock->getNumber());
+      printf("@@@Find a predecessor: #%d interpreted. Use its type info and setting all abstract values to be TOP\n", parentBlock->getNumber());
 
-//       // We find a predecessor interpreted. Use its type info with all AbsValues being TOP (unkown)
-//       AbsState *parentState = parentBlock->getAbsState();
+      // We find a predecessor interpreted. Use its type info with all AbsValues being TOP (unkown)
+      AbsState *parentState = parentBlock->getAbsState();
 
-//       AbsState *newState = new (region()) AbsState(parentState, region());
+      AbsState *newState = new (region()) AbsState(parentState, region());
 
-//       TR::deque<AbsValue*, TR::Region&> deque(comp()->trMemory()->currentStackRegion());
+      TR::deque<AbsValue*, TR::Region&> deque(comp()->trMemory()->currentStackRegion());
 
-//       size_t stackSize = newState->getStackSize();
-//       for (size_t i = 0; i < stackSize; i++)
-//          {
-//          AbsValue *value = newState->pop();
-//          value->setToTop();
-//          deque.push_back(value);
-//          }
+      size_t stackSize = newState->getStackSize();
+      for (size_t i = 0; i < stackSize; i++)
+         {
+         AbsValue *value = newState->pop();
+         value->setToTop();
+         deque.push_back(value);
+         }
          
-//       for (size_t i = 0; i < stackSize; i++)
-//          {
-//          newState->push(deque.back());
-//          deque.pop_back();
-//          }
+      for (size_t i = 0; i < stackSize; i++)
+         {
+         newState->push(deque.back());
+         deque.pop_back();
+         }
         
-//       size_t arraySize = newState->getArraySize();
+      size_t arraySize = newState->getArraySize();
 
-//       for (size_t i = 0; i < arraySize; i++)
-//          {
-//          if (newState->at(i) != NULL)
-//             newState->at(i)->setToTop();
-//          }      
+      for (size_t i = 0; i < arraySize; i++)
+         {
+         if (newState->at(i) != NULL)
+            newState->at(i)->setToTop();
+         }      
 
-//       block->setAbsState(newState);
-//       return;
-//       }
+      block->setAbsState(newState);
+      return;
+      }
       
-//    if (traceAbstractInterpretation)
-//       traceMsg(comp(), "No predecessor is interpreted. Stop.\n");
-//    }
+   if (traceAbstractInterpretation)
+      traceMsg(comp(), "No predecessor is interpreted. Stop.\n");
+   }
 
 
 
-// bool AbsInterpreter::interpretByteCode()
-//    {
-//    TR_J9ByteCode bc = current();
-//       char *J9_ByteCode_Strings[] =
-// {
-//     "J9BCnop",
-//    "J9BCaconstnull",
-//    "J9BCiconstm1",
-//    "J9BCiconst0", "J9BCiconst1", "J9BCiconst2", "J9BCiconst3", "J9BCiconst4", "J9BCiconst5", 
-//    "J9BClconst0", "J9BClconst1", 
-//    "J9BCfconst0", "J9BCfconst1", "J9BCfconst2",
-//    "J9BCdconst0", "J9BCdconst1",
-//    "J9BCbipush", "J9BCsipush",
-//    "J9BCldc", "J9BCldcw", "J9BCldc2lw", "J9BCldc2dw",
-//    "J9BCiload", "J9BClload", "J9BCfload", "J9BCdload", "J9BCaload",
-//    "J9BCiload0", "J9BCiload1", "J9BCiload2", "J9BCiload3", 
-//    "J9BClload0", "J9BClload1", "J9BClload2", "J9BClload3",
-//    "J9BCfload0", "J9BCfload1", "J9BCfload2", "J9BCfload3",
-//    "J9BCdload0", "J9BCdload1", "J9BCdload2", "J9BCdload3",
-//    "J9BCaload0", "J9BCaload1", "J9BCaload2", "J9BCaload3",
-//    "J9BCiaload", "J9BClaload", "J9BCfaload", "J9BCdaload", "J9BCaaload", "J9BCbaload", "J9BCcaload", "J9BCsaload",
-//    "J9BCiloadw", "J9BClloadw", "J9BCfloadw", "J9BCdloadw", "J9BCaloadw", 
-//    "J9BCistore", "J9BClstore", "J9BCfstore", "J9BCdstore", "J9BCastore",
-//    "J9BCistorew", "J9BClstorew", "J9BCfstorew", "J9BCdstorew", "J9BCastorew",
-//    "J9BCistore0", "J9BCistore1", "J9BCistore2", "J9BCistore3",
-//    "J9BClstore0", "J9BClstore1", "J9BClstore2", "J9BClstore3",
-//    "J9BCfstore0", "J9BCfstore1", "J9BCfstore2", "J9BCfstore3",
-//    "J9BCdstore0", "J9BCdstore1", "J9BCdstore2", "J9BCdstore3",
-//    "J9BCastore0", "J9BCastore1", "J9BCastore2", "J9BCastore3",
-//    "J9BCiastore", "J9BClastore", "J9BCfastore", "J9BCdastore", "J9BCaastore", "J9BCbastore", "J9BCcastore", "J9BCsastore",
-//    "J9BCpop", "J9BCpop2",
-//    "J9BCdup", "J9BCdupx1", "J9BCdupx2", "J9BCdup2", "J9BCdup2x1", "J9BCdup2x2",
-//    "J9BCswap",
-//    "J9BCiadd", "J9BCladd", "J9BCfadd", "J9BCdadd",
-//    "J9BCisub", "J9BClsub", "J9BCfsub", "J9BCdsub",
-//    "J9BCimul", "J9BClmul", "J9BCfmul", "J9BCdmul",
-//    "J9BCidiv", "J9BCldiv", "J9BCfdiv", "J9BCddiv",
-//    "J9BCirem", "J9BClrem", "J9BCfrem", "J9BCdrem",
-//    "J9BCineg", "J9BClneg", "J9BCfneg", "J9BCdneg",
-//    "J9BCishl", "J9BClshl", "J9BCishr", "J9BClshr", "J9BCiushr", "J9BClushr",
-//    "J9BCiand", "J9BCland",
-//    "J9BCior", "J9BClor",
-//    "J9BCixor", "J9BClxor",
-//    "J9BCiinc", "J9BCiincw", 
-//    "J9BCi2l", "J9BCi2f", "J9BCi2d", 
-//    "J9BCl2i", "J9BCl2f", "J9BCl2d", "J9BCf2i", "J9BCf2l", "J9BCf2d",
-//    "J9BCd2i", "J9BCd2l", "J9BCd2f",
-//    "J9BCi2b", "J9BCi2c", "J9BCi2s",
-//    "J9BClcmp", "J9BCfcmpl", "J9BCfcmpg", "J9BCdcmpl", "J9BCdcmpg",
-//    "J9BCifeq", "J9BCifne", "J9BCiflt", "J9BCifge", "J9BCifgt", "J9BCifle",
-//    "J9BCificmpeq", "J9BCificmpne", "J9BCificmplt", "J9BCificmpge", "J9BCificmpgt", "J9BCificmple", "J9BCifacmpeq", "J9BCifacmpne",
-//    "J9BCifnull", "J9BCifnonnull",
-//    "J9BCgoto", 
-//    "J9BCgotow", 
-//    "J9BCtableswitch", "J9BClookupswitch",
-//    "J9BCgenericReturn",
-//    "J9BCgetstatic", "J9BCputstatic",
-//    "J9BCgetfield", "J9BCputfield",
-//    "J9BCinvokevirtual", "J9BCinvokespecial", "J9BCinvokestatic", "J9BCinvokeinterface", "J9BCinvokedynamic", "J9BCinvokehandle", "J9BCinvokehandlegeneric","J9BCinvokespecialsplit", 
+bool AbsInterpreter::interpretByteCode()
+   {
+   TR_J9ByteCode bc = current();
+      char *J9_ByteCode_Strings[] =
+{
+    "J9BCnop",
+   "J9BCaconstnull",
+   "J9BCiconstm1",
+   "J9BCiconst0", "J9BCiconst1", "J9BCiconst2", "J9BCiconst3", "J9BCiconst4", "J9BCiconst5", 
+   "J9BClconst0", "J9BClconst1", 
+   "J9BCfconst0", "J9BCfconst1", "J9BCfconst2",
+   "J9BCdconst0", "J9BCdconst1",
+   "J9BCbipush", "J9BCsipush",
+   "J9BCldc", "J9BCldcw", "J9BCldc2lw", "J9BCldc2dw",
+   "J9BCiload", "J9BClload", "J9BCfload", "J9BCdload", "J9BCaload",
+   "J9BCiload0", "J9BCiload1", "J9BCiload2", "J9BCiload3", 
+   "J9BClload0", "J9BClload1", "J9BClload2", "J9BClload3",
+   "J9BCfload0", "J9BCfload1", "J9BCfload2", "J9BCfload3",
+   "J9BCdload0", "J9BCdload1", "J9BCdload2", "J9BCdload3",
+   "J9BCaload0", "J9BCaload1", "J9BCaload2", "J9BCaload3",
+   "J9BCiaload", "J9BClaload", "J9BCfaload", "J9BCdaload", "J9BCaaload", "J9BCbaload", "J9BCcaload", "J9BCsaload",
+   "J9BCiloadw", "J9BClloadw", "J9BCfloadw", "J9BCdloadw", "J9BCaloadw", 
+   "J9BCistore", "J9BClstore", "J9BCfstore", "J9BCdstore", "J9BCastore",
+   "J9BCistorew", "J9BClstorew", "J9BCfstorew", "J9BCdstorew", "J9BCastorew",
+   "J9BCistore0", "J9BCistore1", "J9BCistore2", "J9BCistore3",
+   "J9BClstore0", "J9BClstore1", "J9BClstore2", "J9BClstore3",
+   "J9BCfstore0", "J9BCfstore1", "J9BCfstore2", "J9BCfstore3",
+   "J9BCdstore0", "J9BCdstore1", "J9BCdstore2", "J9BCdstore3",
+   "J9BCastore0", "J9BCastore1", "J9BCastore2", "J9BCastore3",
+   "J9BCiastore", "J9BClastore", "J9BCfastore", "J9BCdastore", "J9BCaastore", "J9BCbastore", "J9BCcastore", "J9BCsastore",
+   "J9BCpop", "J9BCpop2",
+   "J9BCdup", "J9BCdupx1", "J9BCdupx2", "J9BCdup2", "J9BCdup2x1", "J9BCdup2x2",
+   "J9BCswap",
+   "J9BCiadd", "J9BCladd", "J9BCfadd", "J9BCdadd",
+   "J9BCisub", "J9BClsub", "J9BCfsub", "J9BCdsub",
+   "J9BCimul", "J9BClmul", "J9BCfmul", "J9BCdmul",
+   "J9BCidiv", "J9BCldiv", "J9BCfdiv", "J9BCddiv",
+   "J9BCirem", "J9BClrem", "J9BCfrem", "J9BCdrem",
+   "J9BCineg", "J9BClneg", "J9BCfneg", "J9BCdneg",
+   "J9BCishl", "J9BClshl", "J9BCishr", "J9BClshr", "J9BCiushr", "J9BClushr",
+   "J9BCiand", "J9BCland",
+   "J9BCior", "J9BClor",
+   "J9BCixor", "J9BClxor",
+   "J9BCiinc", "J9BCiincw", 
+   "J9BCi2l", "J9BCi2f", "J9BCi2d", 
+   "J9BCl2i", "J9BCl2f", "J9BCl2d", "J9BCf2i", "J9BCf2l", "J9BCf2d",
+   "J9BCd2i", "J9BCd2l", "J9BCd2f",
+   "J9BCi2b", "J9BCi2c", "J9BCi2s",
+   "J9BClcmp", "J9BCfcmpl", "J9BCfcmpg", "J9BCdcmpl", "J9BCdcmpg",
+   "J9BCifeq", "J9BCifne", "J9BCiflt", "J9BCifge", "J9BCifgt", "J9BCifle",
+   "J9BCificmpeq", "J9BCificmpne", "J9BCificmplt", "J9BCificmpge", "J9BCificmpgt", "J9BCificmple", "J9BCifacmpeq", "J9BCifacmpne",
+   "J9BCifnull", "J9BCifnonnull",
+   "J9BCgoto", 
+   "J9BCgotow", 
+   "J9BCtableswitch", "J9BClookupswitch",
+   "J9BCgenericReturn",
+   "J9BCgetstatic", "J9BCputstatic",
+   "J9BCgetfield", "J9BCputfield",
+   "J9BCinvokevirtual", "J9BCinvokespecial", "J9BCinvokestatic", "J9BCinvokeinterface", "J9BCinvokedynamic", "J9BCinvokehandle", "J9BCinvokehandlegeneric","J9BCinvokespecialsplit", 
 
-//    /** \brief
-//     *      Pops 1 int32_t argument off the stack and truncates to a uint16_t.
-//     */
-// 	"J9BCReturnC",
+   /** \brief
+    *      Pops 1 int32_t argument off the stack and truncates to a uint16_t.
+    */
+	"J9BCReturnC",
 
-// 	/** \brief
-//     *      Pops 1 int32_t argument off the stack and truncates to a int16_t.
-//     */
-// 	"J9BCReturnS",
+	/** \brief
+    *      Pops 1 int32_t argument off the stack and truncates to a int16_t.
+    */
+	"J9BCReturnS",
 
-// 	/** \brief
-//     *      Pops 1 int32_t argument off the stack and truncates to a int8_t.
-//     */
-// 	"J9BCReturnB",
+	/** \brief
+    *      Pops 1 int32_t argument off the stack and truncates to a int8_t.
+    */
+	"J9BCReturnB",
 
-// 	/** \brief
-//     *      Pops 1 int32_t argument off the stack returns the single lowest order bit.
-//     */
-// 	"J9BCReturnZ",
+	/** \brief
+    *      Pops 1 int32_t argument off the stack returns the single lowest order bit.
+    */
+	"J9BCReturnZ",
 
-// 	"J9BCinvokestaticsplit", "J9BCinvokeinterface2",
-//    "J9BCnew", "J9BCnewarray", "J9BCanewarray", "J9BCmultianewarray",
-//    "J9BCarraylength",
-//    "J9BCathrow",
-//    "J9BCcheckcast",
-//    "J9BCinstanceof",
-//    "J9BCmonitorenter", "J9BCmonitorexit",
-//    "J9BCwide",
-//    "J9BCasyncCheck",
-//    "J9BCdefaultvalue",
-//    "J9BCwithfield",
-//    "J9BCbreakpoint",
-//    "J9BCunknown"
-// };
-//    //printf("+Bytecode: %s | %d\n",J9_ByteCode_Strings[bc], bci.nextByte());
-//    switch(bc)
-//       {
-//       case J9BCnop: nop(state); break;
+	"J9BCinvokestaticsplit", "J9BCinvokeinterface2",
+   "J9BCnew", "J9BCnewarray", "J9BCanewarray", "J9BCmultianewarray",
+   "J9BCarraylength",
+   "J9BCathrow",
+   "J9BCcheckcast",
+   "J9BCinstanceof",
+   "J9BCmonitorenter", "J9BCmonitorexit",
+   "J9BCwide",
+   "J9BCasyncCheck",
+   "J9BCdefaultvalue",
+   "J9BCwithfield",
+   "J9BCbreakpoint",
+   "J9BCunknown"
+};
+   printf("+Bytecode: %s | %d\n\n",J9_ByteCode_Strings[bc], nextByte());
+   switch(bc)
+      {
+      case J9BCnop: nop(); break;
 
-//       case J9BCaconstnull: aconstnull(state); break;
+      case J9BCaconstnull: constantNull(); break;
 
-//       //iconst_x
-//       case J9BCiconstm1: constant((int32_t)-1); break;
-//       case J9BCiconst0: constant((int32_t)0); break;
-//       case J9BCiconst1: constant((int32_t)1); break;
-//       case J9BCiconst2: constant((int32_t)2); break;
-//       case J9BCiconst3: constant((int32_t)3); break;
-//       case J9BCiconst4: constant((int32_t)4); break;
-//       case J9BCiconst5: constant((int32_t)5); break;
+      //iconst_x
+      case J9BCiconstm1: constant((int32_t)-1); break;
+      case J9BCiconst0: constant((int32_t)0); break;
+      case J9BCiconst1: constant((int32_t)1); break;
+      case J9BCiconst2: constant((int32_t)2); break;
+      case J9BCiconst3: constant((int32_t)3); break;
+      case J9BCiconst4: constant((int32_t)4); break;
+      case J9BCiconst5: constant((int32_t)5); break;
 
-//       //lconst_x
-//       case J9BClconst0: constant((int64_t)0); break;
-//       case J9BClconst1: constant((int64_t)1); break;
+      //lconst_x
+      case J9BClconst0: constant((int64_t)0); break;
+      case J9BClconst1: constant((int64_t)1); break;
 
-//       //fconst_x
-//       case J9BCfconst0: constant((float)0); break;
-//       case J9BCfconst1: constant((float)1); break;
-//       case J9BCfconst2: constant((float)2); break;
+      //fconst_x
+      case J9BCfconst0: constant((float)0); break;
+      case J9BCfconst1: constant((float)1); break;
+      case J9BCfconst2: constant((float)2); break;
 
-//       //dconst_x
-//       case J9BCdconst0: constant((double)0); break;
-//       case J9BCdconst1: constant((double)1); break;
+      //dconst_x
+      case J9BCdconst0: constant((double)0); break;
+      case J9BCdconst1: constant((double)1); break;
 
-//       //x_push
-//       case J9BCbipush: constant((int32_t)nextByteSigned()); break;
-//       case J9BCsipush: constant((int32_t)next2BytesSigned()); break;
+      //x_push
+      case J9BCbipush: constant((int32_t)nextByteSigned()); break;
+      case J9BCsipush: constant((int32_t)next2BytesSigned()); break;
 
-//       //ldc_x
-//       case J9BCldc: ldc(false); break;
-//       case J9BCldcw: ldc(true)); break;
-//       case J9BCldc2lw: ldc(true); break; //internal bytecode equivalent to ldc2_w
-//       case J9BCldc2dw: ldc(true); break; //internal bytecode equivalent to ldc2_w
+      //ldc_x
+      case J9BCldc: ldc(false); break;
+      case J9BCldcw: ldc(true); break;
+      case J9BCldc2lw: ldc(true); break;
+      case J9BCldc2dw: ldc(true); break; 
 
-//       //iload_x
-//       case J9BCiload: iload(state, bci.nextByte()); break;
-//       case J9BCiload0: iload0(state); break;
-//       case J9BCiload1: iload1(state); break;
-//       case J9BCiload2: iload2(state); break;
-//       case J9BCiload3: iload3(state); break;
-//       case J9BCiloadw: iload(state, bci.next2Bytes()); break;
+      //iload_x
+      case J9BCiload: load(TR::Int32, nextByte()); break;
+      case J9BCiload0: load(TR::Int32, 0); break;
+      case J9BCiload1: load(TR::Int32, 1); break;
+      case J9BCiload2: load(TR::Int32, 2); break;
+      case J9BCiload3: load(TR::Int32, 3); break;
+      case J9BCiloadw: load(TR::Int32, next2Bytes()); break;
 
-//       //lload_x
-//       case J9BClload: lload(state, bci.nextByte()); break;
-//       case J9BClload0: lload0(state); break;
-//       case J9BClload1: lload1(state); break;
-//       case J9BClload2: lload2(state); break;
-//       case J9BClload3: lload3(state); break;
-//       case J9BClloadw: lload(state, bci.next2Bytes()); break;
+      //lload_x
+      case J9BClload: load(TR::Int64, nextByte()); break;
+      case J9BClload0: load(TR::Int64, 0); break;
+      case J9BClload1: load(TR::Int64, 1); break;
+      case J9BClload2: load(TR::Int64, 2); break;
+      case J9BClload3: load(TR::Int64, 3); break;
+      case J9BClloadw: load(TR::Int64, next2Bytes()); break;
 
-//       //fload_x
-//       case J9BCfload: fload(state, bci.nextByte()); break;
-//       case J9BCfload0: fload0(state); break;
-//       case J9BCfload1: fload1(state); break;
-//       case J9BCfload2: fload2(state); break;
-//       case J9BCfload3: fload3(state); break;
-//       case J9BCfloadw: fload(state,bci.next2Bytes()); break;
+      //fload_x
+      case J9BCfload: load(TR::Float, nextByte()); break;
+      case J9BCfload0: load(TR::Float, 0); break;
+      case J9BCfload1: load(TR::Float, 1); break;
+      case J9BCfload2: load(TR::Float, 2); break;
+      case J9BCfload3: load(TR::Float, 3); break;
+      case J9BCfloadw: load(TR::Float, next2Bytes()); break;
 
-//       //dload_x
-//       case J9BCdload: dload(state, bci.nextByte()); break;
-//       case J9BCdload0: dload0(state); break;
-//       case J9BCdload1: dload1(state); break;
-//       case J9BCdload2: dload2(state); break;
-//       case J9BCdload3: dload3(state); break;
-//       case J9BCdloadw: dload(state, bci.next2Bytes()); break;
+      //dload_x
+      case J9BCdload: load(TR::Double, nextByte()); break;
+      case J9BCdload0: load(TR::Double, 0); break;
+      case J9BCdload1: load(TR::Double, 1); break;
+      case J9BCdload2: load(TR::Double, 2); break;
+      case J9BCdload3: load(TR::Double, 3); break;
+      case J9BCdloadw: load(TR::Double, next2Bytes()); break;
 
-//       //aload_x
-//       case J9BCaload: aload(state, bci.nextByte()); break;
-//       case J9BCaload0: aload0(state); break;
-//       case J9BCaload1: aload1(state); break;
-//       case J9BCaload2: aload2(state); break;
-//       case J9BCaload3: aload3(state); break;
-//       case J9BCaloadw: aload(state, bci.next2Bytes()); break;
+      //aload_x
+      case J9BCaload: load(TR::Address, nextByte()); break;
+      case J9BCaload0: load(TR::Address, 0); break;
+      case J9BCaload1: load(TR::Address, 1); break;
+      case J9BCaload2: load(TR::Address, 2); break;
+      case J9BCaload3: load(TR::Address, 3); break;
+      case J9BCaloadw: load(TR::Address, next2Bytes()); break;
 
-//       //x_aload
-//       case J9BCiaload: iaload(state); break;
-//       case J9BClaload: laload(state); break;
-//       case J9BCfaload: faload(state); break;
-//       case J9BCaaload: aaload(state); break;
-//       case J9BCdaload: daload(state); break;
-//       case J9BCcaload: caload(state); break;
-//       case J9BCsaload: saload(state); break;
-//       case J9BCbaload: baload(state); break;
+      //x_aload
+      case J9BCiaload: arrayLoad(TR::Int32); break;
+      case J9BClaload: arrayLoad(TR::Int64); break;
+      case J9BCfaload: arrayLoad(TR::Float); break;
+      case J9BCaaload: arrayLoad(TR::Address); break;
+      case J9BCdaload: arrayLoad(TR::Double); break;
+      case J9BCcaload: arrayLoad(TR::Int16); break;
+      case J9BCsaload: arrayLoad(TR::Int16); break;
+      case J9BCbaload: arrayLoad(TR::Int8); break;
 
-//       //istore_x
-//       case J9BCistore: istore(state, bci.nextByte()); break;
-//       case J9BCistore0: istore0(state); break;
-//       case J9BCistore1: istore1(state); break;
-//       case J9BCistore2: istore2(state); break;
-//       case J9BCistore3: istore3(state); break;
-//       case J9BCistorew: istore(state, bci.next2Bytes()); break;
+      //istore_x
+      case J9BCistore: store(TR::Int32, nextByte()); break;
+      case J9BCistore0: store(TR::Int32, 0); break;
+      case J9BCistore1: store(TR::Int32, 1); break;
+      case J9BCistore2: store(TR::Int32, 2); break;
+      case J9BCistore3: store(TR::Int32, 3); break;
+      case J9BCistorew: store(TR::Int32, next2Bytes()); break;
 
-//       //lstore_x
-//       case J9BClstore: lstore(state, bci.nextByte()); break;
-//       case J9BClstore0: lstore0(state); break;
-//       case J9BClstore1: lstore1(state); break;
-//       case J9BClstore2: lstore2(state); break;
-//       case J9BClstore3: lstore3(state); break;
-//       case J9BClstorew: lstorew(state, bci.next2Bytes()); break; 
+      //lstore_x
+      case J9BClstore: store(TR::Int64, nextByte()); break;
+      case J9BClstore0: store(TR::Int64, 0); break;
+      case J9BClstore1: store(TR::Int64, 1); break;
+      case J9BClstore2: store(TR::Int64, 2); break;
+      case J9BClstore3: store(TR::Int64, 3); break;
+      case J9BClstorew: store(TR::Int64, next2Bytes()); break; 
 
-//       //fstore_x
-//       case J9BCfstore: fstore(state, bci.nextByte()); break;
-//       case J9BCfstore0: fstore0(state); break;
-//       case J9BCfstore1: fstore1(state); break;
-//       case J9BCfstore2: fstore2(state); break;
-//       case J9BCfstore3: fstore3(state); break;
-//       case J9BCfstorew: fstore(state, bci.next2Bytes()); break; 
+      //fstore_x
+      case J9BCfstore: store(TR::Float, nextByte()); break;
+      case J9BCfstore0: store(TR::Float, 0); break;
+      case J9BCfstore1: store(TR::Float, 1); break;
+      case J9BCfstore2: store(TR::Float, 2); break;
+      case J9BCfstore3: store(TR::Float, 3); break;
+      case J9BCfstorew: store(TR::Float, next2Bytes()); break; 
       
-//       //dstore_x
-//       case J9BCdstore: dstore(state, bci.nextByte()); break;
-//       case J9BCdstorew: dstore(state, bci.next2Bytes()); break; 
-//       case J9BCdstore0: dstore0(state); break;
-//       case J9BCdstore1: dstore1(state); break;
-//       case J9BCdstore2: dstore2(state); break;
-//       case J9BCdstore3: dstore3(state); break;
+      //dstore_x
+      case J9BCdstore: store(TR::Double, nextByte()); break;
+      case J9BCdstorew: store(TR::Double, next2Bytes()); break; 
+      case J9BCdstore0: store(TR::Double, 0); break;
+      case J9BCdstore1: store(TR::Double, 1); break;
+      case J9BCdstore2: store(TR::Double, 2); break;
+      case J9BCdstore3: store(TR::Double, 3); break;
 
-//       //astore_x
-//       case J9BCastore: astore(state, bci.nextByte()); break;
-//       case J9BCastore0: astore0(state); break;
-//       case J9BCastore1: astore1(state); break;
-//       case J9BCastore2: astore2(state); break;
-//       case J9BCastore3: astore3(state); break;
-//       case J9BCastorew: astore(state, bci.next2Bytes()); break;
+      //astore_x
+      case J9BCastore: store(TR::Address, nextByte()); break;
+      case J9BCastore0: store(TR::Address, 0); break;
+      case J9BCastore1: store(TR::Address, 1); break;
+      case J9BCastore2: store(TR::Address, 2); break;
+      case J9BCastore3: store(TR::Address, 3); break;
+      case J9BCastorew: store(TR::Address, next2Bytes()); break;
 
-//       //x_astore
-//       case J9BCiastore: iastore(state); break;
-//       case J9BCfastore: fastore(state); break;
-//       case J9BCbastore: bastore(state); break;
-//       case J9BCdastore: dastore(state); break;
-//       case J9BClastore: lastore(state); break;
-//       case J9BCsastore: sastore(state); break;
-//       case J9BCcastore: castore(state); break;
-//       case J9BCaastore: aastore(state); break;
+      //x_astore
+      case J9BCiastore: arrayStore(TR::Int32); break;
+      case J9BCfastore: arrayStore(TR::Float); break;
+      case J9BCbastore: arrayStore(TR::Int8); break;
+      case J9BCdastore: arrayStore(TR::Double); break;
+      case J9BClastore: arrayStore(TR::Int64); break;
+      case J9BCsastore: arrayStore(TR::Int16); break;
+      case J9BCcastore: arrayStore(TR::Int16); break;
+      case J9BCaastore: arrayStore(TR::Address); break;
 
-//       //pop_x
-//       case J9BCpop: pop(state); break;
-//       case J9BCpop2: pop2(state); break;
+      //pop_x
+      case J9BCpop: pop(1); break;
+      case J9BCpop2: pop(2); break;
 
-//       //dup_x
-//       case J9BCdup: dup(state); break;
-//       case J9BCdupx1: dupx1(state); break;
-//       case J9BCdupx2: dupx2(state); break;
-//       case J9BCdup2: dup2(state); break;
-//       case J9BCdup2x1: dup2x1(state); break;
-//       case J9BCdup2x2: dup2x2(state); break;
+      //dup_x
+      case J9BCdup: dup(1, 0); break;
+      case J9BCdupx1: dup(1, 1); break;
+      case J9BCdupx2: dup(1, 2); break;
+      case J9BCdup2: dup(2, 0); break;
+      case J9BCdup2x1: dup(2, 1); break;
+      case J9BCdup2x2: dup(2, 2); break;
 
-//       case J9BCswap: swap(state); break;
+      case J9BCswap: swap(); break;
 
-//       //x_add
-//       case J9BCiadd: iadd(state); break;
-//       case J9BCdadd: dadd(state); break;
-//       case J9BCfadd: fadd(state); break;
-//       case J9BCladd: ladd(state); break;
+      //x_add
+      case J9BCiadd: binaryOperation(TR::Int32, BinaryOperator::plus); break;
+      case J9BCdadd: binaryOperation(TR::Double, BinaryOperator::plus); break;
+      case J9BCfadd: binaryOperation(TR::Float, BinaryOperator::plus); break;
+      case J9BCladd: binaryOperation(TR::Int64, BinaryOperator::plus); break;
 
-//       //x_sub
-//       case J9BCisub: isub(state); break;
-//       case J9BCdsub: dsub(state); break;
-//       case J9BCfsub: fsub(state); break;
-//       case J9BClsub: lsub(state); break;
+      //x_sub
+      case J9BCisub: binaryOperation(TR::Int32, BinaryOperator::minus); break;
+      case J9BCdsub: binaryOperation(TR::Double, BinaryOperator::minus); break;
+      case J9BCfsub: binaryOperation(TR::Float, BinaryOperator::minus); break;
+      case J9BClsub: binaryOperation(TR::Int64, BinaryOperator::minus); break;
 
-//       //x_mul
-//       case J9BCimul: imul(state); break;
-//       case J9BClmul: lmul(state); break;
-//       case J9BCfmul: fmul(state); break;
-//       case J9BCdmul: dmul(state); break;
+      //x_mul
+      case J9BCimul: binaryOperation(TR::Int32, BinaryOperator::mul); break;
+      case J9BClmul: binaryOperation(TR::Int64, BinaryOperator::mul); break;
+      case J9BCfmul: binaryOperation(TR::Float, BinaryOperator::mul); break;
+      case J9BCdmul: binaryOperation(TR::Double, BinaryOperator::mul); break;
 
-//       //x_div
-//       case J9BCidiv: idiv(state); break;
-//       case J9BCddiv: ddiv(state); break;
-//       case J9BCfdiv: fdiv(state); break;
-//       case J9BCldiv: ldiv(state); break;
+      //x_div
+      case J9BCidiv: binaryOperation(TR::Int32, BinaryOperator::div); break;
+      case J9BCddiv: binaryOperation(TR::Double, BinaryOperator::div); break;
+      case J9BCfdiv: binaryOperation(TR::Float, BinaryOperator::div); break;
+      case J9BCldiv: binaryOperation(TR::Int64, BinaryOperator::div); break;
 
-//       //x_rem
-//       case J9BCirem: irem(state); break;
-//       case J9BCfrem: frem(state); break;
-//       case J9BClrem: lrem(state); break;
-//       case J9BCdrem: drem(state); break;
+      //x_rem
+      case J9BCirem: binaryOperation(TR::Int32, BinaryOperator::rem); break;
+      case J9BCfrem: binaryOperation(TR::Float, BinaryOperator::rem); break;
+      case J9BClrem: binaryOperation(TR::Int64, BinaryOperator::rem); break;
+      case J9BCdrem: binaryOperation(TR::Double, BinaryOperator::rem); break;
 
-//       //x_neg
-//       case J9BCineg: ineg(state); break;
-//       case J9BCfneg: fneg(state); break;
-//       case J9BClneg: lneg(state); break;
-//       case J9BCdneg: dneg(state); break;
+      //x_neg
+      case J9BCineg: unaryOperation(TR::Int32, UnaryOperator::neg); break;
+      case J9BCfneg: unaryOperation(TR::Float, UnaryOperator::neg); break;
+      case J9BClneg: unaryOperation(TR::Int64, UnaryOperator::neg); break;
+      case J9BCdneg: unaryOperation(TR::Double, UnaryOperator::neg); break;
 
-//       //x_sh_x
-//       case J9BCishl: ishl(state); break;
-//       case J9BCishr: ishr(state); break;
-//       case J9BCiushr: iushr(state); break;
-//       case J9BClshl: lshl(state); break;
-//       case J9BClshr: lshr(state); break;
-//       case J9BClushr: lushr(state); break;
+      //x_sh_x
+      case J9BCishl: shift(TR::Int32, ShiftOperator::shl); break;
+      case J9BCishr: shift(TR::Int32, ShiftOperator::shr); break;
+      case J9BCiushr: shift(TR::Int32, ShiftOperator::ushr); break;
+      case J9BClshl: shift(TR::Int64, ShiftOperator::shl); break;
+      case J9BClshr: shift(TR::Int64, ShiftOperator::shr); break;
+      case J9BClushr: shift(TR::Int64, ShiftOperator::ushr); break;
 
-//       //x_and
-//       case J9BCiand: iand(state); break;
-//       case J9BCland: land(state); break;
+      //x_and
+      case J9BCiand: binaryOperation(TR::Int32, BinaryOperator::and_); break;
+      case J9BCland: binaryOperation(TR::Int64, BinaryOperator::and_); break;
 
-//       //x_or
-//       case J9BCior: ior(state); break;
-//       case J9BClor: lor(state); break;
+      //x_or
+      case J9BCior: binaryOperation(TR::Int32, BinaryOperator::or_); break;
+      case J9BClor: binaryOperation(TR::Int64, BinaryOperator::or_); break;
 
-//       //x_xor
-//       case J9BCixor: ixor(state); break;
-//       case J9BClxor: lxor(state); break;
+      //x_xor
+      case J9BCixor: binaryOperation(TR::Int32, BinaryOperator::xor_); break;
+      case J9BClxor: binaryOperation(TR::Int64, BinaryOperator::xor_); break;
 
-//       //iinc_x
-//       case J9BCiinc: iinc(state, bci.nextByte(), bci.nextByteSigned()); break;
-//       case J9BCiincw: iinc(state, bci.next2Bytes(), bci.next2BytesSigned()); break;
+      //iinc_x 
 
-//       //i2_x
-//       case J9BCi2b: i2b(state); break;
-//       case J9BCi2c: i2c(state); break;
-//       case J9BCi2d: i2d(state); break;
-//       case J9BCi2f: i2f(state); break;
-//       case J9BCi2l: i2l(state); break;
-//       case J9BCi2s: i2s(state); break;
+      case J9BCiinc: iinc(nextByte(), nextByteSigned()); break;
+      case J9BCiincw: iinc(next2Bytes(), next2BytesSigned()); break;
+
+      //i2_x
+      case J9BCi2b: conversion(TR::Int32, TR::Int8); break;
+      case J9BCi2c: conversion(TR::Int32, TR::Int16); break;
+      case J9BCi2d: conversion(TR::Int32, TR::Double); break;
+      case J9BCi2f: conversion(TR::Int32, TR::Float); break;
+      case J9BCi2l: conversion(TR::Int32, TR::Int64); break;
+      case J9BCi2s: conversion(TR::Int32, TR::Int16); break;
       
-//       //l2_x
-//       case J9BCl2d: l2d(state); break;
-//       case J9BCl2f: l2f(state); break;
-//       case J9BCl2i: l2i(state); break;
+      //l2_x
+      case J9BCl2d: conversion(TR::Int64, TR::Double); break;
+      case J9BCl2f: conversion(TR::Int64, TR::Float); break;
+      case J9BCl2i: conversion(TR::Int64, TR::Int32); break;
 
-//       //d2_x
-//       case J9BCd2f: d2f(state); break;
-//       case J9BCd2i: d2i(state); break;
-//       case J9BCd2l: d2l(state); break;
+      //d2_x
+      case J9BCd2f: conversion(TR::Double, TR::Float); break;
+      case J9BCd2i: conversion(TR::Double, TR::Int32); break;
+      case J9BCd2l: conversion(TR::Double, TR::Int64); break;
 
-//       //f2_x
-//       case J9BCf2d: f2d(state); break;
-//       case J9BCf2i: f2i(state); break;
-//       case J9BCf2l: f2l(state); break;
+      //f2_x
+      case J9BCf2d: conversion(TR::Float, TR::Double); break;
+      case J9BCf2i: conversion(TR::Float, TR::Int32); break;
+      case J9BCf2l: conversion(TR::Float, TR::Int64); break;
 
-//       //x_cmp_x
-//       case J9BCdcmpl: dcmpl(state); break;
-//       case J9BCdcmpg: dcmpg(state); break;
-//       case J9BCfcmpl: fcmpl(state); break;
-//       case J9BCfcmpg: fcmpg(state); break;
-//       case J9BClcmp: lcmp(state); break;
+      //x_cmp_x
+      case J9BCdcmpl: comparison(TR::Double, ComparisonOperator::cmp); break;
+      case J9BCdcmpg: comparison(TR::Double, ComparisonOperator::cmp); break;
+      case J9BCfcmpl: comparison(TR::Float, ComparisonOperator::cmp); break;
+      case J9BCfcmpg: comparison(TR::Float, ComparisonOperator::cmp); break;
+      case J9BClcmp: comparison(TR::Int64, ComparisonOperator::cmp); break;
 
-//       //if_x
-//       case J9BCifeq: ifeq(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
-//       case J9BCifge: ifge(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
-//       case J9BCifgt: ifgt(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
-//       case J9BCifle: ifle(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
-//       case J9BCiflt: iflt(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
-//       case J9BCifne: ifne(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
+      //if_x
+      case J9BCifeq: conditionalBranch(TR::Int32, next2BytesSigned(), ConditionalBranchOperator::eq); break;
+      case J9BCifge: conditionalBranch(TR::Int32, next2BytesSigned(), ConditionalBranchOperator::ge); break;
+      case J9BCifgt: conditionalBranch(TR::Int32, next2BytesSigned(), ConditionalBranchOperator::gt); break;
+      case J9BCifle: conditionalBranch(TR::Int32, next2BytesSigned(), ConditionalBranchOperator::le); break;
+      case J9BCiflt: conditionalBranch(TR::Int32, next2BytesSigned(), ConditionalBranchOperator::lt); break;
+      case J9BCifne: conditionalBranch(TR::Int32, next2BytesSigned(), ConditionalBranchOperator::ne); break;
 
-//       //if_x_null
-//       case J9BCifnonnull: ifnonnull(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
-//       case J9BCifnull: ifnull(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
+      //if_x_null
+      case J9BCifnonnull: conditionalBranch(TR::Address, next2BytesSigned(), ConditionalBranchOperator::nonnull); break;
+      case J9BCifnull: conditionalBranch(TR::Address, next2BytesSigned(), ConditionalBranchOperator::null); break;
 
-//       //ificmp_x
-//       case J9BCificmpeq: ificmpeq(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
-//       case J9BCificmpge: ificmpge(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
-//       case J9BCificmpgt: ificmpgt(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
-//       case J9BCificmple: ificmple(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
-//       case J9BCificmplt: ificmplt(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
-//       case J9BCificmpne: ificmpne(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
+      //ificmp_x
+      case J9BCificmpeq: conditionalBranch(TR::Int32, next2BytesSigned(), ConditionalBranchOperator::cmpeq); break;
+      case J9BCificmpge: conditionalBranch(TR::Int32, next2BytesSigned(), ConditionalBranchOperator::cmpge); break;
+      case J9BCificmpgt: conditionalBranch(TR::Int32, next2BytesSigned(), ConditionalBranchOperator::cmpgt); break;
+      case J9BCificmple: conditionalBranch(TR::Int32, next2BytesSigned(), ConditionalBranchOperator::cmple); break;
+      case J9BCificmplt: conditionalBranch(TR::Int32, next2BytesSigned(), ConditionalBranchOperator::cmplt); break;
+      case J9BCificmpne: conditionalBranch(TR::Int32, next2BytesSigned(), ConditionalBranchOperator::cmpne); break;
 
-//       //ifacmp_x
-//       case J9BCifacmpeq: ifacmpeq(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break; 
-//       case J9BCifacmpne: ifacmpne(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break; 
+      //ifacmp_x
+      case J9BCifacmpeq: conditionalBranch(TR::Address, next2BytesSigned(), ConditionalBranchOperator::cmpeq); break; 
+      case J9BCifacmpne: conditionalBranch(TR::Address, next2BytesSigned(), ConditionalBranchOperator::cmpne); break; 
 
-//       //goto_x
-//       case J9BCgoto: _goto(state, bci.next2BytesSigned()); break;
-//       case J9BCgotow: _gotow(state, bci.next4BytesSigned()); break;
+      //goto_x
+      case J9BCgoto: goto_(next2BytesSigned()); break;
+      case J9BCgotow: goto_(next4BytesSigned()); break;
 
-//       //x_switch
-//       case J9BClookupswitch: lookupswitch(state); break;
-//       case J9BCtableswitch: tableswitch(state); break;
+      //x_switch
+      case J9BClookupswitch: switch_(true); break;
+      case J9BCtableswitch: switch_(false); break;
 
-//       //get_x
-//       case J9BCgetfield: getfield(state, bci.next2Bytes()); break;
-//       case J9BCgetstatic: getstatic(state, bci.next2Bytes()); break;
+      //get_x
+      case J9BCgetfield: get(false); break;
+      case J9BCgetstatic: get(true); break;
 
-//       //put_x
-//       case J9BCputfield: putfield(state, bci.next2Bytes()); break;
-//       case J9BCputstatic: putstatic(state, bci.next2Bytes()); break;
+      //put_x
+      case J9BCputfield: put(false); break;
+      case J9BCputstatic: put(true); break;
 
-//       //x_newarray
-//       case J9BCnewarray: newarray(state, bci.nextByte()); break;
-//       case J9BCanewarray: anewarray(state, bci.next2Bytes()); break;
-//       case J9BCmultianewarray: multianewarray(state, bci.next2Bytes(), bci.nextByte(3)); break;
+      //x_newarray
+      case J9BCnewarray: newarray(); break;
+      case J9BCanewarray: anewarray(); break;
+      case J9BCmultianewarray: multianewarray(nextByte(3)); break;
 
-//       //monitor_x
-//       case J9BCmonitorenter: monitorenter(state); break;
-//       case J9BCmonitorexit: monitorexit(state); break;
+      //monitor_x
+      case J9BCmonitorenter: monitor(true); break;
+      case J9BCmonitorexit: monitor(false); break;
       
-//       case J9BCnew: _new(state, bci.next2Bytes()); break;
+      case J9BCnew: new_(); break;
 
-//       case J9BCarraylength: arraylength(state); break;
+      case J9BCarraylength: arraylength(); break;
 
-//       case J9BCathrow: athrow(state); break;
+      case J9BCathrow: athrow(); break;
       
-//       case J9BCcheckcast: checkcast(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
+      case J9BCcheckcast: checkcast(); break;
 
-//       case J9BCinstanceof: instanceof(state, bci.next2Bytes(), bci.currentByteCodeIndex()); break;
+      case J9BCinstanceof: instanceof(); break;
 
-//       case J9BCwide: /* does this need to be handled? */ break;
+      case J9BCwide: /* does this need to be handled? */ break;
 
-//       //invoke_x
-//       case J9BCinvokedynamic: if (comp()->getOption(TR_TraceAbstractInterpretation)) traceMsg(comp(), "Encounter invokedynamic. Abort abstract interpreting this method.\n"); return false; break;
-//       case J9BCinvokeinterface: invokeinterface(state, bci.currentByteCodeIndex(), bci.next2Bytes(), block); break;
-//       case J9BCinvokeinterface2: /*how should we handle invokeinterface2? */ break;
-//       case J9BCinvokespecial: invokespecial(state, bci.currentByteCodeIndex(), bci.next2Bytes(),block); break;
-//       case J9BCinvokestatic: invokestatic(state, bci.currentByteCodeIndex(), bci.next2Bytes(), block); break;
-//       case J9BCinvokevirtual: invokevirtual(state, bci.currentByteCodeIndex(), bci.next2Bytes(),block);break;
-//       case J9BCinvokespecialsplit: invokespecial(state, bci.currentByteCodeIndex(), bci.next2Bytes() | J9_SPECIAL_SPLIT_TABLE_INDEX_FLAG, block); break;
-//       case J9BCinvokestaticsplit: invokestatic(state, bci.currentByteCodeIndex(), bci.next2Bytes() | J9_STATIC_SPLIT_TABLE_INDEX_FLAG, block); break;
+      //invoke_x
+      case J9BCinvokedynamic:
+         if (comp()->getOption(TR_TraceAbstractInterpretation)) 
+            traceMsg(comp(), "Encounter invokedynamic. Abort abstract interpreting method %s.\n", _callerMethodSymbol->signature(comp()->trMemory())); 
+            return false; 
+            break;
+      case J9BCinvokeinterface: invoke(TR::MethodSymbol::Kinds::Interface); break;
+      case J9BCinvokeinterface2: /*how should we handle invokeinterface2? */ break;
+      case J9BCinvokespecial: invoke(TR::MethodSymbol::Kinds::Special); break;
+      case J9BCinvokestatic: invoke(TR::MethodSymbol::Kinds::Static); break;
+      case J9BCinvokevirtual: invoke(TR::MethodSymbol::Kinds::Virtual); break;
+      case J9BCinvokespecialsplit: invoke(TR::MethodSymbol::Kinds::Special); break;
+      case J9BCinvokestaticsplit: invoke(TR::MethodSymbol::Kinds::Static); break;
    
-//       //return_x: to be implemented in the future for backward analysis
-//       case J9BCReturnC: state->pop(); break;
-//       case J9BCReturnS: state->pop(); break;
-//       case J9BCReturnB: state->pop(); break;
-//       case J9BCReturnZ: state->pop(); break;
-//       case J9BCgenericReturn: state->getStackSize() != 0 ? state->pop() && state->getStackSize() && state->pop() : 0; break; 
+      //return_x: to be implemented in the future
+      case J9BCReturnC: return_(TR::Int16); break;
+      case J9BCReturnS: return_(TR::Int16); break;
+      case J9BCReturnB: return_(TR::Int8); break;
+      case J9BCReturnZ: return_(TR::Int32, true); break; //mask the lowest bit and return
+      case J9BCgenericReturn: return_(_callerMethod->returnType()); break; 
       
-//       default:
-//       break;
-//       }
+      default:
+      break;
+      }
 
-//    return true;
-//    }
+   return true; //This bytecode is successfully interpreted
+   }
+
+void AbsInterpreter::return_(TR::DataType type, bool oneBit)
+   {
+   if (type == TR::NoType)
+      return;
+
+   AbsState* state = currentBlock()->getAbsState();
+   if (type.isDouble() || type.isInt64())
+      state->pop();
+
+   AbsValue* value = state->pop();
+   printf("Return value %s, given type %s\n", TR::DataType::getName(value->getDataType()), TR::DataType::getName(type));
+   TR_ASSERT_FATAL(type == TR::Int16 || type == TR::Int8 ? value->getDataType() == TR::Int32 : value->getDataType() == type, "Unexpected type");
+   // switch (type)
+   //    {
+   //    default:
+
+   //       TR_ASSERT_FATAL(false, "Invalid type");
+   //       break;
+   //    }
+   }
+
 void AbsInterpreter::constant(int32_t i)
    {
    AbsState* state = currentBlock()->getAbsState();
-   AbsValue* value = AbsValue::createIntConst(i, comp(), vp());
+   AbsValue* value = AbsValue::createIntConst(i, region(), vp());
    state->push(value);
    }
 
@@ -876,14 +906,15 @@ void AbsInterpreter::constant(double d)
 void AbsInterpreter::constantNull()
    {
    AbsState* state = currentBlock()->getAbsState();
-   AbsValue* value = AbsValue::createNullObject(reigon(), vp());
+   AbsValue* value = AbsValue::createNullObject(region(), vp());
    state->push(value);
    }
 
-void AbsInterpreter::ldc(int32_t cpIndex)
+void AbsInterpreter::ldc(bool wide)
    {
    AbsState* state = currentBlock()->getAbsState();
 
+   int32_t cpIndex = wide ? next2Bytes() : nextByte();
    TR::DataType type = _callerMethod->getLDCType(cpIndex);
 
    switch (type)
@@ -936,7 +967,7 @@ void AbsInterpreter::ldc(int32_t cpIndex)
          }
       default:
          TR_ASSERT_FATAL(false, "Invalid type");   
-         break
+         break;
       }
    }
 
@@ -951,6 +982,7 @@ void AbsInterpreter::load(TR::DataType type, int32_t index)
       case TR::Address:
          {
          AbsValue *value = state->at(index);
+         TR_ASSERT_FATAL(value->getDataType() == type, "Unexpected type");
          state->push(value);
          break;
          }
@@ -958,6 +990,7 @@ void AbsInterpreter::load(TR::DataType type, int32_t index)
       case TR::Double:
          {
          AbsValue *value1 = state->at(index);
+         TR_ASSERT_FATAL(value1->getDataType() == type, "Unexpected type");
          AbsValue *value2 = state->at(index + 1);
          state->push(value1);
          state->push(value2);
@@ -980,6 +1013,7 @@ void AbsInterpreter::store(TR::DataType type, int32_t index)
       case TR::Address:
          {
          AbsValue* value = state->pop();
+         TR_ASSERT_FATAL(value->getDataType() == type, "Unexpected type");
          state->set(index, value);
          break;
          }
@@ -988,6 +1022,7 @@ void AbsInterpreter::store(TR::DataType type, int32_t index)
          {
          AbsValue* value2 = state->pop();
          AbsValue* value1 = state->pop();
+         TR_ASSERT_FATAL(value1->getDataType() == type, "Unexpected type");
          state->set(index, value1);
          state->set(index+1, value2);
          break;
@@ -1003,7 +1038,10 @@ void AbsInterpreter::arrayLoad(TR::DataType type)
    AbsState* state = currentBlock()->getAbsState();
 
    AbsValue *index = state->pop();
+   TR_ASSERT_FATAL(index->getDataType() == TR::Int32, "Unexpected type");
+
    AbsValue *arrayRef = state->pop();
+   TR_ASSERT_FATAL(arrayRef->getDataType() == TR::Address, "Unexpected type");
 
    switch (type)
       {
@@ -1057,8 +1095,13 @@ void AbsInterpreter::arrayStore(TR::DataType type)
       state->pop(); //dummy
 
    AbsValue* value = state->pop();
+   TR_ASSERT_FATAL(type == TR::Int8 || type == TR::Int16 ? value->getDataType() == TR::Int32 : value->getDataType() == type, "Unexpected type");
+
    AbsValue *index = state->pop();
+   TR_ASSERT_FATAL(index->getDataType() == TR::Int32, "Unexpected type");
+
    AbsValue *arrayRef = state->pop();
+   TR_ASSERT_FATAL(arrayRef->getDataType() == TR::Address, "Unexpected type");
 
    //heap is being not modeled
    switch (type)
@@ -1085,11 +1128,13 @@ void AbsInterpreter::binaryOperation(TR::DataType type, BinaryOperator op)
       state->pop(); //dummy
       
    AbsValue* value2 = state->pop();
+   TR_ASSERT_FATAL(value2->getDataType() == type, "Unexpected type");
 
    if (type.isDouble() || type.isInt64())
       state->pop(); //dummy
       
    AbsValue* value1 = state->pop();
+   TR_ASSERT_FATAL(value1->getDataType() == type, "Unexpected type");
 
    switch (type)
       {
@@ -1254,10 +1299,11 @@ void AbsInterpreter::binaryOperation(TR::DataType type, BinaryOperator op)
 void AbsInterpreter::unaryOperation(TR::DataType type, UnaryOperator op)
    {
    AbsState* state = currentBlock()->getAbsState();
-   if (type.isDouble() || type.isInt32())
+   if (type.isDouble() || type.isInt64())
       state->pop();
    
    AbsValue* value = state->pop();
+   TR_ASSERT_FATAL(value->getDataType() == type, "Unexpected type");
 
    switch (type)
       {
@@ -1354,6 +1400,14 @@ void AbsInterpreter::nop()
    {
    }
 
+void AbsInterpreter::swap()
+   {
+   AbsState* state = currentBlock()->getAbsState();
+   AbsValue* value1 = state->pop();
+   AbsValue* value2 = state->pop();
+   state->push(value1);
+   state->push(value2);
+   }
 
 void AbsInterpreter::dup(int32_t size, int32_t delta)  
    {
@@ -1362,96 +1416,16 @@ void AbsInterpreter::dup(int32_t size, int32_t delta)
 
    AbsState* state = currentBlock()->getAbsState();
 
-   switch (size)
-      {
-      case 1:
-         {
-         switch (delta)
-            {
-            case 0: //dup
-               {
-               AbsValue* value = state->pop();
-               state->push(value);
-               state->push(AbsValue::create(value, region()));
-               break;
-               }
-            case 1: //dupx1
-               {
-               AbsValue* value1 = state->pop();
-               AbsValue* value2 = state->pop();
-               state->push(value1);
-               state->push(value2);
-               state->push(AbsValue::create(value1, region()));
-               break;
-               }
-            case 2: //dupx2
-               {
-               AbsValue *value1 = state->pop();
-               AbsValue *value2 = state->pop();
-               AbsValue *value3 = state->pop();
-               state->push(value1);
-               state->push(value3);
-               state->push(value2);
-               state->push(AbsValue::create(value1, region()));
-               break;
-               }
-            default:
-               TR_ASSERT_FATAL(false, "Invalid delta");
-               break;
-            }
-         }
+   AbsValue* temp[size + delta];
 
-      case 2:
-         {
-         switch (delta)
-            {
-            case 0: //dup2
-               {
-               AbsValue *value1 = state->pop();
-               AbsValue *value2 = state->pop();
-               state->push(value2);
-               state->push(value1);
-               state->push(AbsValue::create(value2, region()));
-               state->push(AbsValue::create(value1, region()));
-               break;
-               }
-            case 1: //dup2x1
-               {
-               AbsValue *value1 = state->pop();
-               AbsValue *value2 = state->pop();
-               AbsValue *value3 = state->pop();
-               state->push(value2);
-               state->push(value1);
-               state->push(value3);
-               state->push(AbsValue::create(value2, region()));
-               state->push(AbsValue::create(value1, region()));
-               break;
-               }
-            case 2: //dup2x2
-               {
-               AbsValue *value1 = state->pop();
-               AbsValue *value2 = state->pop();
-               AbsValue *value3 = state->pop();
-               AbsValue *value4 = state->pop();
-               state->push(value2);
-               state->push(value1);
-               state->push(value4);
-               state->push(value3);
-               state->push(AbsValue::create(value2, region()));
-               state->push(AbsValue::create(value1, region()));
-               break;
-               }
-            default:
-               TR_ASSERT_FATAL(false, "Invalid delta");
-               break;
-            }
-         }
-      default:
-         TR_ASSERT_FATAL(false, "Invalid size");
-         break;
-         
+   for (int32_t i = 0; i < size + delta; i ++)
+      temp[i] = state->pop();
+   
+   for (int32_t i = size - 1 ; i >= 0 ; i --)
+      state->push(AbsValue::create(temp[i], region())); //copy the top X values of the stack
 
-      }
+   for (int32_t i = size + delta - 1; i >= 0 ; i --)
+      state->push(temp[i]); //push the values back to stack
    }
 
 void AbsInterpreter::shift(TR::DataType type, ShiftOperator op)
@@ -1475,13 +1449,13 @@ void AbsInterpreter::shift(TR::DataType type, ShiftOperator op)
             int32_t resultVal;
             switch (op)
                {
-               case: ShiftOperator::shl:
+               case ShiftOperator::shl:
                   resultVal = intVal << shiftAmountVal;
                   break;
-               case: ShiftOperator::shr:
+               case ShiftOperator::shr:
                   resultVal = intVal >> shiftAmountVal;
                   break;
-               case: ShiftOperator::ushr:
+               case ShiftOperator::ushr:
                   resultVal = (uint32_t)intVal >> shiftAmountVal; 
                   break;
                default:
@@ -1510,27 +1484,31 @@ void AbsInterpreter::shift(TR::DataType type, ShiftOperator op)
             int64_t resultVal;
             switch (op)
                {
-               case: ShiftOperator::shl:
-                  resultVal = intVal << shiftAmountVal;
+               case ShiftOperator::shl:
+                  resultVal = longVal << shiftAmountVal;
                   break;
-               case: ShiftOperator::shr:
-                  resultVal = intVal >> shiftAmountVal;
+               case ShiftOperator::shr:
+                  resultVal = longVal >> shiftAmountVal;
                   break;
-               case: ShiftOperator::ushr:
-                  resultVal = (uint64_t)intVal >> shiftAmountVal; 
+               case ShiftOperator::ushr:
+                  resultVal = (uint64_t)longVal >> shiftAmountVal; 
                   break;
                default:
                   TR_ASSERT_FATAL(false, "Invalid shift operator");
                   break;
                }
-            AbsValue* result = AbsValue::createLongConst(resultVal, region(), vp());
-            state->push(result);
+            AbsValue* result1 = AbsValue::createLongConst(resultVal, region(), vp());
+            AbsValue* result2 = AbsValue::createDummyLong(region());
+            state->push(result1);
+            state->push(result2);
             break;
             }
          else 
             {
-            AbsValue* result = AbsValue::createTopLong(region());
-            state->push(result);
+            AbsValue* result1 = AbsValue::createTopLong(region());
+            AbsValue* result2 = AbsValue::createDummyLong(region());
+            state->push(result1);
+            state->push(result2);
             break;
             }
          break;
@@ -1545,10 +1523,11 @@ void AbsInterpreter::conversion(TR::DataType fromType, TR::DataType toType)
    {
    AbsState* state = currentBlock()->getAbsState();
 
-   if (fromType.isDouble() || fromType.isLong())
+   if (fromType.isDouble() || fromType.isInt64())
       state->pop(); //dummy
       
    AbsValue* value = state->pop();
+   TR_ASSERT_FATAL(value->getDataType() == fromType, "Unexpected type");
 
    switch (fromType)
       {
@@ -1604,7 +1583,7 @@ void AbsInterpreter::conversion(TR::DataType fromType, TR::DataType toType)
                AbsValue* result1 = AbsValue::createTopDouble(region());
                AbsValue* result2 = AbsValue::createDummyDouble(region());
                state->push(result1);
-               state->push(result2)
+               state->push(result2);
                break;
                }
             
@@ -1643,7 +1622,7 @@ void AbsInterpreter::conversion(TR::DataType fromType, TR::DataType toType)
                AbsValue* result1 = AbsValue::createTopDouble(region());
                AbsValue* result2 = AbsValue::createDummyDouble(region());
                state->push(result1);
-               state->push(result2)
+               state->push(result2);
                break;
                }
             
@@ -1690,7 +1669,7 @@ void AbsInterpreter::conversion(TR::DataType fromType, TR::DataType toType)
          }
 
          /*** Convert from float to X ***/
-         case TR::Double:
+         case TR::Float:
             {
             switch (toType)
                {            
@@ -1706,7 +1685,8 @@ void AbsInterpreter::conversion(TR::DataType fromType, TR::DataType toType)
                   AbsValue* result1 = AbsValue::createTopDouble(region());
                   AbsValue* result2 = AbsValue::createDummyDouble(region());
                   state->push(result1);
-                  state->push(result2)
+                  state->push(result2);
+                  break;
                   }
 
                case TR::Int64: //f2l
@@ -1740,11 +1720,13 @@ void AbsInterpreter::comparison(TR::DataType type, ComparisonOperator op)
       state->pop();
 
    AbsValue* value2 = state->pop();
+   TR_ASSERT_FATAL(value2->getDataType() == type, "Unexpected type");
 
    if (type.isDouble() || type.isInt64())
       state->pop();
 
    AbsValue* value1 = state->pop();
+   TR_ASSERT_FATAL(value1->getDataType() == type, "Unexpected type");
 
    switch(type)
       {
@@ -1829,6 +1811,7 @@ void AbsInterpreter::conditionalBranch(TR::DataType type, int32_t label, Conditi
       case ConditionalBranchOperator::nonnull:
          {
          AbsValue* value = state->pop();
+         TR_ASSERT_FATAL(value->getDataType() == type, "Unexpected type");
 
          if (value->isParameter() && !value->isImplicitParameter())
             {
@@ -1851,6 +1834,8 @@ void AbsInterpreter::conditionalBranch(TR::DataType type, int32_t label, Conditi
       case ConditionalBranchOperator::eq:
          {
          AbsValue* value = state->pop();
+         TR_ASSERT_FATAL(value->getDataType() == type, "Unexpected type");
+
          if (value->isParameter())
             {
             _methodSummary->addIfEq(value->getParamPosition());
@@ -1871,6 +1856,8 @@ void AbsInterpreter::conditionalBranch(TR::DataType type, int32_t label, Conditi
       case ConditionalBranchOperator::ne:
          {
          AbsValue* value = state->pop();
+         TR_ASSERT_FATAL(value->getDataType() == type, "Unexpected type");
+
          if (value->isParameter())
             {
             _methodSummary->addIfNe(value->getParamPosition());
@@ -1891,6 +1878,8 @@ void AbsInterpreter::conditionalBranch(TR::DataType type, int32_t label, Conditi
       case ConditionalBranchOperator::ge:
          {
          AbsValue* value = state->pop();
+         TR_ASSERT_FATAL(value->getDataType() == type, "Unexpected type");
+
          if (value->isParameter())
             {
             _methodSummary->addIfGe(value->getParamPosition());
@@ -1911,6 +1900,8 @@ void AbsInterpreter::conditionalBranch(TR::DataType type, int32_t label, Conditi
       case ConditionalBranchOperator::gt:
          {
          AbsValue* value = state->pop();
+         TR_ASSERT_FATAL(value->getDataType() == type, "Unexpected type");
+         
          if (value->isParameter())
             {
             _methodSummary->addIfGt(value->getParamPosition());
@@ -1931,6 +1922,8 @@ void AbsInterpreter::conditionalBranch(TR::DataType type, int32_t label, Conditi
       case ConditionalBranchOperator::le:
          {
          AbsValue* value = state->pop();
+         TR_ASSERT_FATAL(value->getDataType() == type, "Unexpected type");
+
          if (value->isParameter())
             {
             _methodSummary->addIfLe(value->getParamPosition());
@@ -1951,6 +1944,8 @@ void AbsInterpreter::conditionalBranch(TR::DataType type, int32_t label, Conditi
       case ConditionalBranchOperator::lt:
          {
          AbsValue* value = state->pop();
+         TR_ASSERT_FATAL(value->getDataType() == type, "Unexpected type");
+
          if (value->isParameter())
             {
             _methodSummary->addIfLt(value->getParamPosition());
@@ -1972,6 +1967,8 @@ void AbsInterpreter::conditionalBranch(TR::DataType type, int32_t label, Conditi
          {
          AbsValue* value2 = state->pop();
          AbsValue* value1 = state->pop();
+         TR_ASSERT_FATAL(value1->getDataType() == type, "Unexpected type");
+         TR_ASSERT_FATAL(value2->getDataType() == type, "Unexpected type");
    
          switch (type)
             {
@@ -1990,6 +1987,9 @@ void AbsInterpreter::conditionalBranch(TR::DataType type, int32_t label, Conditi
          {
          AbsValue* value2 = state->pop();
          AbsValue* value1 = state->pop();
+
+         TR_ASSERT_FATAL(value2->getDataType() == type, "Unexpected type");
+         TR_ASSERT_FATAL(value1->getDataType() == type, "Unexpected type");
    
          switch (type)
             {
@@ -2008,6 +2008,9 @@ void AbsInterpreter::conditionalBranch(TR::DataType type, int32_t label, Conditi
          {
          AbsValue* value2 = state->pop();
          AbsValue* value1 = state->pop();
+
+         TR_ASSERT_FATAL(value2->getDataType() == type, "Unexpected type");
+         TR_ASSERT_FATAL(value1->getDataType() == type, "Unexpected type");
    
          switch (type)
             {
@@ -2042,6 +2045,9 @@ void AbsInterpreter::conditionalBranch(TR::DataType type, int32_t label, Conditi
          {
          AbsValue* value2 = state->pop();
          AbsValue* value1 = state->pop();
+
+         TR_ASSERT_FATAL(value2->getDataType() == type, "Unexpected type");
+         TR_ASSERT_FATAL(value1->getDataType() == type, "Unexpected type");
    
          switch (type)
             {
@@ -2059,6 +2065,9 @@ void AbsInterpreter::conditionalBranch(TR::DataType type, int32_t label, Conditi
          {
          AbsValue* value2 = state->pop();
          AbsValue* value1 = state->pop();
+
+         TR_ASSERT_FATAL(value2->getDataType() == type, "Unexpected type");
+         TR_ASSERT_FATAL(value1->getDataType() == type, "Unexpected type");
    
          switch (type)
             {
@@ -2080,19 +2089,17 @@ void AbsInterpreter::conditionalBranch(TR::DataType type, int32_t label, Conditi
 void AbsInterpreter::new_()
    {
    AbsState* state = currentBlock()->getAbsState();
-
    int32_t cpIndex = next2Bytes();
    TR_OpaqueClassBlock* type = _callerMethod->getClassFromConstantPool(comp(), cpIndex);
    AbsValue* value = AbsValue::createClassObject(type, true, comp(), region(), vp());
    state->push(value);
    }
 
-void AbsInterpreter::multianewarray()
+void AbsInterpreter::multianewarray(int32_t dimension)
    {
    AbsState* state = currentBlock()->getAbsState();
 
    uint16_t cpIndex = next2Bytes();
-   uint8_t dimension = nextByte(3);
 
    TR_OpaqueClassBlock* arrayType = _callerMethod->getClassFromConstantPool(comp(), cpIndex);
 
@@ -2103,6 +2110,7 @@ void AbsInterpreter::multianewarray()
       }
 
    AbsValue* length = state->pop(); 
+   TR_ASSERT_FATAL(length->getDataType() == TR::Int32, "Unexpected type");
 
    if (length->isInt())
       {
@@ -2151,7 +2159,8 @@ void AbsInterpreter::newarray()
    
    TR_OpaqueClassBlock* arrayType = comp()->fe()->getClassFromNewArrayType(aType);
 
-   AbsValue *length = absState->pop();
+   AbsValue *length = state->pop();
+   TR_ASSERT_FATAL(length->getDataType() == TR::Int32, "Unexpected type");
 
    if (length->isInt())
       {
@@ -2187,6 +2196,7 @@ void AbsInterpreter::anewarray()
    TR_OpaqueClassBlock* arrayType = _callerMethod->getClassFromConstantPool(comp(), cpIndex);
 
    AbsValue *length = state->pop();
+   TR_ASSERT_FATAL(length->getDataType() == TR::Int32, "Unexpected type");
 
    if (length->isInt())
       {
@@ -2211,6 +2221,7 @@ void AbsInterpreter::arraylength()
    AbsState* state = currentBlock()->getAbsState();
 
    AbsValue* arrayRef = state->pop();
+   TR_ASSERT_FATAL(arrayRef->getDataType() == TR::Address, "Unexpected type");
 
    if (arrayRef->isParameter() && !arrayRef->isImplicitParameter())
       {
@@ -2221,6 +2232,7 @@ void AbsInterpreter::arraylength()
       {
       TR::VPArrayInfo* info = arrayRef->getConstraint()->getArrayInfo();
       AbsValue* result = NULL;
+
       if (info->lowBound() == info->highBound())
          {
          result = AbsValue::createIntConst(info->lowBound(), region(), vp());
@@ -2237,12 +2249,59 @@ void AbsInterpreter::arraylength()
    state->push(result);
    }
 
-//TODO: checkcast array types, primitive arrays
-//-- Checked
+void AbsInterpreter::instanceof()
+   {
+   AbsState* state = currentBlock()->getAbsState();
+
+   AbsValue *objectRef = state->pop();
+   TR_ASSERT_FATAL(objectRef->getDataType() == TR::Address, "Unexpected type");
+
+   int32_t cpIndex = next2Bytes();
+   TR_OpaqueClassBlock *classBlock = _callerMethod->getClassFromConstantPool(comp(), cpIndex); //The cast class to be compared with
+
+   //Add to the inlining summary
+   if (objectRef->isParameter() && !objectRef->isImplicitParameter())
+      {
+      _methodSummary->addInstanceOf(objectRef->getParamPosition(), classBlock);
+      }
+
+   if (objectRef->isNullObject())
+      {
+      AbsValue* result = AbsValue::createIntConst(0, region(), vp()); //false
+      state->push(result);
+      return;
+      }
+
+   if (objectRef->isObject())
+      {
+      if (classBlock && objectRef->getConstraint()->getClass())
+         {
+         TR_YesNoMaybe yesNoMaybe = comp()->fe()->isInstanceOf(objectRef->getConstraint()->getClass(), classBlock, true, true);
+         if( yesNoMaybe == TR_yes) //Instanceof must be true;
+            {
+            state->push(AbsValue::createIntConst(1,region(),vp()));
+            return;
+            } 
+         else if (yesNoMaybe = TR_no) //Instanceof must be false;
+            {
+            state->push(AbsValue::createIntConst(0,region(),vp()));
+            return;
+            }
+         }
+      }
+
+   state->push(AbsValue::createIntRange(0, 1, region(),vp()));
+   return;
+   }
+
 void AbsInterpreter::checkcast() 
    {
-   AbsValue *objRef = absState->pop();
+   AbsState* state = currentBlock()->getAbsState();
 
+   AbsValue *objRef = state->pop();
+   TR_ASSERT_FATAL(objRef->getDataType() == TR::Address, "Unexpected type");
+
+   int32_t cpIndex = next2Bytes();
    TR_OpaqueClassBlock* classBlock = _callerMethod->getClassFromConstantPool(comp(), cpIndex);
 
    //adding to method summary
@@ -2251,575 +2310,178 @@ void AbsInterpreter::checkcast()
       _methodSummary->addCheckCast(objRef->getParamPosition(), classBlock);
       }
 
-   if (objRef->hasConstraint())
+   if (objRef->isNullObject()) //Check cast null object, always succeed
       {
-      if (objRef->getConstraint()->asNullObject()) //Check cast null object, always succeed
-         {
-         absState->push(objRef);
-         return absState;
-         }
+      state->push(objRef);
+      return;
+      }
 
-      if (objRef->getConstraint()->asClass()) //check cast object
+   if (objRef->isObject())
+      {
+      if (classBlock && objRef->getConstraint()->getClass())
          {
-         TR::VPClass *classConstraint = objRef->getConstraint()->asClass();
-         TR::VPClassType *classType = classConstraint->getClassType();
-         if (classType && classType->getClass() && classBlock)
+         TR_YesNoMaybe yesNoMaybe = comp()->fe()->isInstanceOf(objRef->getConstraint()->getClass(), classBlock, true, true);
+         if (yesNoMaybe == TR_yes)
             {
-            TR_YesNoMaybe yesNoMaybe = comp()->fe()->isInstanceOf(classType->getClass(), classBlock, true, true);
-            if (yesNoMaybe == TR_yes)
+            if (classBlock == objRef->getConstraint()->getClass()) //cast into the same type, no change
                {
-               if (classBlock == classType->getClass()) //cast into the same type, no change
-                  {
-                  absState->push(objRef);
-                  return absState;
-                  }
-               else //can cast into a different type
-                  {
-                  absState->push(AbsValue::createClassObject(classBlock, true, comp(), region(), vp()));
-                  return absState;   
-                  }
+               state->push(objRef);
+               return;
+               }
+            else //cast into a different type
+               {
+               state->push(AbsValue::createClassObject(classBlock, true, comp(), region(), vp()));
+               return;   
                }
             }
          }
       }
 
-   absState->push(AbsValue::createTopObject(region()));
-   return absState;
+   state->push(AbsValue::createTopObject(region()));
    }
 
-
-//TODO: get object with actual type (Not just TR::Address)
-//-- Checked
-void AbsInterpreter::getstatic() 
+void AbsInterpreter::get(bool isStatic)
    {
-   void* staticAddress;
-
+   AbsState* state = currentBlock()->getAbsState();
+   int32_t cpIndex = next2Bytes();
    TR::DataType type;
 
-   bool isVolatile;
-   bool isPrivate;
-   bool isUnresolvedInVP;
-   bool isFinal;
-   _callerMethod->staticAttributes(
-               comp(),
-               cpIndex,
-               &staticAddress,
-               &type,
-               &isVolatile,
-               &isFinal,
-               &isPrivate, 
-               false, // isStore
-               &isUnresolvedInVP,
-               false); //needsAOTValidation
-
-   switch (type)
+   if (isStatic) //getstatic
       {
-      case TR::Int8:
-      case TR::Int16:
-      case TR::Int32:
-         absState->push(AbsValue::createTopInt(region()));
-         return absState;
-      case TR::Float:
-         absState->push(AbsValue::createTopFloat(region()));
-         return absState;
-      case TR::Double:
-         absState->push(AbsValue::createTopDouble(region()));
-         absState->push(AbsValue::createDummyDouble(region()));
-         return absState;
-      case TR::Int64:
-         absState->push(AbsValue::createTopLong(region()));
-         absState->push(AbsValue::createDummyLong(region()));
-         return absState;
-      case TR::Address:
-         absState->push(AbsValue::createTopObject(region()));
-         return absState;
-      default:
-         break;
+      void* a; bool b; bool c; bool d; bool e; //we don't care about those vars
+      _callerMethod->staticAttributes(comp(), cpIndex, &a, &type, &b, &c, &d, false, &e, false);
       }
-
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::getfield()
-   {
-   if (absState->top()->isParameter() && !absState->top()->isImplicitParameter()) //implict param won't be null checked.
+   else  //getfield
       {
-      _methodSummary->addNullCheck(absState->top()->getParamPosition());
+      AbsValue* objRef = state->pop();
+      TR_ASSERT_FATAL(objRef->getDataType() == TR::Address, "Unexpected type");
+
+      if (objRef->isParameter() && !objRef->isImplicitParameter())  
+         {
+         _methodSummary->addNullCheck(objRef->getParamPosition());
+         }
+
+      uint32_t a; bool b; bool c; bool d; bool e;
+      _callerMethod->fieldAttributes(comp(), cpIndex, &a, &type, &b, &c, &d, false, &e, false);
       }
-
-   AbsValue *objectref = absState->pop();
-   uint32_t fieldOffset;
-   TR::DataType type;
-
-   bool isVolatile;
-   bool isPrivate;
-   bool isUnresolvedInVP;
-   bool isFinal;
-   bool isResolved = _callerMethod->fieldAttributes(
-         comp(),
-         cpIndex,
-         &fieldOffset,
-         &type,
-         &isVolatile,
-         &isFinal,
-         &isPrivate, 
-         false, // isStore
-         &isUnresolvedInVP,
-         false); //needsAOTValidation
    
    switch (type)
       {
       case TR::Int8:
       case TR::Int16:
       case TR::Int32:
-         absState->push(AbsValue::createTopInt(region()));
-         return absState;
-      case TR::Float:
-         absState->push(AbsValue::createTopFloat(region()));
-         return absState;
-      case TR::Double:
-         absState->push(AbsValue::createTopDouble(region()));
-         absState->push(AbsValue::createDummyDouble(region()));
-         return absState;
+         state->push(AbsValue::createTopInt(region()));
+         break;
+      
       case TR::Int64:
-         absState->push(AbsValue::createTopLong(region()));
-         absState->push(AbsValue::createDummyLong(region()));
-         return absState;
+         state->push(AbsValue::createTopLong(region()));
+         state->push(AbsValue::createDummyLong(region()));
+         break;
+
+      case TR::Float:
+         state->push(AbsValue::createTopFloat(region()));
+         break;
+
+      case TR::Double:
+         state->push(AbsValue::createTopDouble(region()));
+         state->push(AbsValue::createDummyDouble(region()));
+         break;
+
       case TR::Address:
-         absState->push(AbsValue::createTopObject(region()));
-         return absState;
+         state->push(AbsValue::createTopObject(region()));
+         break;
+
       default:
+         TR_ASSERT_FATAL(false, "Invalid type");
          break;
       }
-   
-   return absState;
    }
 
-
-
-//TODO: instanceof <interface>. Current implementation does not support intereface. And instanceof array types
-//-- Checked
-void AbsInterpreter::instanceof()
+void AbsInterpreter::put(bool isStatic)
    {
-   AbsValue *objectRef = absState->pop();
-
-   TR_OpaqueClassBlock *block = _callerMethod->getClassFromConstantPool(comp(), cpIndex); //The cast class to be compared with
-   
-   //Add to the inlining summary
-   if (objectRef->isParameter() && !objectRef->isImplicitParameter())
-      {
-      _methodSummary->addInstanceOf(objectRef->getParamPosition(), block);
-      }
-      
-   if (objectRef->hasConstraint())
-      {
-      if (objectRef->getConstraint()->asNullObject()) // is null object. false
-         {
-         absState->push(AbsValue::createIntConst(0,region(),vp()));
-         return absState;
-         }
-
-      if (block && objectRef->getConstraint()->getClass()) //have the class types
-         {
-         if (objectRef->getConstraint()->asClass() || objectRef->getConstraint()->asConstString()) // is class object or string object
-            {
-            TR_YesNoMaybe yesNoMaybe = comp()->fe()->isInstanceOf(objectRef->getConstraint()->getClass(), block, false, true, true);
-
-            if( yesNoMaybe == TR_yes) //Instanceof must be true;
-               {
-               absState->push(AbsValue::createIntConst(1,region(),vp()));
-               return absState;
-               } 
-            else if (yesNoMaybe = TR_no) //Instanceof must be false;
-               {
-               absState->push(AbsValue::createIntConst(0,region(),vp()));
-               return absState;
-               }
-            }
-         }
-      }
-
-   absState->push(AbsValue::createIntRange(0,1,region(),vp()));
-   return absState;
-   }
-
-
-
-//-- Checked
-void AbsInterpreter::ifeq()
-   {
-   AbsValue *absValue = absState->top();
-   if (absValue->isParameter())
-      _methodSummary->addIfEq(absValue->getParamPosition());
-      
-   absState->pop();
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::ifne()
-   {
-
-   AbsValue* absValue = absState->top();
-   if (absValue->isParameter())
-      _methodSummary->addIfNe(absValue->getParamPosition());
-      
-   absState->pop();
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::iflt()
-   {
-   AbsValue* absValue = absState->top();
-   if (absValue->isParameter())
-      _methodSummary->addIfLt(absValue->getParamPosition());
-      
-   absState->pop();
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::ifle()
-   {
-
-   AbsValue* absValue = absState->top();
-   if (absValue->isParameter())
-      _methodSummary->addIfLe( absValue->getParamPosition());
-      
-   absState->pop();
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::ifgt()
-   {
-
-   AbsValue* absValue = absState->top();
-   if (absValue->isParameter())
-      _methodSummary->addIfGt(absValue->getParamPosition());
-      
-   absState->pop();
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::ifge() 
-   {
-   AbsValue* absValue = absState->top();
-   if (absValue->isParameter())
-      _methodSummary->addIfGe(absValue->getParamPosition());
-      
-   absState->pop();
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::ifnull() 
-   {
-   AbsValue* absValue = absState->top();
-   if (absValue->isParameter() && !absValue->isImplicitParameter())
-      _methodSummary->addIfNull(absValue->getParamPosition());
-
-   absState->pop();
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::ifnonnull()
-   {
-   AbsValue* absValue = absState->top();
-   if (absValue->isParameter() && !absValue->isImplicitParameter())
-      _methodSummary->addIfNonNull(absValue->getParamPosition());
-
-   absState->pop();
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::ificmpge()
-   {
-   absState->pop();
-   absState->pop();
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::ificmpeq()
-   {
-   absState->pop();
-   absState->pop();
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::ificmpne()
-   {
-   absState->pop();
-   absState->pop();
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::ificmplt()
-   {
-   absState->pop();
-   absState->pop();
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::ificmpgt()
-   {
-   absState->pop();
-   absState->pop();
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::ificmple()
-   {
-   absState->pop();
-   absState->pop();
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::ifacmpeq()
-   {
-   absState->pop();
-   absState->pop();
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::ifacmpne()
-   {
-   absState->pop();
-   absState->pop();
-   return absState;
-   }
-
-
-
-
-
-//-- Checked
-void AbsInterpreter::lookupswitch()
-   {
-   absState->pop();
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::tableswitch()
-   {
-   absState->pop();
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::iinc()
-   {
-   AbsValue *value = absState->at(index);
-   if (value->hasConstraint())
-      {
-      if (value->getConstraint()->asIntConst())
-         {
-         AbsValue* result = AbsValue::createIntConst(value->getConstraint()->asIntConst()->getInt() + incVal, region(), vp());
-         absState->set(index, result);
-         return absState;
-         }
-      
-      if (value->getConstraint()->asIntRange())
-         {
-         AbsValue* result = AbsValue::createIntRange(value->getConstraint()->getLowInt() + incVal, value->getConstraint()->getHighInt() + incVal, region(), vp());
-         absState->set(index, result);
-         return absState;
-         }
-      }
-
-   absState->set(index, AbsValue::createTopInt(region()));
-   return absState;
-   }
-
-//-- Checked
-void AbsInterpreter::putfield()
-   {
-   if (absState->top()->isParameter() && !absState->top()->isImplicitParameter())
-      {
-      _methodSummary->addNullCheck(absState->top()->getParamPosition());
-      }
-
-   absState->pop();
-   
-   uint32_t fieldOffset;
-   TR::DataType type;
-   bool isVolatile;
-   bool isPrivate;
-   bool isUnresolvedInVP;
-   bool isFinal;
-
-   _callerMethod->fieldAttributes(
-         comp(),
-         cpIndex,
-         &fieldOffset,
-         &type,
-         &isVolatile,
-         &isFinal,
-         &isPrivate, 
-         false, // isStore
-         &isUnresolvedInVP,
-         false); //needsAOTValidation
-
-   if (type == TR::Double || type == TR::Int64)
-      {
-      absState->pop();
-      absState->pop();
-      }
-   else
-      {
-      absState->pop();
-      }
-   
-   return absState;
-   }  
-
-//-- Checked
-void AbsInterpreter::putstatic()
-   {
-   void* staticAddress;
-
+   AbsState* state = currentBlock()->getAbsState();
+   int32_t cpIndex = next2Bytes();
    TR::DataType type;
 
-   bool isVolatile;
-   bool isPrivate;
-   bool isUnresolvedInVP;
-   bool isFinal;
-   _callerMethod->staticAttributes(
-            comp(),
-            cpIndex,
-            &staticAddress,
-            &type,
-            &isVolatile,
-            &isFinal,
-            &isPrivate, 
-            false, // isStore
-            &isUnresolvedInVP,
-            false); //needsAOTValidation
-
-   if (type == TR::Double || type == TR::Int64)
+   if (isStatic) //putstatic
       {
-      absState->pop();
-      absState->pop();
+      void* a; bool b; bool c; bool d; bool e; //we don't care about those vars
+      _callerMethod->staticAttributes(comp(), cpIndex, &a, &type, &b, &c, &d, false, &e, false);
       }
-   else
+   else  //putfield
       {
-      absState->pop();
+      uint32_t a; bool b; bool c; bool d; bool e;
+      _callerMethod->fieldAttributes(comp(), cpIndex, &a, &type, &b, &c, &d, false, &e, false);
+      }
+
+   if (type.isInt64() || type.isDouble())
+      state->pop();
+      
+   AbsValue* value = state->pop();
+
+   if (!isStatic) //putfield
+      {
+      AbsValue* objRef = state->pop();
+      TR_ASSERT_FATAL(objRef->getDataType() == TR::Address, "Unexpected type");
+
+      if (objRef->isParameter() && !objRef->isImplicitParameter())  
+         {
+         _methodSummary->addNullCheck(objRef->getParamPosition());
+         }
       }
    
-   return absState;
    }
 
-void AbsInterpreter::monitorenter()
+void AbsInterpreter::monitor(bool kind)
    {
-   // TODO: possible optimization
-   absState->pop();
-   return absState;
+   currentBlock()->getAbsState()->pop();
    }
 
-void AbsInterpreter::monitorexit()
+void AbsInterpreter::switch_(bool kind)
    {
-   // TODO: possible optimization
-   absState->pop();
-   return absState;
+   currentBlock()->getAbsState()->pop();
    }
 
-void AbsInterpreter::areturn()
+void AbsInterpreter::iinc(int32_t index, int32_t incVal)
    {
-   absState->pop();
-   return absState;
-   }
+   AbsState* state = currentBlock()->getAbsState();
 
-void AbsInterpreter::dreturn()
-   {
-   absState->pop();
-   absState->pop();
-   return absState;
+   AbsValue* value = state->at(index);
+   TR_ASSERT_FATAL(value->getDataType() == TR::Int32, "Unexpected type");
+
+   if (value->isIntConst())
+      {
+      AbsValue* result = AbsValue::createIntConst(value->getConstraint()->asIntConst()->getInt() + incVal, region(), vp());
+      state->set(index, result);
+      return;
+      }
+   
+   state->set(index, AbsValue::createTopInt(region()));
    }
 
 void AbsInterpreter::athrow()
    {
-   return absState;
    }
 
-
-
-
-
-void AbsInterpreter::_new()
+void AbsInterpreter::invoke(TR::MethodSymbol::Kinds kind) 
    {
-   TR_OpaqueClassBlock* type = _callerMethod->getClassFromConstantPool(comp(), cpIndex);
-   AbsValue* value = AbsValue::createClassObject(type, true, comp(), region(), vp());
-   absState->push(value);
-   return absState;
-   }
+   AbsState* state = currentBlock()->getAbsState();
 
+   int32_t cpIndex = next2Bytes();
 
+   //split
+   if (current() == J9BCinvokespecialsplit) cpIndex |= J9_SPECIAL_SPLIT_TABLE_INDEX_FLAG;
+   else if (current() == J9BCinvokestaticsplit) cpIndex |= J9_STATIC_SPLIT_TABLE_INDEX_FLAG;
 
-void AbsInterpreter::invokevirtual()
-   {
-   AbsValue* absValue = absState->top();
+   int32_t bcIndex = currentByteCodeIndex();
 
-   if (absValue->isParameter() && !absValue->isImplicitParameter())
-      {
-      _methodSummary->addNullCheck(absValue->getParamPosition());
-      }
+   TR::Block* callBlock = currentBlock();
 
-   invoke(bcIndex, cpIndex, TR::MethodSymbol::Kinds::Virtual, absState, block);
-   return absState;
-   }
-
-void AbsInterpreter::invokestatic()
-   {
-   invoke(bcIndex, cpIndex, TR::MethodSymbol::Kinds::Static, absState, block);
-   return absState;
-   }
-
-void AbsInterpreter::invokespecial()
-   {
-   AbsValue* absValue = absState->top();
-   if (absValue->isParameter() && !absValue->isImplicitParameter())
-      {
-      _methodSummary->addNullCheck(absValue->getParamPosition());
-      }
-
-   invoke(bcIndex, cpIndex, TR::MethodSymbol::Kinds::Special, absState, block);
-   return absState;
-   }
-
-void AbsInterpreter::invokedynamic()
-   {
-   return NULL;
-   }
-
-void AbsInterpreter::invokeinterface()
-   {
-   AbsValue* absValue = absState->top();
-   if (absValue->isParameter() && !absValue->isImplicitParameter())
-      {
-      _methodSummary->addNullCheck(absValue->getParamPosition());
-      }
-   invoke(bcIndex, cpIndex, TR::MethodSymbol::Kinds::Interface, absState, block);
-   return absState;
-   }
-
-void AbsInterpreter::invoke(int bcIndex, int cpIndex, TR::MethodSymbol::Kinds kind,  , TR::Block* block) 
-   {
    TR::Method *calleeMethod = comp()->fej9()->createMethod(comp()->trMemory(), _callerMethod->containingClass(), cpIndex);
    
-   TR_CallSite* callsite = findCallSiteTargets(_callerMethod, bcIndex, cpIndex, kind, _callerIndex, _callStack, block); // callsite can be NULL, such case will be handled by addChild().
+   printf(">>>> %s\n", calleeMethod->signature(comp()->trMemory()));
+
+   TR_CallSite* callsite = findCallSiteTargets(_callerMethod, bcIndex, cpIndex, kind, _callerIndex, _callStack, callBlock); // callsite can be NULL, such case will be handled by addChild().
 
    uint32_t numExplicitParams = calleeMethod->numberOfExplicitParameters();
    uint32_t numImplicitParams = kind == TR::MethodSymbol::Kinds::Static ? 0 : 1; 
@@ -2832,22 +2494,19 @@ void AbsInterpreter::invoke(int bcIndex, int cpIndex, TR::MethodSymbol::Kinds ki
 
       TR::DataType dataType = calleeMethod->parmType(numExplicitParams -i - 1);
       if (dataType == TR::Double || dataType == TR::Int64)
-         {
-         absState->pop();
-         absValue = absState->pop();
-         }
-      else
-         {
-         absValue = absState->pop();
-         }
+         state->pop();
+  
+      absValue = state->pop();
+      TR_ASSERT_FATAL(dataType == TR::Int8 || dataType == TR::Int16 ? absValue->getDataType() == TR::Int32 : absValue->getDataType() == dataType, "Unexpected type");
+         
 
       parameters->push_front(absValue);
       }
    
    if (numImplicitParams == 1)
-      parameters->push_front(absState->pop());
+      parameters->push_front(state->pop());
 
-   _idtBuilder->addChild(_idtNode, _callerIndex, callsite, parameters, _callStack ,block);
+   // _idtBuilder->addChild(_idtNode, _callerIndex, callsite, parameters, _callStack ,block);
 
    if (calleeMethod->isConstructor() || calleeMethod->returnType() == TR::NoType )
       return;
@@ -2858,21 +2517,21 @@ void AbsInterpreter::invoke(int bcIndex, int cpIndex, TR::MethodSymbol::Kinds ki
          case TR::Int32:
          case TR::Int16:
          case TR::Int8:
-            absState->push(AbsValue::createTopInt(region()));
+            state->push(AbsValue::createTopInt(region()));
             break;
          case TR::Float:
-            absState->push(AbsValue::createTopFloat(region()));
+            state->push(AbsValue::createTopFloat(region()));
             break;
          case TR::Address:
-            absState->push(AbsValue::createTopObject(region()));
+            state->push(AbsValue::createTopObject(region()));
             break;
          case TR::Double:
-            absState->push(AbsValue::createTopDouble(region()));
-            absState->push(AbsValue::createDummyDouble(region()));
+            state->push(AbsValue::createTopDouble(region()));
+            state->push(AbsValue::createDummyDouble(region()));
             break;
          case TR::Int64:
-            absState->push(AbsValue::createTopLong(region()));
-            absState->push(AbsValue::createDummyLong(region()));
+            state->push(AbsValue::createTopLong(region()));
+            state->push(AbsValue::createDummyLong(region()));
             break;
             
          default:
@@ -2947,7 +2606,7 @@ TR_CallSite* AbsInterpreter::findCallSiteTargets(
          symRef
       );
 
-   callStack->_methodSymbol = callStack->_methodSymbol ? callStack->_methodSymbol : callerSymbol;
+   //callStack->_methodSymbol = callStack->_methodSymbol ? callStack->_methodSymbol : callerSymbol;
    
    if (!callsite)
       return NULL;

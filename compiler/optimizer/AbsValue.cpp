@@ -128,7 +128,7 @@ AbsValue* AbsValue::createTopFloat(TR::Region& region)
 
 AbsValue* AbsValue::createTopDouble(TR::Region& region)
    {
-   return AbsValue::create(NULL, TR::Int64, region);
+   return AbsValue::create(NULL, TR::Double, region);
    }
 
 AbsValue* AbsValue::createDummyLong(TR::Region& region)
@@ -146,18 +146,26 @@ AbsValue* AbsValue::merge(AbsValue *other,OMR::ValuePropagation *vp)
    TR_ASSERT_FATAL(other, "Cannot merge with a NULL AbsValue");
 
    if (other->getDataType() != getDataType()) //when merging with a different DataType.
+      {
+      printf("~~~ Merge %s vs %s\n", TR::DataType::getName(other->getDataType()), TR::DataType::getName(getDataType()));
       return NULL;
+      }
+      
 
    if (other->isDummy() && isDummy()) //Both dummy
       return this;
    
    if (other->isDummy() || isDummy()) //when merging with a dummy absValue.
-      return NULL;
+   {
+   printf("~~~ Merge Dummy\n");
+   return NULL;
+   }
+      
 
-   if (!hasConstraint()) //self does not have a constraint. 
+   if (isTop()) //self does not have a constraint. 
       return this;
 
-   if (!other->hasConstraint()) //Other does not have a constraint.
+   if (other->isTop()) //Other does not have a constraint.
       {
       setToTop();
       return this;
@@ -173,7 +181,7 @@ AbsValue* AbsValue::merge(AbsValue *other,OMR::ValuePropagation *vp)
          mergedConstraint = TR::VPLongRange::create(vp, mergedConstraint->getLowLong(), mergedConstraint->getHighLong());
       }
 
-   setConstraint(mergedConstraint);
+   _constraint = mergedConstraint;
    return this;
    }
 
@@ -186,7 +194,7 @@ void AbsValue::print(TR::Compilation* comp, OMR::ValuePropagation *vp)
       traceMsg(comp, "DUMMY");
       }
    
-   if (hasConstraint())
+   if (!isTop())
       {
       traceMsg(comp, "Constraint: ");
       _constraint->print(vp);

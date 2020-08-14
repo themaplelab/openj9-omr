@@ -59,10 +59,10 @@ class AbsInterpreter : public TR_J9ByteCodeIterator, public TR::ReversePostorder
 
    void setStartBlockState();
 
-   // void transferAbsStates();
-   // void mergePredecessorsAbsStates();
+   void transferBlockStatesFromPredeccesors();
+   void mergePredecessorsAbsStates();
    
-   // bool interpretByteCode();
+   bool interpretByteCode();
       
    //For interpreting bytecode and updating AbsState
 
@@ -84,13 +84,15 @@ class AbsInterpreter : public TR_J9ByteCodeIterator, public TR::ReversePostorder
 
    void arrayStore(TR::DataType type);
 
-   void ldc(int32_t cpIndex);
+   void ldc(bool wide);
 
    void binaryOperation(TR::DataType type, BinaryOperator op);
 
    void unaryOperation(TR::DataType type, UnaryOperator op);
 
    void pop(int32_t size);
+
+   void swap();
 
    void dup(int32_t size, int32_t delta);
 
@@ -106,7 +108,7 @@ class AbsInterpreter : public TR_J9ByteCodeIterator, public TR::ReversePostorder
 
    void conditionalBranch(TR::DataType type, int32_t label, ConditionalBranchOperator op);
 
-   void return_(TR::DataType type);
+   void return_(TR::DataType type, bool oneBit=false);
 
    void new_();
 
@@ -114,7 +116,7 @@ class AbsInterpreter : public TR_J9ByteCodeIterator, public TR::ReversePostorder
 
    void anewarray();
 
-   void multianewarray();
+   void multianewarray(int32_t dimension);
 
    void arraylength();
 
@@ -122,212 +124,19 @@ class AbsInterpreter : public TR_J9ByteCodeIterator, public TR::ReversePostorder
 
    void checkcast();
 
-   void aaload();
-   void aastore();
-   void aconstnull();
-   void aload();
-   void aload0();
-   void aload0getfield();
-   void aload1();
-   void aload2();
-   void aload3();
-   void anewarray();
-   void areturn();
-   void arraylength();
-   void astore();
-   void astore0();
-   void astore1();
-   void astore2();
-   void astore3();
+   void get(bool isStatic);
+   void put(bool isStatic);
+
+   void iinc(int32_t index, int32_t incVal);
+
+   void monitor(bool kind); //true: enter, false: exit
+   void switch_(bool kind); //true: lookup, false: table
+
    void athrow();
-   void baload();
-   void bastore();
-   void bipush();
-   void caload();
-   void castore();
-   void checkcast();
-   void d2f();
-   void d2i();
-   void d2l();
-   void dadd();
-   void daload();
-   void dastore();
-   void dcmpl();
-   void dcmpg();
-   void dconst0();
-   void dconst1();
-   void ddiv();
-   void dload();
-   void dload0();
-   void dload1();
-   void dload2();
-   void dload3();
-   void dmul();
-   void dneg();
-   void drem();
-   void dreturn();
-   void dstore();
-   void dstore0();
-   void dstore1();
-   void dstore2();
-   void dstore3();
-   void dsub();
-   void dup();
-   void dupx1();
-   void dupx2();
-   void dup2();
-   void dup2x1();
-   void dup2x2();
-   void f2d();
-   void f2i();
-   void f2l();
-   void fadd();
-   void faload();
-   void fastore();
-   void fcmpl();
-   void fcmpg();
-   void fconst0();
-   void fconst1();
-   void fconst2();
-   void fdiv();
-   void fload();
-   void fload0();
-   void fload1();
-   void fload2();
-   void fload3();
-   void fmul();
-   void fneg();
-   void frem();
-   void freturn();
-   void fstore();
-   void fstore0();
-   void fstore1();
-   void fstore2();
-   void fstore3();
-   void fsub();
-   void getfield();
-   void getstatic();
-   void goto_();
-   void gotow();
-   void i2b();
-   void i2c();
-   void i2d();
-   void i2f();
-   void i2l();
-   void i2s();
-   void iadd();
-   void iaload();
-   void iand();
-   void iastore();
-   void iconstm1();
-   void iconst0();
-   void iconst1();
-   void iconst2();
-   void iconst3();
-   void iconst4();
-   void iconst5();
-   void idiv();
-   void ifacmpeq();
-   void ifacmpne();
-   void ificmpeq();
-   void ificmpge();
-   void ificmpgt();
-   void ificmplt();
-   void ificmple();
-   void ificmpne();
-   void ifeq();
-   void ifge();
-   void ifgt();
-   void ifle();
-   void iflt();
-   void ifne();
-   void ifnonnull();
-   void ifnull();
-   void iinc();
-   void iload(bool wide);
-   void iload0();
-   void iload1();
-   void iload2();
-   void iload3();
-   void imul();
-   void ineg();
-   void instanceof();
-   void invokedynamic();
-   void invokeinterface();
-   void invokespecial();
-   void invokestatic();
-   void invokevirtual();
-   void ior();
-   void irem();
-   void ishl();
-   void ishr();
-   void istore();
-   void istore0();
-   void istore1();
-   void istore2();
-   void istore3();
-   void isub();
-   void iushr();
-   void ixor();
-   void l2d();
-   void l2f();
-   void l2i();
-   void ladd();
-   void laload();
-   void land();
-   void lastore();
-   void lcmp();
-   void lconst0();
-   void lconst1();
-   void ldc(bool wide);
-   void ldcw();
-   void ldiv();
-   void lload();
-   void lload0();
-   void lload1();
-   void lload2();
-   void lload3();
-   void lmul();
-   void lneg();
-   void lookupswitch();
-   void lor();
-   void lrem();
-   void lshl();
-   void lshr();
-   void lstore();
-   void lstorew();
-   void lstore0();
-   void lstore1();
-   void lstore2();
-   void lstore3();
-   void lsub();
-   void lushr();
-   void lxor();
-   void monitorenter();
-   void monitorexit();
-   void multianewarray();
-   void new_();
-   void newarray();
-   void nop();
-   void pop();
-   void pop2();
-   void putfield();
-   void putstatic();
-   void saload();
-   void sastore();
-   void sipush();
-   void swap();
-   void tableswitch();
 
-   //Interpreter helpers
-   void invoke(int, int, TR::MethodSymbol::Kinds, AbsState* absState, TR::Block* block);
-   // void iconst(AbsState* absState, int n);
-   // void ldcString(int, AbsState*);
-   // void ldcAddress(int, AbsState*); 
-   // void ldcInt32(int, AbsState*); 
-   // void ldcInt64(int, AbsState*); 
-   // void ldcFloat(AbsState*);
-   // void ldcDouble(AbsState*);
+   void invoke(TR::MethodSymbol::Kinds kind);
+
+  
 
    TR::SymbolReference* getSymbolReference(TR::ResolvedMethodSymbol *callerSymbol, int cpIndex, TR::MethodSymbol::Kinds kind);
 

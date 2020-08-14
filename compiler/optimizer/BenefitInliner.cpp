@@ -21,7 +21,7 @@ int32_t OMR::BenefitInlinerWrapper::perform()
    {
   
    TR::ResolvedMethodSymbol * sym = comp()->getMethodSymbol();
-   //printf("======= %s ======\n\n\n",sym->signature(comp()->trMemory()));
+   printf("======= %s ======\n\n\n",sym->signature(comp()->trMemory()));
    TR::CFG *prevCFG = sym->getFlowGraph();
    // int32_t budget = getBudget(sym);
    // if (budget < 0)

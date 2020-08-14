@@ -42,6 +42,7 @@ void AbsOpStack::push(AbsValue* value)
    {
    TR_ASSERT_FATAL(value, "Push a NULL value");
    _stack.push_back(value);
+   printf("::::::push %d\n", size());
    }
 
 AbsValue* AbsOpStack::pop()
@@ -49,6 +50,7 @@ AbsValue* AbsOpStack::pop()
    TR_ASSERT_FATAL(size() > 0, "Pop an empty stack!");
    AbsValue *value = _stack.back();
    _stack.pop_back();
+   printf("::::::pop %d\n", size());
    return value;
    }
 
@@ -60,6 +62,7 @@ AbsValue* AbsOpStack::top()
 
 void AbsOpStack::merge(AbsOpStack &other,OMR::ValuePropagation *vp)
    {
+   printf("}}} merge stack %d vs %d }}}\n", other._stack.size(), _stack.size());
    TR_ASSERT_FATAL(other._stack.size() == _stack.size(), "Stacks have different sizes!");
 
    size_t size = _stack.size();

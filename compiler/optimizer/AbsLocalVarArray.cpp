@@ -50,6 +50,7 @@ void AbsLocalVarArray::merge(AbsLocalVarArray &other, OMR::ValuePropagation *vp)
 
    for (int i = 0; i < mergedSize; i++)
       {
+      printf("~~~Merge local var %d\n",i);
       AbsValue *selfValue = i < size() ? at(i) : NULL;
       AbsValue *otherValue = i < other.size() ? other.at(i) : NULL;
 
