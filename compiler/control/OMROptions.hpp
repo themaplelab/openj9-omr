@@ -346,17 +346,17 @@ enum TR_CompilationOptions
    TR_DisableStripMining                  = 0x00040000 + 8,
    TR_EnableSharedCacheTiming             = 0x00080000 + 8,
    TR_EnableTM                            = 0x00100000 + 8,
-   // Available                           = 0x00200000 + 8,
+   TR_EnableBenefitInliner                = 0x00200000 + 8,
    TR_NoOptServer                         = 0x00400000 + 8,
    TR_DisableDLTrecompilationPrevention   = 0x00800000 + 8,
-   // Available                           = 0x01000000 + 8,
+   TR_TraceAbstractInterpretation         = 0x01000000 + 8,
    TR_DisablePeekAOTResolutions           = 0x02000000 + 8,
-   // Available                           = 0x04000000 + 8,
-   // Available                           = 0x08000000 + 8,
+   TR_TraceBIIDTGen                       = 0x04000000 + 8,
+   TR_TraceBIProposal                     = 0x08000000 + 8,
    TR_DisableLiveRangeSplitter            = 0x10000000 + 8,
    TR_DisableHalfSlotSpills               = 0x20000000 + 8,
    TR_DisableMHInlineWithoutPeeking       = 0x40000000 + 8,
-   // Available                           = 0x80000000 + 8,
+   TR_TraceBISummary                      = 0x80000000 + 8,
 
 
    // Option word 9

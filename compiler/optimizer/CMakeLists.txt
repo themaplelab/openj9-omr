@@ -107,4 +107,8 @@ compiler_library(optimizer
 	${CMAKE_CURRENT_LIST_DIR}/abstractinterpreter/AbsOpStack.cpp
 	${CMAKE_CURRENT_LIST_DIR}/abstractinterpreter/AbsLocalVarArray.cpp
 	${CMAKE_CURRENT_LIST_DIR}/abstractinterpreter/AbsState.cpp
+	${CMAKE_CURRENT_LIST_DIR}/abstractinterpreter/IDT.cpp
+	${CMAKE_CURRENT_LIST_DIR}/abstractinterpreter/IDTNode.cpp
+	${CMAKE_CURRENT_LIST_DIR}/abstractinterpreter/InliningMethodSummary.cpp
+	${CMAKE_CURRENT_LIST_DIR}/abstractinterpreter/OMRIDTBuilder.cpp
 )
